@@ -9,7 +9,8 @@
     "test:live": "npm run build && node test/live.js",
     "test:browser": "npm run build && node test/browser.js",
     "test:all": "npm test && npm run test:live && npm run test:pcode && npm run test:browser",
-    "test:pcode": "npm run build && node test/pcode.js"
+    "test:pcode": "npm run build && node test/pcode.js",
+    "deploy": "./deploy.sh"
   },
   "devDependencies": {
     "jsdom": "^24.0.0",
@@ -28,5 +29,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/coseto6125/law-hover-bookmarklet.git"
-  }
+  },
+  "homepage": "https://law-hover-bookmarklet.pages.dev/"
 }

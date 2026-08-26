@@ -111,12 +111,15 @@ npm test              # 全部測試
 ### 部署到 Cloudflare Pages
 
 ```bash
-npx wrangler pages deploy docs --project-name law-hover-bookmarklet
+npm run deploy
 ```
 
-需先 `npx wrangler login`，或設定 `CLOUDFLARE_API_TOKEN` 與 `CLOUDFLARE_ACCOUNT_ID`。
-`wrangler.toml` 已設定 `pages_build_output_dir = "docs"`，也可直接在 Cloudflare
-儀表板接上此 repo 自動部署（建置指令 `node build/build.js`，輸出目錄 `docs`）。
+`deploy.sh` 會重新建置再上傳，確保線上安裝頁與原始碼同步。
+憑證取自 `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` 環境變數，
+未設定時會嘗試讀取 `$CF_ENV_FILE`（預設 `~/enor_agi/e-trending/.env`）。
+
+也可直接在 Cloudflare 儀表板接上此 repo 自動部署：
+建置指令 `node build/build.js`，輸出目錄 `docs`。
 
 安裝頁含可拖曳的按鈕與手動貼上兩條路徑，`test/dist.js` 會驗證兩者內容一致。
 
