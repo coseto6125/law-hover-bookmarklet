@@ -118,6 +118,38 @@ async function main() {
       !document.getElementById('mguide').className.includes('on')));
   }
 
+  console.log('\n\x1b[1m版本更新紀錄（eli5 + ADHD 設計）\x1b[0m');
+  {
+    const v = await page.evaluate(() => {
+      const sec = document.getElementById('changelog');
+      if (!sec) return null;
+      const t = sec.textContent;
+      return {
+        tag: (sec.querySelector('.ver-tag') || {}).textContent,
+        tldr: (sec.querySelector('.ver-tldr') || {}).textContent || '',
+        items: sec.querySelectorAll('.ver-item').length,
+        hasDetails: !!sec.querySelector('details'),
+        detailsOpen: sec.querySelector('details') ? sec.querySelector('details').open : null,
+        jargon: /Promise|regex|CSP|DOM|API|refactor/i.test(
+          sec.querySelector('.ver-tldr').textContent +
+          [...sec.querySelectorAll('.ver-item')].map(e => e.textContent).join('')),
+        remind: /重新拉一次書籤/.test(document.body.textContent),
+      };
+    });
+    ok('版本紀錄存在', !!v);
+    if (v) {
+      ok('標明版本 1.0.0', v.tag === '1.0.0', v.tag);
+      // ADHD：先給一句話結論，不必讀完
+      ok('開頭有一句話結論', /一句話/.test(v.tldr) && v.tldr.length < 90, v.tldr.slice(0, 50));
+      ok('條列可掃視（' + v.items + ' 項）', v.items >= 4 && v.items <= 8, String(v.items));
+      // eli5：主要內容不該出現技術術語
+      ok('主要內容不含技術術語', !v.jargon);
+      // ADHD：細節收折，不強迫閱讀
+      ok('技術細節收在折疊裡', v.hasDetails && v.detailsOpen === false);
+      ok('提醒更新後要重拉書籤', v.remind);
+    }
+  }
+
   console.log('\n\x1b[1m全頁對比符合 WCAG AA\x1b[0m');
   {
     // 使用者回報回報區的步驟序號對比不足（實測 1.37:1）

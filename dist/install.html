@@ -193,6 +193,41 @@ td b{font-weight:700}
 .callout p{margin:0}
 .callout p + p{margin-top:7px}
 
+/* ---------- 版本紀錄 ----------
+   ADHD 友善：先給一句話結論，內容可掃視不必讀完，細節收在折疊裡 */
+.ver{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);
+  overflow:hidden;box-shadow:var(--shadow-1)}
+.ver-head{display:flex;align-items:center;gap:11px;padding:15px 20px;
+  background:linear-gradient(90deg,rgba(156,43,43,.06),transparent);
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
+.ver-tag{font:700 17px/1 var(--serif);color:var(--seal);background:var(--seal-soft);
+  border:1.5px solid rgba(156,43,43,.3);border-radius:7px;padding:5px 12px}
+.ver-date{font-size:13px;color:var(--ink-3)}
+.ver-badge{margin-left:auto;font-size:12px;font-weight:700;color:#155249;
+  background:var(--accent-soft);border:1px solid #c9ded9;border-radius:999px;padding:4px 11px}
+.ver-tldr{padding:14px 20px;background:var(--warn-bg);border-bottom:1px solid var(--line);
+  font-size:.97rem;line-height:1.75}
+.ver-body{padding:8px 20px 16px}
+.ver-item{display:flex;gap:13px;align-items:flex-start;padding:11px 0;
+  border-bottom:1px solid #f2f0ea}
+.ver-item:last-child{border-bottom:none}
+.ver-ico{font-size:19px;line-height:1.4;flex:0 0 26px;text-align:center}
+.ver-item b{display:block;font-size:.97rem;margin-bottom:3px}
+.ver-item span{display:block;font-size:.89rem;color:var(--ink-2);line-height:1.75}
+.ver-more{border-top:1px solid var(--line);background:#faf9f6}
+.ver-more summary{cursor:pointer;padding:13px 20px;font-size:.9rem;color:var(--ink-2);
+  list-style:none;display:flex;align-items:center;gap:8px;transition:color .18s}
+.ver-more summary:hover{color:var(--seal)}
+.ver-more summary::-webkit-details-marker{display:none}
+.ver-more summary::before{content:"▸";font-size:11px;transition:transform .2s;display:inline-block}
+.ver-more[open] summary::before{transform:rotate(90deg)}
+.ver-more-b{padding:0 20px 18px 20px;font-size:.89rem;color:var(--ink-2);line-height:1.85}
+.ver-more-b p{margin:0 0 10px}
+.ver-more-b ul{margin:0 0 10px;padding-left:20px}
+.ver-more-b li{margin:7px 0}
+.ver-more-b u{text-decoration:underline;text-decoration-color:var(--seal);
+  text-underline-offset:2px}
+
 /* ---------- 回報區 ---------- */
 .rpt{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);
   padding:24px;box-shadow:var(--shadow-1);display:flex;flex-direction:column;gap:18px}
@@ -394,6 +429,7 @@ footer a{color:#1a4fa0}
     <a class="top-link hide-s" href="#faq">問題</a>
     <a class="top-link hide-s" href="#mobile">手機</a>
     <a class="top-link hide-s" href="#report">回報</a>
+    <a class="top-link" href="#changelog">v1.0.0</a>
     <a class="top-link" href="https://github.com/coseto6125/law-hover-bookmarklet" target="_blank" rel="noopener">原始碼</a>
     <div class="help-wrap">
       <button class="help-btn" id="helpBtn" aria-label="播放安裝教學動畫">?</button>
@@ -486,43 +522,33 @@ footer a{color:#1a4fa0}
     <div class="grid">
       <div class="card">
         <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h7a1 1 0 110 2H4a1 1 0 01-1-1z"/></svg></div>
-        <h3>各種數字寫法</h3>
-        <p>阿拉伯數字、全形數字、中文數字（第七十七條之二），以及「之X」條號都認得。</p>
-      </div>
-      <div class="card">
-        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.3.7l2.5 2.5a1 1 0 101.4-1.4L11 9.6V6z" clip-rule="evenodd"/></svg></div>
-        <h3>定位到項與款</h3>
-        <p>引用寫「第 97 條第 1 項第 3 款」時，面板會把那一項標黃，長條文不必自己找。</p>
+        <h3>各種條號寫法</h3>
+        <p>阿拉伯數字、全形、中文數字（第七十七條之二）、之X 條號都認得，並可定位到<b>第 X 項第 X 款</b>。</p>
       </div>
       <div class="card">
         <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.8A3 3 0 1113.2 9l-.9.9a1 1 0 01-1.4-1.4l.9-.9a1 1 0 10-1.4-1.4l-.9.9A1 1 0 019 4.8z"/><path d="M11 15.2A3 3 0 116.8 11l.9-.9a1 1 0 011.4 1.4l-.9.9a1 1 0 101.4 1.4l.9-.9a1 1 0 011.4 1.4z"/></svg></div>
-        <h3>裸條號自動判斷</h3>
-        <p>法規內文常寫「依第九十九條」不帶法規名，會自動指向當前頁面的法規。</p>
-      </div>
-      <div class="card">
-        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.3 2.3a1 1 0 011.4 0l7 7a1 1 0 01-1.4 1.4L15 10.4V16a2 2 0 01-2 2H7a2 2 0 01-2-2v-5.6l-.3.3a1 1 0 01-1.4-1.4l7-7z" clip-rule="evenodd"/></svg></div>
-        <h3>剝除公文前綴</h3>
-        <p>「案建築法」「不受土地法」「另依」這類黏在法規名前的字會自動剝掉。</p>
-      </div>
-      <div class="card">
-        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a1 1 0 011 1v4a1 1 0 11-2 0V6a1 1 0 011-1zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg></div>
-        <h3>查不到就明講</h3>
-        <p>條號驗證失敗時寧可不顯示並說明原因。<b>查不到比查錯安全。</b></p>
-      </div>
-      <div class="card">
-        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1 1 0 011 1V6h1.5a1 1 0 110 2H11v6a2 2 0 11-2 0V8H7.5a1 1 0 010-2H9V4.5a1 1 0 011-1z"/></svg></div>
-        <h3>名稱容錯</h3>
-        <p>「刑法」對得上官方全名「中華民國刑法」，名稱帶括號註記的法規也找得到。</p>
-      </div>
-      <div class="card">
-        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 01.6.2l6 4.5a1 1 0 01.4.8V15a2 2 0 01-2 2H5a2 2 0 01-2-2V7.5a1 1 0 01.4-.8l6-4.5A1 1 0 0110 2zm0 5a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></div>
-        <h3>釋字與憲判字</h3>
-        <p>「釋字第 748 號」「115 年憲判字第 6 號」滑過去直接顯示解釋文與爭點，不用另開視窗查。</p>
+        <h3>讀得懂公文的寫法</h3>
+        <p>「依第九十九條」這種沒寫法規名的<b>裸條號</b>會指向當前法規；「案建築法」「不受土地法」等前綴也會自動剝除。</p>
       </div>
       <div class="card">
         <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .28.16.54.4.67l3 1.5a.75.75 0 10.7-1.34L10.75 9.5V5z" clip-rule="evenodd"/></svg></div>
         <h3>這條改過沒有</h3>
-        <p>條號<b>標黃色的代表修正過</b>，一眼就看得出來，不必逐條滑。滑過去顯示修正次數與年份，並可彈窗開啟立法院法律系統查看<b>當年的條文全文與修法理由</b>。讀舊函釋時，拿今天的條文對照當年的見解是會誤讀的。</p>
+        <p>條號<b>標黃色代表修正過</b>，一眼看出哪些條動過。滑過去看修正次數與年份，並可彈窗開啟立法院查<b>當年的條文與修法理由</b>。</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 2a1 1 0 01.6.2l6 4.5a1 1 0 01.4.8V15a2 2 0 01-2 2H5a2 2 0 01-2-2V7.5a1 1 0 01.4-.8l6-4.5A1 1 0 0110 2zm0 5a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></div>
+        <h3>釋字與憲判字</h3>
+        <p>「釋字第 748 號」「115 年憲判字第 6 號」滑過去直接顯示<b>解釋文與爭點</b>，不用另開視窗。</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1 1 0 011 1V6h1.5a1 1 0 110 2H11v6a2 2 0 11-2 0V8H7.5a1 1 0 010-2H9V4.5a1 1 0 011-1z"/></svg></div>
+        <h3>中央與地方都能用</h3>
+        <p>全國法規資料庫，以及<b>全台 22 縣市</b>的地方法規系統。同一則書籤，在哪個站就查哪個站。</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a1 1 0 011 1v4a1 1 0 11-2 0V6a1 1 0 011-1zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg></div>
+        <h3>查不到就明講</h3>
+        <p>條號驗證失敗時寧可不顯示並說明原因。<b>查不到比查錯安全</b>，顯示錯誤條文會導致誤引。</p>
       </div>
     </div>
   </section>
@@ -534,7 +560,7 @@ footer a{color:#1a4fa0}
     <table>
       <tr><th style="width:26%">項目</th><th>說明</th></tr>
       <tr><td><b>安裝行為</b></td><td><span class="yes">無</span>　僅新增一則書籤，不寫入登錄檔、不需管理員權限，可隨時刪除且不留痕跡。</td></tr>
-      <tr><td><b>對外連線</b></td><td><span class="yes">無</span>　條文直接向你正在瀏覽的 <code>law.moj.gov.tw</code> 取得，<b>連線從未離開該網域</b>。</td></tr>
+      <tr><td><b>對外連線</b></td><td><span class="yes">無</span>　條文直接向<b>你正在瀏覽的那個網站</b>取得，連線從未離開該網域。</td></tr>
       <tr><td><b>伺服器</b></td><td><span class="yes">無</span>　<b>沒有屬於開發者的伺服器</b>，開發者看不到任何查詢紀錄。</td></tr>
       <tr><td><b>資料儲存</b></td><td><span class="yes">無</span>　快取只存在當前分頁的記憶體，關掉分頁即消失。</td></tr>
       <tr><td><b>原始碼</b></td><td><a href="https://github.com/coseto6125/law-hover-bookmarklet" target="_blank" rel="noopener">GitHub 公開</a>，MIT 授權，可自行檢視與建置。</td></tr>
@@ -736,6 +762,87 @@ footer a{color:#1a4fa0}
         <p><b>回報內容不含你正在瀏覽的公文。</b>只有網址、本頁法規名稱、標記結果樣本與錯誤記錄，送出前你都看得到，也可以自行刪改。</p>
       </div>
     </div>
+  </section>
+
+  <!-- ---------- 版本紀錄 ---------- -->
+  <section id="changelog">
+    <div class="sec-head"><span class="sec-num">版本</span><h2>更新紀錄</h2></div>
+    <p class="sec-sub">最新版本 <b>1.0.0</b>。<b>更新後請重新拉一次書籤</b>，舊書籤不會自動更新。</p>
+
+    <div class="ver">
+      <div class="ver-head">
+        <span class="ver-tag">1.0.0</span>
+        <span class="ver-date">2026-08-27</span>
+        <span class="ver-badge">首次發布</span>
+      </div>
+
+      <div class="ver-tldr">
+        <b>一句話：</b>滑過法條就看到條文，滑過條號就看到這條改過幾次，不用裝任何東西。
+      </div>
+
+      <div class="ver-body">
+        <div class="ver-item">
+          <span class="ver-ico">👀</span>
+          <div>
+            <b>看到法條，滑過去就好</b>
+            <span>條文出現在原地，不必另開視窗貼條號。中央法規與全台 22 縣市地方法規都能用。</span>
+          </div>
+        </div>
+        <div class="ver-item">
+          <span class="ver-ico">🟡</span>
+          <div>
+            <b>黃色條號 = 這條改過</b>
+            <span>不用逐條點開，掃一眼就知道哪幾條動過。滑過去看改了幾次、哪一年改的。</span>
+          </div>
+        </div>
+        <div class="ver-item">
+          <span class="ver-ico">📜</span>
+          <div>
+            <b>讀舊函釋不會誤判</b>
+            <span>可一鍵開立法院查<b>當年的條文與修法理由</b>。拿今天的條文對照當年的見解是會出錯的。</span>
+          </div>
+        </div>
+        <div class="ver-item">
+          <span class="ver-ico">⚖️</span>
+          <div>
+            <b>釋字與憲判字也認得</b>
+            <span>「釋字第 748 號」滑過去直接顯示解釋文與爭點。</span>
+          </div>
+        </div>
+        <div class="ver-item">
+          <span class="ver-ico">📱</span>
+          <div>
+            <b>手機也能用</b>
+            <span>同一則書籤，手機改成<b>用點的</b>。先在電腦加好書籤再同步過去。</span>
+          </div>
+        </div>
+        <div class="ver-item">
+          <span class="ver-ico">🛡️</span>
+          <div>
+            <b>寧可查不到，也不給錯的</b>
+            <span>抓回條文會先驗證確實是那一條才顯示。<b>查錯比查不到更危險。</b></span>
+          </div>
+        </div>
+      </div>
+
+      <details class="ver-more">
+        <summary>發布前修掉的問題（技術細節，可略過）</summary>
+        <div class="ver-more-b">
+          <p>發布前請兩位獨立的 AI 工程師做了兩輪程式碼審查，找出並修正 <b>8 個會顯示錯誤法條</b>的問題。這類錯誤最危險，因為使用者不會發現：</p>
+          <ul>
+            <li><b>連續條號綁錯法規</b>：「人口販運防制法第三十二條、<u>第三十三條</u>」的後半段被當成你正在讀的那部法，顯示完全無關的條文。</li>
+            <li><b>法規名把前一句吃進去</b>：「第一百六十四條及<u>民法</u>第九百零八條」被讀成「第一百六十四條及民法」，結果查不到。三個案例都取自現行條文。</li>
+            <li><b>條號驗證形同虛設</b>：要第 7 條卻拿到第 77 條時會直接顯示，這是最誤導人的方向。</li>
+            <li><b>快速滑動時面板串位</b>：先滑的條文較晚回來，覆蓋掉你正在看的那一條。</li>
+          </ul>
+          <p>目前有 <b>146 項自動測試</b>，包含對真實網站的隨機抽查，每次改版都會全部重跑。</p>
+        </div>
+      </details>
+    </div>
+
+    <p class="sec-sub" style="margin-top:16px">
+      完整技術紀錄見 <a href="https://github.com/coseto6125/law-hover-bookmarklet/commits/main" target="_blank" rel="noopener">GitHub commit 紀錄</a>。
+    </p>
   </section>
 
   <!-- ---------- 緣起 ---------- -->
