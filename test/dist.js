@@ -56,6 +56,9 @@ ok('隱私：聲明零對外連線', text.includes('連線從未離開該網域'
 ok('隱私：聲明無開發者伺服器', text.includes('沒有屬於開發者的伺服器'));
 ok('標示資料來源與免責', text.includes('全國法規資料庫') && text.includes('以官方網站為準'));
 ok('提示公司鎖書籤列的情況', text.includes('公司鎖住書籤列'));
+ok('標明概念源自引線且非衍生作品', text.includes('引線') && text.includes('不是引線的移植或衍生'));
+ok('指出能裝擴充功能者應直接用引線', text.includes('請直接用引線'));
+ok('提供原始碼連結', html.includes('github.com/coseto6125/law-hover-bookmarklet'));
 
 console.log('\n\x1b[1m產物實際可執行（以打包版跑真實頁面）\x1b[0m');
 const page = fs.readFileSync(path.join(root, 'test/fixtures/lawall.html'), 'utf8');
