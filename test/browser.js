@@ -1,0 +1,198 @@
+/* 真實瀏覽器驗證（Chromium）
+ *
+ * 前面的 jsdom 測試不會強制 CSP，這正是 inline style 問題連續兩次漏掉的原因。
+ * 這支測試在真實 Chromium 中載入真實頁面、執行打包後的 bookmarklet，
+ * 由瀏覽器實際強制 CSP，並監聽 securitypolicyviolation 事件。
+ */
+const fs = require('fs');
+const path = require('path');
+
+const root = path.join(__dirname, '..');
+const bookmarklet = fs.readFileSync(path.join(root, 'dist/lawhover.bookmarklet.txt'), 'utf8');
+const code = decodeURIComponent(bookmarklet.slice('javascript:'.length));
+
+let pass = 0, fail = 0;
+const ok = (n, c, e) => {
+  if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); }
+  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '\n      → ' + e : '')); }
+};
+
+async function main() {
+  let chromium;
+  try { ({ chromium } = require('playwright')); }
+  catch (e) { console.log('\x1b[33m略過：未安裝 playwright\x1b[0m'); process.exit(0); }
+
+  let browser;
+  try { browser = await chromium.launch(); }
+  catch (e) { console.log('\x1b[33m略過：無法啟動 Chromium（' + e.message.split('\n')[0] + '）\x1b[0m'); process.exit(0); }
+
+  const page = await browser.newPage();
+
+  // 收集瀏覽器實際回報的 CSP 違規
+  const violations = [];
+  await page.addInitScript(() => {
+    window.__csp = [];
+    document.addEventListener('securitypolicyviolation', e => {
+      window.__csp.push({
+        directive: e.violatedDirective,
+        blocked: e.blockedURI,
+        sample: e.sample ? String(e.sample).slice(0, 80) : '',
+      });
+    });
+  });
+  page.on('console', m => { if (m.type() === 'error' && /Content Security Policy/i.test(m.text())) violations.push(m.text()); });
+
+  const URL = 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109';
+  try { await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 45000 }); }
+  catch (e) { console.log('\x1b[33m略過：無法連線（' + e.message.split('\n')[0] + '）\x1b[0m'); await browser.close(); process.exit(0); }
+
+  console.log('\n\x1b[1m真實 Chromium · 執行 bookmarklet\x1b[0m');
+  const cspHeader = await page.evaluate(() => {
+    const m = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+    return m ? m.content : '(由 HTTP 標頭提供)';
+  });
+  ok('已載入受 CSP 保護的真實頁面', true, 'CSP: ' + String(cspHeader).slice(0, 60));
+
+  /* 以「使用者點擊書籤」的真實方式執行。
+   * 這與 page.evaluate(eval) 有本質差異：
+   *   - 頁面自身設定 location.href='javascript:...' 會被 CSP script-src 擋下（實測確認）
+   *   - 使用者點擊書籤是瀏覽器發起的導覽，豁免於 CSP
+   * 因此必須用 CDP Page.navigate 模擬，才代表真實使用情境。
+   * 回傳 ERR_ABORTED 是正常的：IIFE 回傳 undefined，瀏覽器不會替換頁面內容。
+   */
+  const cdp = await page.context().newCDPSession(page);
+  let navErr = null;
+  try {
+    const r = await cdp.send('Page.navigate', { url: bookmarklet });
+    navErr = r.errorText && r.errorText !== 'net::ERR_ABORTED' ? r.errorText : null;
+  } catch (e) { navErr = e.message.split('\n')[0]; }
+  ok('以真實書籤導覽方式執行成功', !navErr, navErr);
+  await page.waitForTimeout(800);
+  ok('頁面未被取代（IIFE 回傳 undefined）',
+     page.url().startsWith('https://law.moj.gov.tw/LawClass/LawAll.aspx'), page.url());
+
+  const cspEvents = await page.evaluate(() => window.__csp || []);
+  const styleViolations = cspEvents.filter(v => /style-src/.test(v.directive));
+  ok('無 style-src 違規（本次修復的核心）', styleViolations.length === 0,
+     styleViolations.map(v => v.directive + ' ' + v.sample).join('\n      '));
+  ok('無任何 CSP 違規', cspEvents.length === 0,
+     cspEvents.map(v => v.directive).join(', '));
+  ok('主控台無 CSP 錯誤訊息', violations.length === 0, violations.slice(0, 2).join('\n      '));
+
+  console.log('\n\x1b[1m標記與樣式實際生效\x1b[0m');
+  const stats = await page.evaluate(() => {
+    const marks = [...document.querySelectorAll('[data-flno]')];
+    const m0 = marks[0];
+    const cs = m0 ? getComputedStyle(m0) : null;
+    return {
+      count: marks.length,
+      selfBound: marks.filter(m => m.dataset.pcode).length,
+      // 由 computed style 確認樣式真的生效，而非只是 class 掛上去
+      borderStyle: cs ? cs.borderBottomStyle : '',
+      borderColor: cs ? cs.borderBottomColor : '',
+      cursor: cs ? cs.cursor : '',
+      hasInlineStyle: marks.some(m => m.getAttribute('style')),
+    };
+  });
+  ok('標記大量引用', stats.count >= 70, '標記 ' + stats.count + ' 處');
+  ok('裸條號綁定當前頁法規', stats.selfBound >= 70, '自指 ' + stats.selfBound + ' 處');
+  ok('底線樣式實際生效（computed style）', stats.borderStyle === 'dotted', stats.borderStyle);
+  ok('標記顏色實際生效', /192,\s*57,\s*43/.test(stats.borderColor), stats.borderColor);
+  ok('游標樣式實際生效', stats.cursor === 'help', stats.cursor);
+  ok('未使用 inline style 屬性', !stats.hasInlineStyle);
+
+  console.log('\n\x1b[1m懸停取文（真實網路 + 真實 CSP）\x1b[0m');
+  await page.evaluate(() => {
+    const m = [...document.querySelectorAll('[data-flno]')].find(x => x.dataset.flno === '3' && x.dataset.pcode);
+    m.scrollIntoView();
+    m.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+  });
+  await page.waitForTimeout(6000);
+
+  const panel = await page.evaluate(() => {
+    const p = [...document.body.children].find(n => {
+      const c = String(n.className || '').split(' ');
+      return /^lh-[a-z0-9]+-p$/.test(c[0] || '') && !c.some(x => /-hide$/.test(x));
+    });
+    if (!p) return null;
+    const cs = getComputedStyle(p);
+    return {
+      text: p.textContent.replace(/\s+/g, ' ').trim().slice(0, 120),
+      display: cs.display, position: cs.position, zIndex: cs.zIndex,
+      bg: cs.backgroundColor, top: cs.top, left: cs.left,
+      hasInlineStyle: !!p.getAttribute('style'),
+      hitCount: p.querySelectorAll('[class*="-x"]').length,
+    };
+  });
+  ok('面板已顯示', !!panel, panel ? '' : '未找到顯示中的面板');
+  if (panel) {
+    ok('面板含真實條文內容', panel.text.includes('本法適用地區如左'), panel.text.slice(0, 60));
+    ok('面板定位樣式生效（規則層級）', panel.position === 'absolute', panel.position);
+    ok('面板浮在最上層', panel.zIndex === '2147483647', panel.zIndex);
+    ok('面板背景生效（非透明）', /255,\s*255,\s*255/.test(panel.bg), panel.bg);
+    ok('面板座標已套用', panel.top !== 'auto' && panel.top !== '0px', 'top=' + panel.top + ' left=' + panel.left);
+    ok('面板未使用 inline style', !panel.hasInlineStyle);
+  }
+
+  const after = await page.evaluate(() => (window.__csp || []).length);
+  ok('取文與顯示過程仍無 CSP 違規', after === 0, '違規數 ' + after);
+
+  console.log('\n\x1b[1m重複點擊書籤（使用者每頁都要點一次）\x1b[0m');
+  {
+    const before = await page.evaluate(() => document.querySelectorAll('[data-flno]').length);
+    try { await cdp.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
+    await page.waitForTimeout(1200);
+    const after = await page.evaluate(() => ({
+      marks: document.querySelectorAll('[data-flno]').length,
+      panels: [...document.body.children]
+        .filter(n => /^lh-[a-z0-9]+-p$/.test(String(n.className || '').split(' ')[0])).length,
+    }));
+    ok('再次點擊不會重複標記', after.marks === before, before + ' → ' + after.marks);
+    ok('再次點擊不會重複建立面板', after.panels === 1, '面板數 ' + after.panels);
+  }
+
+  console.log('\n\x1b[1m其他頁面型態（使用者實際會到的頁面）\x1b[0m');
+  const PAGES = [
+    { n: 'LawSingle 單條頁（有交叉引用）',
+      u: 'https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=D0070109&flno=91', min: 1 },
+    { n: 'LawSingle 單條頁（無引用，應為 0）',
+      u: 'https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=D0070109&flno=9', min: 0, exact: 0 },
+    { n: '法規沿革頁', u: 'https://law.moj.gov.tw/LawClass/LawHistory.aspx?pcode=D0070109', min: 1 },
+    { n: '搜尋結果頁（無條號引用，應為 0）',
+      u: 'https://law.moj.gov.tw/Law/LawSearchResult.aspx?ty=ONEBAR&kw=%E5%BB%BA%E7%AF%89%E6%B3%95&sNo=0',
+      min: 0, exact: 0 },
+    { n: '首頁', u: 'https://law.moj.gov.tw/', min: 0, exact: 0 },
+  ];
+  for (const t of PAGES) {
+    const pg = await browser.newPage();
+    await pg.addInitScript(() => {
+      window.__csp = []; window.__err = [];
+      document.addEventListener('securitypolicyviolation', e => window.__csp.push(e.violatedDirective));
+      window.addEventListener('error', e => window.__err.push(String(e.message)));
+    });
+    try {
+      await pg.goto(t.u, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const c2 = await pg.context().newCDPSession(pg);
+      try { await c2.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
+      await pg.waitForTimeout(1500);
+      const r = await pg.evaluate(() => ({
+        marks: document.querySelectorAll('[data-flno]').length,
+        csp: window.__csp.length, err: window.__err.length,
+      }));
+      const good = (t.exact !== undefined ? r.marks === t.exact : r.marks >= t.min) &&
+                   r.csp === 0 && r.err === 0;
+      ok(t.n, good, '標記=' + r.marks + ' CSP違規=' + r.csp + ' JS錯誤=' + r.err);
+    } catch (e) {
+      ok(t.n, false, e.message.split('\n')[0]);
+    }
+    await pg.close();
+  }
+
+  await browser.close();
+  console.log('\n' + (fail === 0
+    ? `\x1b[32m真實瀏覽器驗證全部通過：${pass} 項\x1b[0m`
+    : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
+  process.exit(fail === 0 ? 0 : 1);
+}
+
+main().catch(e => { console.error(e); process.exit(1); });

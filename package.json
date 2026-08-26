@@ -1,0 +1,32 @@
+{
+  "name": "law-hover-bookmarklet",
+  "version": "0.1.0",
+  "description": "零安裝的書籤工具：在全國法規資料庫頁面上滑過法條引用即顯示條文，不需擴充功能、不需伺服器",
+  "private": false,
+  "scripts": {
+    "build": "node build/build.js",
+    "test": "npm run build && node test/run.js && node test/csp.js && node test/dist.js",
+    "test:live": "npm run build && node test/live.js",
+    "test:browser": "npm run build && node test/browser.js",
+    "test:all": "npm test && npm run test:live && npm run test:pcode && npm run test:browser",
+    "test:pcode": "npm run build && node test/pcode.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.0.0",
+    "playwright": "^1.40.0"
+  },
+  "license": "MIT",
+  "keywords": [
+    "bookmarklet",
+    "taiwan",
+    "law",
+    "legal",
+    "csp",
+    "no-install",
+    "全國法規資料庫"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/coseto6125/law-hover-bookmarklet.git"
+  }
+}

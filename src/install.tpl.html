@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>法條懸停（書籤版）· Windows 安裝說明</title>
+<style>
+  :root { --ink:#1a1a1a; --sub:#666; --accent:#8a1f1f; --line:#e5e5e5; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:16px/1.8 system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif;
+         color:var(--ink); background:#fafaf8; }
+  .wrap { max-width:760px; margin:0 auto; padding:48px 24px 80px; }
+  h1 { font-size:30px; margin:0 0 6px; letter-spacing:2px; }
+  .lead { color:var(--sub); margin:0 0 36px; }
+  h2 { font-size:19px; margin:44px 0 14px; padding-bottom:8px; border-bottom:1px solid var(--line); }
+  ol { padding-left:22px; } li { margin:10px 0; }
+  code, kbd { background:#f0efec; border-radius:4px; padding:2px 6px; font-size:14px;
+              font-family:ui-monospace,Consolas,monospace; }
+  kbd { border:1px solid #ccc; border-bottom-width:2px; }
+  .drag { display:inline-block; background:var(--accent); color:#fff; text-decoration:none;
+          padding:12px 26px; border-radius:8px; font-weight:700; font-size:17px;
+          box-shadow:0 3px 10px rgba(138,31,31,.28); cursor:grab; }
+  .dragbox { background:#fff; border:2px dashed #d8b4b4; border-radius:12px;
+             padding:26px; text-align:center; margin:20px 0; }
+  .note { background:#fff8e6; border-left:4px solid #e0a800; padding:12px 16px; margin:16px 0;
+          font-size:15px; border-radius:0 6px 6px 0; }
+  .warn { background:#fdecec; border-left:4px solid #c0392b; padding:12px 16px; margin:16px 0;
+          font-size:15px; border-radius:0 6px 6px 0; }
+  textarea { width:100%; height:110px; font-family:ui-monospace,Consolas,monospace; font-size:11px;
+             border:1px solid var(--line); border-radius:6px; padding:10px; background:#fff; }
+  table { width:100%; border-collapse:collapse; margin:14px 0; font-size:15px; }
+  th,td { border:1px solid var(--line); padding:9px 12px; text-align:left; }
+  th { background:#f4f3f0; }
+  .foot { margin-top:56px; padding-top:18px; border-top:1px solid var(--line);
+          color:var(--sub); font-size:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>法條懸停 · 書籤版</h1>
+  <p class="lead">不必安裝擴充功能，也能在全國法規資料庫上滑過去看條文。</p>
+
+  <div class="note">
+    <b>適用情境：</b>公司資安控管禁止安裝 Chrome 擴充功能與任何程式。
+    書籤版只是在書籤列多一則書籤，不寫入登錄檔、不安裝檔案、不需管理員權限。
+  </div>
+
+  <h2>安裝（Windows · Chrome / Edge）</h2>
+  <ol>
+    <li>按 <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd> 叫出書籤列（若已顯示可略過）。</li>
+    <li>把下面這顆按鈕<b>用滑鼠拖曳</b>到書籤列上放開。</li>
+  </ol>
+
+  <div class="dragbox">
+    <a class="drag" href="__BOOKMARKLET__" onclick="alert('請用滑鼠把這顆按鈕拖到書籤列，不要直接點擊。');return false;">法條懸停</a>
+    <div style="color:#888;font-size:14px;margin-top:12px">↑ 拖曳我到書籤列</div>
+  </div>
+
+  <p>拖不動的話，改用手動新增：在書籤列<b>按右鍵 → 新增網頁</b>，名稱填「法條懸停」，
+     網址貼上下面整段文字。</p>
+  <textarea readonly onclick="this.select()">__BOOKMARKLET__</textarea>
+
+  <h2>使用</h2>
+  <ol>
+    <li>開啟任一全國法規資料庫頁面，例如
+        <code>law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109</code>。</li>
+    <li>點一下書籤列上的「法條懸停」，右下角會顯示已標記幾處引用。</li>
+    <li>條文中的引用會出現紅色虛線底線，<b>滑鼠移上去</b>即顯示該條全文；
+        寫到第 X 項時會把那一項標黃。</li>
+  </ol>
+
+  <div class="warn">
+    <b>與擴充功能版的差別：</b>書籤版<b>每換一頁要重點一次</b>，不會自動生效。
+    這是不安裝任何東西所必須付出的代價。
+  </div>
+
+  <h2>為什麼這樣是安全的</h2>
+  <table>
+    <tr><th>項目</th><th>說明</th></tr>
+    <tr><td>對外連線</td><td>無。條文直接向你正在瀏覽的 <code>law.moj.gov.tw</code> 取得，連線從未離開該網域。</td></tr>
+    <tr><td>伺服器</td><td>無。沒有屬於開發者的伺服器，開發者看不到任何查詢紀錄。</td></tr>
+    <tr><td>資料儲存</td><td>無。快取只存在當前分頁的記憶體，關掉即消失。</td></tr>
+    <tr><td>安裝行為</td><td>無。僅新增一則書籤，可隨時刪除，不留任何痕跡。</td></tr>
+  </table>
+
+  <h2>疑難排解</h2>
+  <table>
+    <tr><th>狀況</th><th>處理</th></tr>
+    <tr><td>點了沒反應</td><td>確認網址列是 <code>https://law.moj.gov.tw/...</code>。本工具僅在該站運作。</td></tr>
+    <tr><td>貼上網址後前面的 <code>javascript:</code> 不見了</td>
+        <td>瀏覽器的安全機制會在貼上時移除。請把游標移到最前面手動補上 <code>javascript:</code>。</td></tr>
+    <tr><td>顯示「查不到條文」</td>
+        <td>刻意設計：驗證失敗時寧可不顯示。<b>查不到比查錯安全。</b>請點面板內連結至原站確認。</td></tr>
+    <tr><td>公司鎖住書籤列</td><td>那就真的無解，只能改用原站的查詢功能。</td></tr>
+  </table>
+
+  <div class="foot">
+    條文內容來自法務部<b>全國法規資料庫</b>，著作權歸屬原機關。<br>
+    本工具僅提供查詢便利，不對條文的即時性與正確性負責，正式引用請以官方網站為準。
+  </div>
+
+</div>
+</body>
+</html>
