@@ -151,6 +151,97 @@ async function main() {
     ok('再次點擊不會重複建立面板', after.panels === 1, '面板數 ' + after.panels);
   }
 
+  console.log('\n\x1b[1m問題回報（兩階段）\x1b[0m');
+  {
+    const fabInfo = await page.evaluate(() => {
+      const f = [...document.body.children].find(n => /-fab$/.test(String(n.className || '').split(' ')[0]));
+      if (!f) return null;
+      const r = f.getBoundingClientRect(), cs = getComputedStyle(f);
+      return { txt: f.textContent, right: Math.round(innerWidth - r.right),
+               bottom: Math.round(innerHeight - r.bottom), pos: cs.position };
+    });
+    ok('右下角有常駐回報入口', fabInfo && fabInfo.pos === 'fixed' &&
+       fabInfo.right < 40 && fabInfo.bottom < 40,
+       fabInfo ? JSON.stringify(fabInfo) : '未找到');
+
+    await page.evaluate(() => [...document.body.children]
+      .find(n => /-fab$/.test(String(n.className || '').split(' ')[0])).click());
+    await page.waitForTimeout(400);
+    const dlg = await page.evaluate(() => {
+      const el = [...document.body.children].find(n => /-dlg$/.test(String(n.className || '').split(' ')[0]));
+      if (!el) return null;
+      const tas = [...el.querySelectorAll('textarea')];
+      return {
+        opts: [...el.querySelectorAll('[class*="-opt"]')].map(o => o.textContent),
+        diag: tas.length > 1 ? tas[1].value : '',
+        sendDisabled: [...el.querySelectorAll('button')]
+          .find(b => /Email/.test(b.textContent)).disabled,
+      };
+    });
+    ok('回報對話框可開啟', !!dlg, '未開啟（可能有 JS 錯誤）');
+    if (dlg) {
+      ok('第一階段：兩種問題類型', dlg.opts.length === 2 &&
+         /沒有顯示資料/.test(dlg.opts[0]) && /資料顯示錯誤/.test(dlg.opts[1]),
+         JSON.stringify(dlg.opts));
+      ok('未選類型前不能送出', dlg.sendDisabled === true, '送出鈕未停用');
+      ok('診斷自動帶入網址', /網址: https:\/\/law\.moj\.gov\.tw/.test(dlg.diag));
+      ok('診斷自動帶入本頁法規與標記數',
+         /本頁法規: /.test(dlg.diag) && /標記總數: \d+/.test(dlg.diag));
+      ok('診斷含標記樣本（供重現解析結果）', /本頁標記樣本/.test(dlg.diag));
+      ok('診斷不含頁面正文（隱私）', !/建築物非經申請/.test(dlg.diag));
+    }
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(250);
+    ok('Esc 可關閉回報視窗', await page.evaluate(() => ![...document.body.children]
+       .some(n => /-dlg$/.test(String(n.className || '').split(' ')[0]))));
+  }
+
+  console.log('\n\x1b[1m條文面板的回報入口\x1b[0m');
+  {
+    await page.evaluate(() => {
+      const x = [...document.querySelectorAll('[data-flno]')].find(e => e.dataset.pcode);
+      x.scrollIntoView({ block: 'center' });
+      x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+    });
+    await page.waitForTimeout(6500);
+    const links = await page.evaluate(() => {
+      const q = [...document.body.children].find(n => {
+        const c = String(n.className || '').split(' ');
+        return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+      });
+      return q ? [...q.querySelectorAll('a')].map(a => a.textContent) : null;
+    });
+    ok('條文面板有「這條顯示錯了」', links && links.indexOf('這條顯示錯了') >= 0,
+       JSON.stringify(links));
+
+    if (links && links.indexOf('這條顯示錯了') >= 0) {
+      await page.evaluate(() => {
+        const q = [...document.body.children].find(n => {
+          const c = String(n.className || '').split(' ');
+          return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+        });
+        [...q.querySelectorAll('a')].find(a => a.textContent === '這條顯示錯了').click();
+      });
+      await page.waitForTimeout(400);
+      const pre = await page.evaluate(() => {
+        const el = [...document.body.children].find(n => /-dlg$/.test(String(n.className || '').split(' ')[0]));
+        if (!el) return null;
+        const tas = [...el.querySelectorAll('textarea')];
+        return {
+          on: [...el.querySelectorAll('[class*="-opt"]')].map(o => o.getAttribute('data-on')),
+          raw: tas[0].value, diag: tas[1].value,
+          sendDisabled: [...el.querySelectorAll('button')].find(b => /Email/.test(b.textContent)).disabled,
+        };
+      });
+      ok('自動預選「資料顯示錯誤」', pre && pre.on[1] === '1', pre && JSON.stringify(pre.on));
+      ok('自動帶入出問題的原文', pre && pre.raw.length > 0, pre && JSON.stringify(pre.raw));
+      ok('自動帶入所顯示的條文內容', pre && /顯示的內容/.test(pre.diag));
+      ok('預選後即可送出', pre && pre.sendDisabled === false);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+    }
+  }
+
   console.log('\n\x1b[1m其他頁面型態（使用者實際會到的頁面）\x1b[0m');
   const PAGES = [
     { n: 'LawSingle 單條頁（有交叉引用）',

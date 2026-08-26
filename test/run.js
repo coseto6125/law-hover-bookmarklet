@@ -42,6 +42,7 @@ const PAGE = `<!DOCTYPE html><html><body>
 <p>前項不受土地法第二十五條之限制。</p>
 <p>依第九十九條規定辦理，並準用本法第五條。</p>
 <p>另依建築技術規則建築設計施工編第167條之1辦理。</p>
+<p>本法依中華民國憲法第一百十八條及中華民國憲法增修條文第九條第一項制定之。</p>
 <a href="#">建築法第5條</a>
 <script>var x = "建築法第9條";</script>
 </div></body></html>`;
@@ -61,7 +62,7 @@ async function run() {
   console.log('\n\x1b[1m掃描與標記\x1b[0m');
   const marks = [...window.document.querySelectorAll('[data-flno]')];
   ok('有標記到引用', marks.length > 0, '標記數=' + marks.length);
-  ok('標記 9 處引用', marks.length === 9,
+  ok('標記 11 處引用', marks.length === 11,
      '實際 ' + marks.length + ' 處：' + marks.map(m => m.textContent).join(' / '));
 
   const byText = t => marks.find(m => m.textContent.includes(t));
@@ -104,6 +105,21 @@ async function run() {
      mBian ? mBian.dataset.name + ' ' + mBian.dataset.flno : '未辨識');
   ok('「編」不會被誤切成較短名稱', mBian && mBian.dataset.name === '建築技術規則建築設計施工編',
      mBian && mBian.dataset.name);
+
+  console.log('\n\x1b[1m憲法與增修條文（使用者實測回報）\x1b[0m');
+  const mCon = byText('中華民國憲法第一百十八條');
+  ok('「本法依中華民國憲法第一百十八條」→ 中華民國憲法 118',
+     mCon && mCon.dataset.name === '中華民國憲法' && mCon.dataset.flno === '118',
+     mCon ? mCon.dataset.name + ' ' + mCon.dataset.flno : '未辨識');
+  ok('剝除「本法依」前綴，不吃掉「中華民國」',
+     mCon && mCon.textContent === '中華民國憲法第一百十八條', mCon && JSON.stringify(mCon.textContent));
+  const mAmd = byText('增修條文第九條');
+  ok('「中華民國憲法增修條文第九條第一項」正確斷詞',
+     mAmd && mAmd.dataset.name === '中華民國憲法增修條文' && mAmd.dataset.flno === '9',
+     mAmd ? mAmd.dataset.name + ' ' + mAmd.dataset.flno : '未辨識');
+  ok('增修條文取得項次', mAmd && mAmd.dataset.xiang === '1', mAmd && mAmd.dataset.xiang);
+  ok('長字尾優先：不被切成「憲法」', mAmd && mAmd.dataset.name !== '中華民國憲法',
+     mAmd && mAmd.dataset.name);
 
   console.log('\n\x1b[1m排除規則\x1b[0m');
   ok('<script> 內不標記', !window.document.querySelector('script [data-flno]'));

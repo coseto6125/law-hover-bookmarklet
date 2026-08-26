@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="法條懸停">
+  <rect width="64" height="64" rx="13" fill="#9c2b2b"/>
+  <!-- 條文行：粗橫線在 16px 下仍清楚。最上一行為實心，代表被標記的引用 -->
+  <g fill="#fff">
+    <rect x="12" y="17" width="34" height="7" rx="3.5"/>
+    <rect x="12" y="29" width="40" height="7" rx="3.5" fill-opacity=".62"/>
+    <rect x="12" y="41" width="26" height="7" rx="3.5" fill-opacity=".62"/>
+  </g>
+  <!-- 游標：白底紅框，與底色分離，小尺寸不糊 -->
+  <path d="M40 33l17 11-7.7 1.4-3.1 7.6L40 33z" fill="#fff" stroke="#9c2b2b" stroke-width="3" stroke-linejoin="round"/>
+</svg>

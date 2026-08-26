@@ -27,8 +27,13 @@
   }
 
   var NUM = '[0-9０-９一二三四五六七八九十百千零壹貳參肆伍陸柒捌玖拾佰仟]+';
-  // 法規名稱可能的結尾字。「編」用於「建築技術規則建築設計施工編」這類分編法規。
-  var SUFFIX = '(?:自治條例|自治規則|條例|規則|辦法|標準|細則|準則|通則|規程|規範|要點|基準|編|法)';
+  /* 法規名稱可能的結尾字。順序重要：長字尾必須排在短字尾之前，
+   * 否則「憲法增修條文」會先被「條文」以外的短字尾切斷。
+   *   憲法增修條文 → 中華民國憲法增修條文
+   *   編           → 建築技術規則建築設計施工編
+   *   憲法         → 中華民國憲法（不能只靠「法」，否則名稱會被切成「國憲法」） */
+  var SUFFIX = '(?:憲法增修條文|自治條例|自治規則|施行條例|組織條例|條例|規則|辦法|標準|' +
+               '細則|準則|通則|規程|規範|要點|基準|公約|憲法|編|法)';
   var TAIL = '(?:\\s*第\\s*(' + NUM + ')\\s*項)?(?:\\s*第\\s*(' + NUM + ')\\s*款)?';
   // 具名引用：法規名稱 + 第X條(之X) + 可選 項/款
   var RE = new RegExp(
@@ -48,14 +53,24 @@
   // 常見黏在法規名前的公文用字，需剝除（「案建築法」→「建築法」）
   var PREFIX = ['前項', '前二項', '前三項', '前條', '前款', '本項', '各該', '上開',
                 '另依', '另按', '復依', '爰按', '茲按', '另', '復', '爰', '茲',
+                '本法依', '本條例依', '本規則依', '本辦法依', '本法係依', '本條例係依',
+                '本法', '本條例', '本規則', '本辦法',
                 '依據', '按照', '違反', '有關', '案內', '參照', '準用', '適用', '依照', '茲依',
                 '不受', '不適用', '未依', '得依', '應依', '亦同', '所稱', '規定', '準此',
                 '依', '按', '案', '及', '與', '或', '暨', '之', '為', '該', '本', '同',
                 '前開', '前揭', '所定', '規定', '爰依', '查', '據', '以', '因', '就', '對',
                 '參', '如', '至', '而', '並', '且', '惟', '但', '故', '則', '乃', '係'];
+  // 這些是法規官方全名的一部分，剝除前綴時不可越過它們
+  var KEEP = ['中華民國', '臺灣省', '台灣省', '直轄市', '縣（市）'];
   function trimName(name) {
     var changed = true;
     while (changed && name.length > 2) {
+      // 已經以官方全名前綴開頭就停手
+      var keep = false;
+      for (var g = 0; g < KEEP.length; g++) {
+        if (name.indexOf(KEEP[g]) === 0) { keep = true; break; }
+      }
+      if (keep) break;
       changed = false;
       for (var i = 0; i < PREFIX.length; i++) {
         var p = PREFIX[i];
@@ -65,6 +80,13 @@
       }
     }
     return name;
+  }
+
+  var REPORT_TO = 'enor@e-life-ai.com';
+  var errLog = [];       // 供回報使用的錯誤記錄（僅記錄本工具自身的失敗）
+  function logErr(kind, detail) {
+    errLog.push({ t: new Date().toISOString().slice(11, 19), kind: kind, detail: String(detail).slice(0, 200) });
+    if (errLog.length > 20) errLog.shift();
   }
 
   var pcodeCache = {};   // 法規名 -> pcode
@@ -200,7 +222,12 @@
     mark: PFX + 'm', panel: PFX + 'p', head: PFX + 'h', body: PFX + 'b',
     line: PFX + 'l', sub: PFX + 's', hit: PFX + 'x', foot: PFX + 'f',
     link: PFX + 'a', toast: PFX + 't', err: PFX + 'e', note: PFX + 'n',
-    hide: PFX + 'hide'
+    toastIn: PFX + 'ti', toastDot: PFX + 'td', toastNum: PFX + 'tn',
+    toastSub: PFX + 'ts', hide: PFX + 'hide',
+    fab: PFX + 'fab', dlg: PFX + 'dlg', dlgIn: PFX + 'dgi', dlgH: PFX + 'dgh',
+    row: PFX + 'row', opt: PFX + 'opt', ta: PFX + 'ta', btn: PFX + 'btn',
+    btnP: PFX + 'btnp', dgf: PFX + 'dgf', lbl: PFX + 'lbl', diag: PFX + 'dg2',
+    rptLink: PFX + 'rl'
   };
 
   var RULES = [
@@ -219,9 +246,67 @@
     '.' + CLS.link + '{color:#0b63c5;text-decoration:none;margin-right:14px;cursor:pointer}',
     '.' + CLS.err + '{color:#8a1f1f;font-weight:600}',
     '.' + CLS.note + '{color:#666;font-size:12px;margin-top:6px}',
-    '.' + CLS.toast + '{position:fixed;right:16px;bottom:16px;z-index:2147483647;background:#1f2937;' +
-      'color:#fff;padding:10px 16px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.3);' +
-      'font:13px system-ui,"Microsoft JhengHei",sans-serif}'
+    /* 啟用提示：置頂置中。使用者剛從書籤列點下來，視線就在畫面上緣，
+       放右下角容易完全沒看到，導致誤以為書籤沒作用。 */
+    '.' + CLS.toast + '{position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
+      'display:flex;justify-content:center;pointer-events:none;padding:14px 12px 0}',
+    '.' + CLS.toastIn + '{display:flex;align-items:center;gap:11px;max-width:92vw;' +
+      'background:#12321f;color:#fff;padding:13px 22px 13px 18px;border-radius:12px;' +
+      'border:1px solid rgba(255,255,255,.18);' +
+      'box-shadow:0 10px 34px rgba(0,0,0,.34),0 2px 8px rgba(0,0,0,.2);' +
+      'font:15px/1.4 system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif;' +
+      'animation:' + PFX + 'drop .42s cubic-bezier(.2,1.3,.4,1) both}',
+    '@keyframes ' + PFX + 'drop{from{opacity:0;transform:translateY(-22px) scale(.94)}' +
+      'to{opacity:1;transform:none}}',
+    '.' + CLS.toastDot + '{width:26px;height:26px;flex:0 0 26px;border-radius:50%;' +
+      'background:#2f9e5f;display:flex;align-items:center;justify-content:center;' +
+      'font:700 15px/1 system-ui,sans-serif;color:#fff}',
+    '.' + CLS.toastNum + '{font-weight:700}',
+    '.' + CLS.toastSub + '{opacity:.82;font-size:13px;margin-left:2px}',
+    /* 回報入口：常駐右下角，讓使用者遇到問題時找得到 */
+    '.' + CLS.fab + '{position:fixed;right:16px;bottom:16px;z-index:2147483646;' +
+      'display:flex;align-items:center;gap:7px;background:#fff;color:#31415c;' +
+      'border:1px solid #d8d4cb;border-radius:999px;padding:9px 15px 9px 13px;cursor:pointer;' +
+      'box-shadow:0 3px 12px rgba(0,0,0,.14);opacity:.55;' +
+      'font:13px/1 system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif;' +
+      'transition:opacity .2s,box-shadow .2s,transform .2s}',
+    '.' + CLS.fab + ':hover{opacity:1;box-shadow:0 6px 20px rgba(0,0,0,.2);transform:translateY(-1px)}',
+    '.' + CLS.dlg + '{position:fixed;inset:0;z-index:2147483647;background:rgba(16,24,40,.55);' +
+      'display:flex;align-items:center;justify-content:center;padding:20px;' +
+      'font:14px/1.7 system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif;color:#16233a}',
+    '.' + CLS.dlgIn + '{background:#fff;border-radius:14px;max-width:520px;width:100%;' +
+      'max-height:88vh;overflow:auto;box-shadow:0 24px 64px rgba(0,0,0,.36);' +
+      'animation:' + PFX + 'drop .3s cubic-bezier(.2,1.2,.4,1) both}',
+    '.' + CLS.dlgH + '{padding:17px 20px;border-bottom:1px solid #e8e5de;font-weight:700;' +
+      'font-size:16px;display:flex;align-items:center;gap:9px}',
+    '.' + CLS.row + '{padding:16px 20px 4px}',
+    '.' + CLS.lbl + '{font-weight:700;font-size:13.5px;margin-bottom:9px;color:#31415c}',
+    '.' + CLS.opt + '{display:flex;gap:11px;align-items:flex-start;border:1.5px solid #e0ddd5;' +
+      'border-radius:10px;padding:12px 14px;margin-bottom:9px;cursor:pointer;transition:all .18s;' +
+      'background:#fdfcfa}',
+    '.' + CLS.opt + ':hover{border-color:#c0a98a;background:#faf8f4}',
+    '.' + CLS.opt + '[data-on="1"]{border-color:#9c2b2b;background:#fdf4f4;' +
+      'box-shadow:0 0 0 3px rgba(156,43,43,.09)}',
+    '.' + CLS.ta + '{width:100%;min-height:74px;border:1px solid #ddd9d0;border-radius:9px;' +
+      'padding:10px 12px;font:13px/1.65 inherit;color:#16233a;background:#fdfcfa;resize:vertical;' +
+      'box-sizing:border-box}',
+    '.' + CLS.ta + ':focus{outline:2px solid #9c2b2b;outline-offset:-1px;border-color:#9c2b2b}',
+    '.' + CLS.diag + '{width:100%;min-height:96px;border:1px solid #e4e1d9;border-radius:9px;' +
+      'padding:10px 12px;font:11.5px/1.6 ui-monospace,Consolas,monospace;color:#5a6577;' +
+      'background:#f7f6f2;resize:vertical;box-sizing:border-box}',
+    '.' + CLS.dgf + '{display:flex;gap:9px;align-items:center;padding:14px 20px;' +
+      'border-top:1px solid #e8e5de;background:#faf9f6;border-radius:0 0 14px 14px}',
+    '.' + CLS.btn + '{font:500 14px/1 inherit;padding:10px 17px;border-radius:9px;' +
+      'border:1px solid #d8d4cb;background:#fff;color:#31415c;cursor:pointer;transition:all .18s}',
+    '.' + CLS.btn + ':hover{border-color:#9aa3b2;color:#16233a}',
+    '.' + CLS.btnP + '{background:#9c2b2b;border-color:#9c2b2b;color:#fff;font-weight:700}',
+    '.' + CLS.btnP + ':hover{background:#8a2424;border-color:#8a2424;color:#fff}',
+    '.' + CLS.rptLink + '{color:#9c2b2b;cursor:pointer;text-decoration:underline;' +
+      'text-underline-offset:2px;font-size:12px;margin-left:10px}',
+    /* 標記閃現：讓使用者一眼看到「哪些字被標起來了」 */
+    '@keyframes ' + PFX + 'flash{0%,100%{background:rgba(192,57,43,.06)}' +
+      '35%{background:rgba(224,168,0,.5)}}',
+    '.' + PFX + 'fl{animation:' + PFX + 'flash 1.1s ease-in-out 2}'
   ];
 
   // 面板座標專用規則，其內容會隨每次顯示而改寫（不碰元素的 style 屬性）
@@ -284,7 +369,13 @@
   }
 
   function sty(el) {
-    for (var i = 1; i < arguments.length; i++) if (arguments[i]) el.classList.add(arguments[i]);
+    for (var i = 1; i < arguments.length; i++) {
+      var c = arguments[i];
+      if (!c) continue;
+      // 容許以空白分隔的多個 class；classList.add 不接受含空白的單一字串
+      var parts = String(c).split(/\s+/);
+      for (var j = 0; j < parts.length; j++) if (parts[j]) el.classList.add(parts[j]);
+    }
     return el;
   }
   function show(el) { el.classList.remove(CLS.hide); }
@@ -321,6 +412,7 @@
   }
 
   function renderArticle(box, art, hit) {
+    hit = hit || {};
     var head = el('div', CLS.head);
     head.textContent = (art.law ? art.law + ' ' : '') + art.title +
       (hit.xiang ? ' · 第' + hit.xiang + '項' : '') + (hit.kuan ? '第' + hit.kuan + '款' : '');
@@ -351,13 +443,203 @@
       } catch (err) { cp.textContent = '複製失敗'; }
     });
     foot.appendChild(cp);
+    // 顯示錯誤資料是最難自己發現的問題，在條文旁給一個直接入口
+    var wrong = el('a', CLS.link, '這條顯示錯了');
+    wrong.addEventListener('click', function (e) {
+      e.preventDefault();
+      openReport({
+        kind: 'wrong', name: art.law, flno: hit.flno || '', raw: hit.raw || '',
+        title: art.title, url: art.url,
+        shown: art.lines.map(function (l) { return l.text; }).join('\n').slice(0, 400)
+      });
+    });
+    foot.appendChild(wrong);
     box.appendChild(foot);
   }
 
-  function renderMsg(box, msg, sub) {
+  function renderMsg(box, msg, sub, report) {
     box.appendChild(el('div', CLS.err, msg));
-    if (sub) box.appendChild(el('div', CLS.note, sub));
+    if (sub) {
+      var n = el('div', CLS.note, sub);
+      // 失敗當下直接給回報入口，此時脈絡最完整
+      if (report) {
+        var a = el('span', CLS.rptLink, '回報這個問題');
+        a.addEventListener('click', function (e) { e.preventDefault(); openReport(report); });
+        n.appendChild(a);
+      }
+      box.appendChild(n);
+    }
   }
+
+
+  /* ---------- 問題回報 ----------
+   * 兩階段設計：先分「沒顯示」或「顯示錯誤」，因為兩者的診斷方向完全不同。
+   * 自動帶入網址、原文句子、標記結果與錯誤記錄，使用者不必截圖也不必開 console。
+   */
+  function pageDiag(extra) {
+    var marks = document.querySelectorAll('[data-flno]');
+    var sample = [], seen = {};
+    for (var i = 0; i < marks.length && sample.length < 12; i++) {
+      var m = marks[i], k = m.dataset.name + '|' + m.dataset.flno;
+      if (seen[k]) continue;
+      seen[k] = 1;
+      sample.push('  ' + JSON.stringify(m.textContent) + ' -> ' + m.dataset.name +
+                  ' 第' + m.dataset.flno + '條' +
+                  (m.dataset.xiang ? ' 第' + m.dataset.xiang + '項' : '') +
+                  (m.dataset.pcode ? ' [本頁法規]' : ''));
+    }
+    var L = [];
+    L.push('網址: ' + location.href);
+    var self0 = (typeof SELF !== 'undefined' && SELF) ? SELF : null;
+    L.push('本頁法規: ' + (self0 ? self0.name + ' (' + self0.pcode + ')' : '(非法規全文頁)'));
+    L.push('標記總數: ' + marks.length);
+    L.push('瀏覽器: ' + navigator.userAgent);
+    L.push('時間: ' + new Date().toISOString());
+    if (extra && extra.raw) L.push('問題引用原文: ' + extra.raw);
+    if (extra && extra.name) L.push('解析結果: ' + extra.name + ' 第' + (extra.flno || '?') + '條');
+    if (extra && extra.title) L.push('顯示的條文標題: ' + extra.title);
+    if (extra && extra.url) L.push('取文網址: ' + extra.url);
+    if (extra && extra.err) L.push('失敗原因: ' + extra.err);
+    if (extra && extra.shown) L.push('顯示的內容(節錄):\n' + extra.shown);
+    if (sample.length) L.push('本頁標記樣本:\n' + sample.join('\n'));
+    if (errLog.length) {
+      L.push('錯誤記錄:');
+      errLog.forEach(function (e) { L.push('  [' + e.t + '] ' + e.kind + ' - ' + e.detail); });
+    }
+    return L.join('\n');
+  }
+
+  var dlgEl = null;
+  function openReport(ctx) {
+    ctx = ctx || {};
+    if (dlgEl) closeReport();
+    var kind = ctx.kind || null;
+
+    dlgEl = sty(document.createElement('div'), CLS.dlg);
+    var inner = sty(document.createElement('div'), CLS.dlgIn);
+
+    var h = el('div', CLS.dlgH, '回報問題');
+    inner.appendChild(h);
+
+    /* 第一階段：問題類型。兩種問題的嚴重性與診斷方向不同，先分流。 */
+    var r1 = el('div', CLS.row);
+    r1.appendChild(el('div', CLS.lbl, '1 · 這是哪一種問題？'));
+    var optA = el('div', CLS.opt), optB = el('div', CLS.opt);
+    function fillOpt(node, title, desc) {
+      var wrapT = el('div');
+      wrapT.appendChild(el('div', null, title));
+      var d = el('div', CLS.note, desc);
+      wrapT.appendChild(d);
+      node.appendChild(wrapT);
+    }
+    fillOpt(optA, '沒有顯示資料', '該標記的沒被標記，或滑過去顯示「查不到條文」。');
+    fillOpt(optB, '資料顯示錯誤', '有顯示條文，但內容不是這一條，或項次標錯。');
+    function pick(k) {
+      kind = k;
+      optA.setAttribute('data-on', k === 'missing' ? '1' : '0');
+      optB.setAttribute('data-on', k === 'wrong' ? '1' : '0');
+      diag.value = pageDiag(ctx);
+      send.disabled = false;
+    }
+    optA.addEventListener('click', function () { pick('missing'); });
+    optB.addEventListener('click', function () { pick('wrong'); });
+    r1.appendChild(optA); r1.appendChild(optB);
+    inner.appendChild(r1);
+
+    /* 第二階段：原文句子。這是最關鍵的資訊，解析錯誤幾乎都能由原文重現。 */
+    var r2 = el('div', CLS.row);
+    r2.appendChild(el('div', CLS.lbl, '2 · 貼上出問題的法條文句'));
+    var ta = document.createElement('textarea');
+    sty(ta, CLS.ta);
+    ta.placeholder = '例如：本法依中華民國憲法第一百十八條及中華民國憲法增修條文第九條第一項制定之。';
+    if (ctx.raw) ta.value = ctx.raw;
+    r2.appendChild(ta);
+    r2.appendChild(el('div', CLS.note, '直接從頁面上複製整句貼進來即可，這是最有用的線索。'));
+    inner.appendChild(r2);
+
+    /* 診斷資訊自動帶入，讓使用者看得到要送出什麼，不做黑箱 */
+    var r3 = el('div', CLS.row);
+    var lbl3 = el('div', CLS.lbl, '3 · 診斷資訊（自動帶入，可自行刪改）');
+    r3.appendChild(lbl3);
+    var diag = document.createElement('textarea');
+    sty(diag, CLS.diag);
+    diag.value = pageDiag(ctx);
+    r3.appendChild(diag);
+    r3.appendChild(el('div', CLS.note, '不含你正在瀏覽的公文內容，只有網址與標記結果。'));
+    inner.appendChild(r3);
+
+    var f = el('div', CLS.dgf);
+    var copy = el('button', CLS.btn, '複製內容');
+    var cancel = el('button', CLS.btn, '取消');
+    var send = el('button', CLS.btn, '用 Email 回報');
+    sty(send, CLS.btnP);
+    send.disabled = !kind;
+    function body() {
+      return [
+        '問題類型：' + (kind === 'wrong' ? '資料顯示錯誤' : kind === 'missing' ? '沒有顯示資料' : '(未選)'),
+        '',
+        '出問題的法條文句：',
+        ta.value || '(未填)',
+        '',
+        '--- 診斷資訊 ---',
+        diag.value,
+        '',
+        '--- 補充說明（可自行填寫）---',
+        ''
+      ].join('\n');
+    }
+    copy.addEventListener('click', function () {
+      var txt = body();
+      try {
+        navigator.clipboard.writeText(txt);
+        copy.textContent = '已複製 ✓';
+      } catch (e) {
+        diag.value = txt; diag.select(); copy.textContent = '請手動複製';
+      }
+      setTimeout(function () { copy.textContent = '複製內容'; }, 1800);
+    });
+    send.addEventListener('click', function () {
+      var subj = '[法條懸停] ' + (kind === 'wrong' ? '資料顯示錯誤' : '沒有顯示資料');
+      var href = 'mailto:' + REPORT_TO + '?subject=' + encodeURIComponent(subj) +
+                 '&body=' + encodeURIComponent(body());
+      // mailto 過長會被瀏覽器截斷，先確保內容已在剪貼簿
+      try { navigator.clipboard.writeText(body()); } catch (e) {}
+      if (href.length > 1900) {
+        href = 'mailto:' + REPORT_TO + '?subject=' + encodeURIComponent(subj) +
+               '&body=' + encodeURIComponent('內容較長，已複製到剪貼簿，請直接貼上（Ctrl+V）。\n\n');
+      }
+      window.open(href, '_blank');
+      send.textContent = '已開啟郵件';
+    });
+    cancel.addEventListener('click', closeReport);
+    f.appendChild(copy);
+    var sp = el('span'); sp.setAttribute('data-sp', '1');
+    css_flex(sp);
+    f.appendChild(sp);
+    f.appendChild(cancel); f.appendChild(send);
+    inner.appendChild(f);
+
+    dlgEl.appendChild(inner);
+    dlgEl.addEventListener('click', function (e) { if (e.target === dlgEl) closeReport(); });
+    document.body.appendChild(dlgEl);
+    if (kind) pick(kind);
+    setTimeout(function () { ta.focus(); }, 60);
+  }
+  // 這個間隔元素需要 flex:1，但不能用 inline style，改掛一次性規則
+  function css_flex(node) {
+    var c = PFX + 'sp';
+    node.classList.add(c);
+    if (sheet && !css_flex.done) {
+      try { sheet.insertRule('.' + c + '{flex:1}', sheet.cssRules.length); css_flex.done = true; } catch (e) {}
+    }
+  }
+  function closeReport() {
+    if (dlgEl && dlgEl.parentNode) dlgEl.parentNode.removeChild(dlgEl);
+    dlgEl = null;
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && dlgEl) closeReport();
+  });
 
   /* ---------- 標記 ---------- */
   var count = 0;
@@ -462,14 +744,22 @@
   document.addEventListener('mouseover', function (e) {
     var t = e.target;
     if (!t.dataset || !t.dataset.flno) return;
-    var hit = { xiang: t.dataset.xiang ? +t.dataset.xiang : null, kuan: t.dataset.kuan ? +t.dataset.kuan : null };
+    var hit = {
+      xiang: t.dataset.xiang ? +t.dataset.xiang : null,
+      kuan: t.dataset.kuan ? +t.dataset.kuan : null,
+      flno: t.dataset.flno, raw: t.textContent
+    };
     showPanel(t, function (box) { renderMsg(box, '查詢中…', t.dataset.name + ' 第 ' + t.dataset.flno + ' 條'); });
     (t.dataset.pcode ? Promise.resolve(t.dataset.pcode) : findPcode(t.dataset.name))
       .then(function (pc) { return fetchArticle(pc, t.dataset.flno); })
       .then(function (art) { showPanel(t, function (box) { renderArticle(box, art, hit); }); })
       .catch(function (err) {
+        logErr('查不到條文', t.dataset.name + ' 第' + t.dataset.flno + '條：' + err.message);
         showPanel(t, function (box) {
-          renderMsg(box, '查不到條文', err.message + '　（查不到比查錯安全）');
+          renderMsg(box, '查不到條文', err.message + '　（查不到比查錯安全）', {
+            kind: 'missing', name: t.dataset.name, flno: t.dataset.flno,
+            raw: t.textContent, err: err.message
+          });
         });
       });
   }, true);
@@ -480,9 +770,48 @@
 
   /* ---------- 啟動提示 ---------- */
   scan(document.body);
-  var toast = el('div', CLS.toast, '法條懸停已啟用 · 標記 ' + count + ' 處引用');
+  /* 啟用提示：置頂置中，並讓標記閃兩下。
+   * 使用者剛從書籤列點下來，視線在畫面上緣；提示若在右下角常被忽略，
+   * 會誤以為書籤沒生效。找到 0 處時也要講清楚，不能靜默。 */
+  var toast = el('div', CLS.toast);
+  var box = el('div', CLS.toastIn);
+  box.appendChild(el('span', CLS.toastDot, count ? '\u2713' : '!'));
+  var msg = el('span');
+  if (count) {
+    msg.appendChild(el('span', null, '已啟用，標記 '));
+    msg.appendChild(el('span', CLS.toastNum, String(count)));
+    msg.appendChild(el('span', null, ' 處法條引用'));
+    msg.appendChild(el('span', CLS.toastSub, '\u00a0\u00b7\u00a0滑過紅色虛線看條文'));
+  } else {
+    msg.appendChild(el('span', null, '已啟用，但這一頁沒有找到法條引用'));
+    msg.appendChild(el('span', CLS.toastSub, '\u00a0\u00b7\u00a0換一頁再點一次'));
+  }
+  box.appendChild(msg);
+  toast.appendChild(box);
   document.body.appendChild(toast);
-  setTimeout(function () { toast.remove(); }, 2600);
+
+  // 讓標記閃兩下，明確指出「被標起來的是這些字」
+  if (count) {
+    var flashed = document.querySelectorAll('[data-flno]');
+    for (var fi = 0; fi < flashed.length && fi < 400; fi++) {
+      flashed[fi].classList.add(PFX + 'fl');
+    }
+    setTimeout(function () {
+      for (var j = 0; j < flashed.length && j < 400; j++) {
+        flashed[j].classList.remove(PFX + 'fl');
+      }
+    }, 2400);
+  }
+  setTimeout(function () { if (toast.parentNode) toast.remove(); }, 3600);
+
+  /* 常駐回報入口：低調但找得到。
+   * 顯示錯誤的資料是最難自己察覺的問題，必須讓使用者隨時能反映。 */
+  var fab = el('button', CLS.fab);
+  fab.appendChild(el('span', null, '\u2709'));
+  fab.appendChild(el('span', null, '回報問題'));
+  fab.setAttribute('title', '法條沒顯示或顯示錯了？點此回報');
+  fab.addEventListener('click', function () { openReport({}); });
+  document.body.appendChild(fab);
 
   window.__lawhover__ = {
     toggle: function () { scan(document.body); },

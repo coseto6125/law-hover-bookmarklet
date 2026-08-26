@@ -3,112 +3,916 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>法條懸停（書籤版）· Windows 安裝說明</title>
+<title>法條懸停（書籤版）· 在全國法規資料庫滑過去就看到條文</title>
+<meta name="description" content="不安裝任何擴充功能，只加一則書籤，就能在全國法規資料庫頁面上滑過法條引用直接顯示條文。零對外連線、無伺服器。">
+<!-- favicon：拖曳書籤時，Chrome/Edge 會採用來源頁面的 favicon 作為書籤圖示 -->
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="icon" href="icon-32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="icon-16.png" type="image/png" sizes="16x16">
+<link rel="shortcut icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#9c2b2b">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@500;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  :root { --ink:#1a1a1a; --sub:#666; --accent:#8a1f1f; --line:#e5e5e5; }
-  * { box-sizing:border-box; }
-  body { margin:0; font:16px/1.8 system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif;
-         color:var(--ink); background:#fafaf8; }
-  .wrap { max-width:760px; margin:0 auto; padding:48px 24px 80px; }
-  h1 { font-size:30px; margin:0 0 6px; letter-spacing:2px; }
-  .lead { color:var(--sub); margin:0 0 36px; }
-  h2 { font-size:19px; margin:44px 0 14px; padding-bottom:8px; border-bottom:1px solid var(--line); }
-  ol { padding-left:22px; } li { margin:10px 0; }
-  code, kbd { background:#f0efec; border-radius:4px; padding:2px 6px; font-size:14px;
-              font-family:ui-monospace,Consolas,monospace; }
-  kbd { border:1px solid #ccc; border-bottom-width:2px; }
-  .drag { display:inline-block; background:var(--accent); color:#fff; text-decoration:none;
-          padding:12px 26px; border-radius:8px; font-weight:700; font-size:17px;
-          box-shadow:0 3px 10px rgba(138,31,31,.28); cursor:grab; }
-  .dragbox { background:#fff; border:2px dashed #d8b4b4; border-radius:12px;
-             padding:26px; text-align:center; margin:20px 0; }
-  .note { background:#fff8e6; border-left:4px solid #e0a800; padding:12px 16px; margin:16px 0;
-          font-size:15px; border-radius:0 6px 6px 0; }
-  .warn { background:#fdecec; border-left:4px solid #c0392b; padding:12px 16px; margin:16px 0;
-          font-size:15px; border-radius:0 6px 6px 0; }
-  textarea { width:100%; height:110px; font-family:ui-monospace,Consolas,monospace; font-size:11px;
-             border:1px solid var(--line); border-radius:6px; padding:10px; background:#fff; }
-  table { width:100%; border-collapse:collapse; margin:14px 0; font-size:15px; }
-  th,td { border:1px solid var(--line); padding:9px 12px; text-align:left; }
-  th { background:#f4f3f0; }
-  .foot { margin-top:56px; padding-top:18px; border-top:1px solid var(--line);
-          color:var(--sub); font-size:14px; }
+:root{
+  /* 墨藍為主、印章紅為輔，取自法律文書的視覺語彙 */
+  --ink:#16233a; --ink-2:#31415c; --ink-3:#66738a;
+  --paper:#f7f6f2; --surface:#ffffff; --line:#e3e0d8;
+  --seal:#9c2b2b; --seal-soft:rgba(156,43,43,.08);
+  --accent:#1b5e57; --accent-soft:#e7f0ee;
+  --warn-bg:#fdf6e3; --warn-line:#c99a2e;
+  --radius:10px; --radius-lg:16px;
+  --shadow-1:0 1px 2px rgba(22,35,58,.06),0 2px 8px rgba(22,35,58,.05);
+  --shadow-2:0 4px 12px rgba(22,35,58,.08),0 12px 32px rgba(22,35,58,.10);
+  --shadow-3:0 18px 50px rgba(22,35,58,.18);
+  --serif:"Noto Serif TC",Georgia,"Songti TC",serif;
+  --sans:"Noto Sans TC",system-ui,"Microsoft JhengHei",sans-serif;
+  --step:clamp(1rem,.85rem + .6vw,1.0625rem);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font:var(--step)/1.8 var(--sans);
+  -webkit-font-smoothing:antialiased;
+  background-image:radial-gradient(rgba(22,35,58,.028) 1px,transparent 1px);
+  background-size:22px 22px;
+}
+h1,h2,h3{font-family:var(--serif);line-height:1.35;letter-spacing:.01em}
+a{color:#1a4fa0}
+:focus-visible{outline:2.5px solid var(--seal);outline-offset:3px;border-radius:4px}
+.wrap{max-width:940px;margin:0 auto;padding:0 24px}
+
+/* ---------- 頁首 ---------- */
+.top{position:sticky;top:0;z-index:60;background:rgba(247,246,242,.88);
+  backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--line)}
+.top-in{max-width:940px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:14px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-weight:700;font-size:17px}
+.seal{width:30px;height:30px;border-radius:7px;background:var(--seal);color:#fff;
+  display:grid;place-items:center;font-family:var(--serif);font-size:15px;font-weight:700;
+  box-shadow:0 2px 6px rgba(156,43,43,.3)}
+.top-spacer{flex:1}
+.top-link{font-size:14px;color:var(--ink-2);text-decoration:none;padding:6px 10px;border-radius:8px;
+  transition:background .18s,color .18s}
+.top-link:hover{background:rgba(22,35,58,.06);color:var(--ink)}
+/* 「?」求助鈕：帶輕微脈動，提示可點 */
+.help-btn{width:38px;height:38px;flex:0 0 38px;border-radius:50%;border:1.5px solid var(--line);
+  background:var(--surface);color:var(--ink-2);font:700 17px/1 var(--sans);cursor:pointer;
+  display:grid;place-items:center;position:relative;transition:all .2s;box-shadow:var(--shadow-1)}
+.help-btn:hover{border-color:var(--seal);color:var(--seal);transform:translateY(-1px);box-shadow:var(--shadow-2)}
+.help-btn::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--seal);
+  opacity:0;animation:ping 3.4s cubic-bezier(0,0,.2,1) infinite}
+@keyframes ping{0%{transform:scale(.85);opacity:.6}70%,100%{transform:scale(1.35);opacity:0}}
+.help-tip{position:absolute;top:46px;right:0;white-space:nowrap;background:var(--ink);color:#fff;
+  font-size:12.5px;padding:6px 11px;border-radius:7px;opacity:0;pointer-events:none;transition:opacity .2s;
+  font-family:var(--sans)}
+.help-wrap{position:relative}
+.help-wrap:hover .help-tip{opacity:1}
+
+/* ---------- 英雄區 ---------- */
+.hero{padding:64px 0 20px;text-align:center}
+.eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500;
+  color:var(--accent);background:var(--accent-soft);border:1px solid #c9ded9;
+  padding:5px 13px;border-radius:999px;letter-spacing:.04em}
+.hero h1{font-size:clamp(2rem,1.5rem + 2.4vw,3rem);margin:20px 0 0;letter-spacing:-.01em}
+.hero h1 em{font-style:normal;color:var(--seal);position:relative;white-space:nowrap}
+.hero h1 em::after{content:"";position:absolute;left:0;right:0;bottom:.08em;height:.5em;
+  background:var(--seal-soft);border-radius:3px;z-index:-1}
+.lead{max-width:620px;margin:18px auto 0;color:var(--ink-2);font-size:1.05rem}
+.lead b{color:var(--ink);font-weight:500}
+
+/* ---------- 拖曳安裝區 ---------- */
+.install{margin:36px auto 0;max-width:660px;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius-lg);padding:30px 28px 26px;
+  box-shadow:var(--shadow-2);position:relative;overflow:hidden}
+.install::before{content:"";position:absolute;inset:0 0 auto;height:3px;
+  background:linear-gradient(90deg,var(--seal),#c4573f 45%,var(--accent))}
+.drop-zone{border:2px dashed #d6cfc2;border-radius:var(--radius);padding:26px 20px;
+  background:linear-gradient(180deg,#fdfcfa,#f8f6f1);transition:border-color .22s,background .22s}
+.install:hover .drop-zone{border-color:#c0a98a}
+.drag{display:inline-flex;align-items:center;gap:10px;background:var(--seal);color:#fff;
+  text-decoration:none;padding:14px 30px;border-radius:11px;font:700 17px/1 var(--sans);
+  cursor:grab;box-shadow:0 4px 14px rgba(156,43,43,.32);transition:transform .18s,box-shadow .18s;
+  user-select:none;-webkit-user-drag:element}
+.drag:hover{transform:translateY(-2px) scale(1.02);box-shadow:0 8px 22px rgba(156,43,43,.4)}
+.drag:active{cursor:grabbing;transform:scale(.98)}
+.drag svg{width:19px;height:19px}
+.drag-hint{margin-top:14px;font-size:14px;color:var(--ink-3);display:flex;
+  align-items:center;justify-content:center;gap:8px}
+.arrow-up{width:16px;height:16px;animation:bob 2.2s ease-in-out infinite;color:var(--ink-3)}
+.drag-icon-note{margin-top:9px;font-size:12.5px;color:var(--ink-3);display:flex;
+  align-items:center;justify-content:center;gap:6px}
+.drag-icon-note img{border-radius:3px;flex:0 0 16px}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.or{margin:20px 0 10px;font-size:13.5px;color:var(--ink-3);display:flex;align-items:center;gap:12px}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+details.manual summary{cursor:pointer;font-size:14.5px;color:var(--ink-2);padding:8px 0;
+  list-style:none;display:flex;align-items:center;gap:8px;transition:color .18s}
+details.manual summary:hover{color:var(--seal)}
+details.manual summary::-webkit-details-marker{display:none}
+details.manual summary::before{content:"▸";transition:transform .2s;display:inline-block;font-size:12px}
+details.manual[open] summary::before{transform:rotate(90deg)}
+textarea{width:100%;height:96px;margin-top:10px;font:11.5px/1.5 ui-monospace,Consolas,monospace;
+  border:1px solid var(--line);border-radius:8px;padding:11px;background:#fbfaf7;color:var(--ink-2);
+  resize:vertical}
+.copy-row{display:flex;gap:9px;margin-top:9px;align-items:center;flex-wrap:wrap}
+.btn-s{font:500 13.5px/1 var(--sans);padding:9px 15px;border-radius:8px;border:1px solid var(--line);
+  background:var(--surface);color:var(--ink-2);cursor:pointer;transition:all .18s}
+.btn-s:hover{border-color:var(--ink-3);color:var(--ink);background:#fbfaf7}
+.note-inline{font-size:12.5px;color:var(--ink-3)}
+
+/* ---------- 區塊標題 ---------- */
+section{padding:52px 0}
+.sec-head{display:flex;align-items:baseline;gap:13px;margin-bottom:8px}
+.sec-num{font-family:var(--serif);font-size:13px;color:var(--seal);font-weight:700;
+  border:1.5px solid var(--seal);border-radius:5px;padding:2px 7px;flex:0 0 auto;line-height:1.4}
+h2{font-size:1.5rem;margin:0}
+.sec-sub{color:var(--ink-2);margin:0 0 26px;font-size:.96rem}
+
+/* ---------- 實際範例 ---------- */
+.demo{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);
+  overflow:hidden;box-shadow:var(--shadow-2)}
+.demo-bar{display:flex;align-items:center;gap:8px;padding:10px 15px;background:#f2f0ea;
+  border-bottom:1px solid var(--line)}
+.dot{width:11px;height:11px;border-radius:50%}
+.demo-url{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:6px;
+  padding:5px 11px;font:12px/1.5 ui-monospace,Consolas,monospace;color:var(--ink-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.demo-body{padding:26px 28px}
+.demo-body p{margin:0 0 15px;line-height:2}
+.demo-body p:last-child{margin-bottom:0}
+/* 範例中的引用標記，樣式與實際工具一致 */
+.cite{border-bottom:1.5px dotted var(--seal);background:var(--seal-soft);cursor:help;
+  padding:1px 2px;border-radius:2px;transition:background .18s}
+.cite:hover{background:rgba(156,43,43,.16)}
+.demo-tip{display:flex;align-items:center;gap:9px;padding:11px 16px;background:var(--accent-soft);
+  border-top:1px solid #c9ded9;font-size:13.5px;color:#155249}
+.demo-tip svg{width:17px;height:17px;flex:0 0 17px}
+
+/* 條文面板（範例用，樣式比照實際工具） */
+.panel{position:fixed;z-index:80;max-width:480px;background:var(--surface);
+  border:1px solid #c8ccd4;border-radius:9px;box-shadow:var(--shadow-3);padding:15px 17px;
+  font:14px/1.75 var(--sans);opacity:0;visibility:hidden;transform:translateY(6px);
+  transition:opacity .18s,transform .18s,visibility .18s}
+.panel.on{opacity:1;visibility:visible;transform:translateY(0)}
+.panel-h{font-weight:700;color:var(--seal);margin-bottom:8px;font-size:14px}
+.panel-b{border-top:1px solid #eee;padding-top:9px;max-height:280px;overflow:auto}
+.panel-b div{margin:3px 0}
+.panel-b .sub{padding-left:1.6em}
+.panel-b .hit{background:var(--warn-bg);border-left:3px solid var(--warn-line);
+  padding-left:9px;border-radius:0 3px 3px 0}
+.panel-f{margin-top:11px;padding-top:9px;border-top:1px solid #eee;font-size:12px;color:var(--ink-3)}
+
+/* ---------- 功能卡 ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:15px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  padding:20px;transition:transform .2s,box-shadow .2s,border-color .2s}
+.card:hover{transform:translateY(-2px);box-shadow:var(--shadow-2);border-color:#d3cec2}
+.card h3{margin:0 0 7px;font-size:1rem}
+.card p{margin:0;font-size:.9rem;color:var(--ink-2);line-height:1.7}
+.ico{width:34px;height:34px;border-radius:9px;background:var(--seal-soft);color:var(--seal);
+  display:grid;place-items:center;margin-bottom:12px}
+.ico svg{width:19px;height:19px}
+
+/* ---------- 表格 ---------- */
+table{width:100%;border-collapse:collapse;font-size:.92rem;background:var(--surface);
+  border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-1)}
+th,td{padding:12px 15px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:#f2f0ea;font-weight:700;font-size:.87rem;letter-spacing:.02em}
+tr:last-child td{border-bottom:none}
+td b{font-weight:700}
+.yes{color:var(--accent);font-weight:700}
+.no{color:var(--seal);font-weight:700}
+
+.callout{border-left:4px solid var(--warn-line);background:var(--warn-bg);
+  padding:14px 18px;border-radius:0 var(--radius) var(--radius) 0;margin:18px 0;font-size:.93rem}
+.callout.ok{border-color:var(--accent);background:var(--accent-soft)}
+.callout p{margin:0}
+.callout p + p{margin-top:7px}
+
+/* ---------- 回報區 ---------- */
+.rpt{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);
+  padding:24px;box-shadow:var(--shadow-1);display:flex;flex-direction:column;gap:18px}
+.rpt-l{display:flex;gap:15px;align-items:flex-start}
+.rpt-ico{width:42px;height:42px;flex:0 0 42px;border-radius:11px;background:var(--seal-soft);
+  color:var(--seal);display:grid;place-items:center}
+.rpt-ico svg{width:22px;height:22px}
+.rpt-t{font-family:var(--serif);font-weight:700;font-size:1.05rem;margin-bottom:4px}
+.rpt-d{margin:0;font-size:.92rem;color:var(--ink-2);line-height:1.8}
+.rpt-steps{display:flex;flex-direction:column;gap:11px;border-left:2px solid var(--line);
+  padding-left:0;margin-left:6px}
+.rpt-step{display:flex;gap:13px;align-items:flex-start;padding-left:16px;position:relative}
+.rpt-n{width:23px;height:23px;flex:0 0 23px;border-radius:50%;background:var(--seal);color:#fff;
+  font:700 12px/23px var(--sans);text-align:center;margin-left:-28px;box-shadow:0 0 0 4px var(--surface)}
+.rpt-step b{display:block;font-size:.94rem;margin-bottom:2px}
+.rpt-step span{display:block;font-size:.87rem;color:var(--ink-2);line-height:1.75}
+.rpt-mail{font-size:.92rem;color:var(--ink-2);padding:13px 16px;background:#faf9f6;
+  border:1px solid var(--line);border-radius:var(--radius)}
+.rpt-mail a{font-weight:500}
+.rpt-or{margin:0 8px;color:var(--ink-3)}
+
+/* ---------- 折疊式問答 ---------- */
+.faq{display:flex;flex-direction:column;gap:9px}
+.qa{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+  overflow:hidden;transition:border-color .18s,box-shadow .18s}
+.qa:hover{border-color:#d3cec2}
+.qa[open]{border-color:#cfc7b6;box-shadow:var(--shadow-1)}
+.qa summary{cursor:pointer;padding:15px 18px 15px 44px;font-weight:500;font-size:.97rem;
+  list-style:none;position:relative;transition:color .18s;user-select:none}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary:hover{color:var(--seal)}
+.qa summary::before{content:"";position:absolute;left:18px;top:50%;width:9px;height:9px;
+  margin-top:-5px;border-right:2px solid var(--seal);border-bottom:2px solid var(--seal);
+  transform:rotate(-45deg);transition:transform .22s}
+.qa[open] summary::before{transform:rotate(45deg)}
+.qa summary:focus-visible{outline:2.5px solid var(--seal);outline-offset:-2px}
+.qa-b{padding:0 18px 16px 44px;border-top:1px solid var(--line);margin-top:-1px;padding-top:14px}
+.qa-b p{margin:0;font-size:.92rem;color:var(--ink-2);line-height:1.85}
+.qa-b p + p{margin-top:9px}
+.qa-b code{background:#f2f0ea;border-radius:4px;padding:1px 5px;
+  font:12.5px ui-monospace,Consolas,monospace;color:var(--ink)}
+
+/* ---------- 動態引導 ---------- */
+.guide{position:fixed;inset:0;z-index:200;background:rgba(16,24,40,.62);
+  backdrop-filter:blur(3px);display:grid;place-items:center;padding:20px;
+  opacity:0;visibility:hidden;transition:opacity .28s,visibility .28s}
+.guide.on{opacity:1;visibility:visible}
+.guide-box{background:var(--surface);border-radius:var(--radius-lg);max-width:660px;width:100%;
+  box-shadow:0 30px 80px rgba(0,0,0,.4);overflow:hidden;transform:translateY(14px) scale(.98);
+  transition:transform .3s cubic-bezier(.2,.9,.3,1)}
+.guide.on .guide-box{transform:none}
+.guide-top{display:flex;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.guide-top h3{margin:0;font-size:1.1rem;flex:1}
+.x{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:var(--surface);
+  cursor:pointer;color:var(--ink-2);font-size:17px;line-height:1;display:grid;place-items:center;
+  transition:all .18s}
+.x:hover{background:#f2f0ea;color:var(--ink)}
+
+/* 模擬瀏覽器：引導動畫的舞台 */
+.stage{margin:20px;border:1px solid var(--line);border-radius:11px;overflow:hidden;
+  background:#f8f7f4;position:relative}
+.chrome-bar{background:#e8e6e0;padding:8px 12px;display:flex;align-items:center;gap:7px}
+.chrome-url{flex:1;background:#fff;border-radius:5px;padding:4px 10px;
+  font:11.5px/1.5 ui-monospace,monospace;color:var(--ink-3)}
+/* 書籤列：拖曳的目標 */
+.bm-bar{background:#f4f2ec;border-top:1px solid #dcd8d0;border-bottom:1px solid #dcd8d0;
+  padding:6px 12px;display:flex;align-items:center;gap:7px;min-height:33px;position:relative}
+.bm{font-size:11.5px;color:var(--ink-2);padding:3px 9px;border-radius:5px;background:rgba(0,0,0,.045);
+  white-space:nowrap}
+.bm-slot{width:0;transition:width .35s cubic-bezier(.2,.9,.3,1);overflow:hidden;display:flex}
+.bm-slot.open{width:96px}
+.bm-new{font-size:11.5px;padding:3px 9px;border-radius:5px;background:rgba(0,0,0,.045);color:var(--ink-2);
+  white-space:nowrap;opacity:0;transform:scale(.7);display:inline-flex;align-items:center;gap:5px;
+  transition:opacity .3s,transform .35s cubic-bezier(.3,1.4,.5,1)}
+.bm-new img{border-radius:2px;flex:0 0 12px}
+.bm-new.on{opacity:1;transform:none}
+.bm-drop{position:absolute;left:64px;top:5px;bottom:5px;width:2.5px;background:var(--seal);
+  border-radius:2px;opacity:0;transition:opacity .2s}
+.bm-drop.on{opacity:1;animation:blink .7s steps(2,end) infinite}
+@keyframes blink{50%{opacity:.25}}
+.stage-body{padding:22px 18px;min-height:132px;position:relative;background:#fff}
+.stage-btn{display:inline-flex;align-items:center;gap:7px;background:var(--seal);color:#fff;
+  padding:9px 19px;border-radius:9px;font:700 13.5px/1 var(--sans);
+  box-shadow:0 3px 10px rgba(156,43,43,.3);transition:opacity .25s}
+.stage-btn.faded{opacity:.28}
+.stage-line{height:9px;background:#eeece6;border-radius:5px;margin:11px 0}
+.stage-line.w70{width:70%}.stage-line.w45{width:45%}
+.stage-cite{display:inline-block;border-bottom:1.5px dotted var(--seal);background:var(--seal-soft);
+  font-size:12.5px;padding:1px 4px;border-radius:2px;opacity:0;transition:opacity .3s}
+.stage-cite.on{opacity:1}
+.mini-panel{position:absolute;left:26px;top:74px;background:#fff;border:1px solid #c8ccd4;
+  border-radius:8px;box-shadow:var(--shadow-2);padding:10px 13px;font-size:11.5px;line-height:1.7;
+  max-width:270px;opacity:0;transform:translateY(5px);transition:opacity .3s,transform .3s}
+.mini-panel.on{opacity:1;transform:none}
+.mini-panel b{color:var(--seal);display:block;margin-bottom:3px;font-size:11.5px}
+/* 幽靈游標：引導動畫的主角 */
+.ghost{position:absolute;width:22px;height:22px;pointer-events:none;z-index:9;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));opacity:0;
+  transition:transform .85s cubic-bezier(.4,.05,.25,1),opacity .3s}
+.ghost.on{opacity:1}
+.ghost-chip{position:absolute;left:16px;top:15px;background:var(--seal);color:#fff;
+  font:700 11px/1 var(--sans);padding:5px 10px;border-radius:6px;white-space:nowrap;
+  display:inline-flex;align-items:center;gap:5px;
+  opacity:0;transform:scale(.8);transition:opacity .25s,transform .25s;
+  box-shadow:0 3px 10px rgba(156,43,43,.4)}
+.ghost-chip.on{opacity:.95;transform:none}
+.ghost-chip img{border-radius:2px;filter:brightness(0) invert(1);opacity:.9;flex:0 0 12px}
+.steps{display:flex;gap:8px;padding:0 20px 6px}
+.step{flex:1;height:3.5px;background:var(--line);border-radius:2px;overflow:hidden}
+.step i{display:block;height:100%;width:0;background:var(--seal);border-radius:2px;transition:width .3s}
+.step.done i{width:100%}
+.step.now i{width:100%;animation:fill 2.4s linear}
+@keyframes fill{from{width:0}to{width:100%}}
+.guide-cap{padding:4px 20px 18px;min-height:74px}
+.guide-cap h4{margin:0 0 5px;font-family:var(--serif);font-size:1rem}
+.guide-cap p{margin:0;font-size:.88rem;color:var(--ink-2);line-height:1.7}
+.guide-foot{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid var(--line);
+  background:#faf9f6}
+.btn{font:500 14px/1 var(--sans);padding:10px 19px;border-radius:9px;border:1px solid var(--line);
+  background:var(--surface);color:var(--ink-2);cursor:pointer;transition:all .18s}
+.btn:hover{border-color:var(--ink-3);color:var(--ink)}
+.btn.primary{background:var(--seal);border-color:var(--seal);color:#fff;font-weight:700}
+.btn.primary:hover{background:#8a2424;box-shadow:0 4px 12px rgba(156,43,43,.3)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.guide-foot .sp{flex:1}
+kbd{font:600 12.5px/1 ui-monospace,Consolas,monospace;background:#f2f0ea;border:1px solid #d8d4cb;
+  border-bottom-width:2.5px;border-radius:5px;padding:3px 7px;color:var(--ink)}
+
+footer{border-top:1px solid var(--line);padding:34px 0 46px;color:var(--ink-3);font-size:.86rem;
+  background:var(--surface)}
+footer p{margin:0 0 8px;line-height:1.8}
+footer a{color:#1a4fa0}
+
+@media (max-width:640px){
+  .hero{padding:44px 0 12px}
+  section{padding:38px 0}
+  .install{padding:22px 18px}
+  .demo-body{padding:20px 18px}
+  .stage{margin:14px}
+  .top-link.hide-s{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
 </style>
 </head>
 <body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><span class="seal">條</span>法條懸停</div>
+    <div class="top-spacer"></div>
+    <a class="top-link hide-s" href="#demo">看範例</a>
+    <a class="top-link hide-s" href="#safe">安全性</a>
+    <a class="top-link hide-s" href="#faq">問題</a>
+    <a class="top-link hide-s" href="#report">回報</a>
+    <a class="top-link" href="https://github.com/coseto6125/law-hover-bookmarklet" target="_blank" rel="noopener">原始碼</a>
+    <div class="help-wrap">
+      <button class="help-btn" id="helpBtn" aria-label="播放安裝教學動畫">?</button>
+      <span class="help-tip">不會裝？看 20 秒動畫</span>
+    </div>
+  </div>
+</header>
+
+<main>
 <div class="wrap">
 
-  <h1>法條懸停 · 書籤版</h1>
-  <p class="lead">不必安裝擴充功能，也能在全國法規資料庫上滑過去看條文。</p>
+  <div class="hero">
+    <span class="eyebrow">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
+      零安裝 · 無伺服器 · 零對外連線
+    </span>
+    <h1>看到法條，<em>滑過去就好</em></h1>
+    <p class="lead">
+      在全國法規資料庫讀條文，遇到「第七十七條之二」還得另開視窗查。
+      這則書籤把那四個動作變成一個：<b>條文出現在原地，視線不用離開正在讀的那一句。</b>
+    </p>
 
-  <div class="note">
-    <b>適用情境：</b>公司資安控管禁止安裝 Chrome 擴充功能與任何程式。
-    書籤版只是在書籤列多一則書籤，不寫入登錄檔、不安裝檔案、不需管理員權限。
+    <div class="install">
+      <div class="drop-zone">
+        <a class="drag" id="dragBtn" href="__BOOKMARKLET__" draggable="true">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a1 1 0 011 1v9.59l3.3-3.3a1 1 0 111.4 1.42l-5 5a1 1 0 01-1.4 0l-5-5a1 1 0 111.4-1.42L9 12.6V3a1 1 0 011-1z"/><path d="M3 16a1 1 0 011 1v.5h12V17a1 1 0 112 0v1a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 012 18v-1a1 1 0 011-1z"/></svg>
+          法條懸停
+        </a>
+        <div class="drag-hint">
+          <svg class="arrow-up" viewBox="0 0 20 20" fill="currentColor"><path d="M10 18a1 1 0 01-1-1V7.41l-3.3 3.3a1 1 0 01-1.4-1.42l5-5a1 1 0 011.4 0l5 5a1 1 0 01-1.4 1.42L11 7.4V17a1 1 0 01-1 1z"/></svg>
+          用滑鼠<b>拖曳</b>這顆按鈕到書籤列
+        </div>
+        <div class="drag-icon-note">
+          <img src="icon-16.png" alt="" width="16" height="16">
+          會帶著這個圖示一起過去
+        </div>
+      </div>
+
+      <div class="or">拖不動或看不到書籤列？</div>
+      <div class="copy-row" style="margin-bottom:4px">
+        <button class="btn-s" id="playBtn">▶ 播放安裝動畫</button>
+        <span class="note-inline">先按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> 叫出書籤列</span>
+      </div>
+
+      <details class="manual">
+        <summary>改用手動貼上（書籤列按右鍵 → 新增網頁）</summary>
+        <textarea readonly id="bmText" aria-label="書籤網址">__BOOKMARKLET__</textarea>
+        <div class="copy-row">
+          <button class="btn-s" id="copyBtn">複製網址</button>
+          <span class="note-inline">貼上後若開頭的 <code>javascript:</code> 不見了，請<b>手動補上</b>。</span>
+        </div>
+      </details>
+    </div>
   </div>
 
-  <h2>安裝（Windows · Chrome / Edge）</h2>
-  <ol>
-    <li>按 <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>B</kbd> 叫出書籤列（若已顯示可略過）。</li>
-    <li>把下面這顆按鈕<b>用滑鼠拖曳</b>到書籤列上放開。</li>
-  </ol>
+  <!-- ---------- 實際範例 ---------- -->
+  <section id="demo">
+    <div class="sec-head"><span class="sec-num">範例</span><h2>裝好之後長這樣</h2></div>
+    <p class="sec-sub">下面是模擬的法規頁面。<b>把滑鼠移到紅色虛線上</b>，條文就會出現，不用真的安裝也能先試。</p>
 
-  <div class="dragbox">
-    <a class="drag" href="__BOOKMARKLET__" onclick="alert('請用滑鼠把這顆按鈕拖到書籤列，不要直接點擊。');return false;">法條懸停</a>
-    <div style="color:#888;font-size:14px;margin-top:12px">↑ 拖曳我到書籤列</div>
-  </div>
+    <div class="demo">
+      <div class="demo-bar">
+        <span class="dot" style="background:#e9695f"></span>
+        <span class="dot" style="background:#e9b84f"></span>
+        <span class="dot" style="background:#5cb85c"></span>
+        <span class="demo-url">law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109</span>
+      </div>
+      <div class="demo-body">
+        <p>第 25 條　建築物非經申請直轄市、縣（市）（局）主管建築機關之審查許可並發給執照，不得擅自建造或使用或拆除。但合於<span class="cite" data-k="78">第七十八條</span>及<span class="cite" data-k="98">第九十八條</span>規定者，不在此限。</p>
+        <p>二、案<span class="cite" data-k="77-2" data-x="1">建築法第77條之2第1項</span>規定，供公眾使用建築物之室內裝修應由開業建築師或專業設計技術人員設計。</p>
+        <p>三、前項辦理時不受<span class="cite" data-k="land25">土地法第二十五條</span>之限制，並依<span class="cite" data-k="99">第九十九條</span>規定辦理。</p>
+      </div>
+      <div class="demo-tip">
+        <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+        <span>「第七十八條」這種<b>沒寫法規名的裸條號</b>也認得，會自動指向你正在看的那部法規。寫到第 X 項時，該項會標黃。</span>
+      </div>
+    </div>
+  </section>
 
-  <p>拖不動的話，改用手動新增：在書籤列<b>按右鍵 → 新增網頁</b>，名稱填「法條懸停」，
-     網址貼上下面整段文字。</p>
-  <textarea readonly onclick="this.select()">__BOOKMARKLET__</textarea>
+  <!-- ---------- 功能 ---------- -->
+  <section>
+    <div class="sec-head"><span class="sec-num">功能</span><h2>認得懂公文的寫法</h2></div>
+    <p class="sec-sub">條號的寫法千奇百怪，這些都處理了。</p>
+    <div class="grid">
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 6a1 1 0 011-1h7a1 1 0 110 2H4a1 1 0 01-1-1z"/></svg></div>
+        <h3>各種數字寫法</h3>
+        <p>阿拉伯數字、全形數字、中文數字（第七十七條之二），以及「之X」條號都認得。</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.3.7l2.5 2.5a1 1 0 101.4-1.4L11 9.6V6z" clip-rule="evenodd"/></svg></div>
+        <h3>定位到項與款</h3>
+        <p>引用寫「第 97 條第 1 項第 3 款」時，面板會把那一項標黃，長條文不必自己找。</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M9 4.8A3 3 0 1113.2 9l-.9.9a1 1 0 01-1.4-1.4l.9-.9a1 1 0 10-1.4-1.4l-.9.9A1 1 0 019 4.8z"/><path d="M11 15.2A3 3 0 116.8 11l.9-.9a1 1 0 011.4 1.4l-.9.9a1 1 0 101.4 1.4l.9-.9a1 1 0 011.4 1.4z"/></svg></div>
+        <h3>裸條號自動判斷</h3>
+        <p>法規內文常寫「依第九十九條」不帶法規名，會自動指向當前頁面的法規。</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.3 2.3a1 1 0 011.4 0l7 7a1 1 0 01-1.4 1.4L15 10.4V16a2 2 0 01-2 2H7a2 2 0 01-2-2v-5.6l-.3.3a1 1 0 01-1.4-1.4l7-7z" clip-rule="evenodd"/></svg></div>
+        <h3>剝除公文前綴</h3>
+        <p>「案建築法」「不受土地法」「另依」這類黏在法規名前的字會自動剝掉。</p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a1 1 0 011 1v4a1 1 0 11-2 0V6a1 1 0 011-1zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg></div>
+        <h3>查不到就明講</h3>
+        <p>條號驗證失敗時寧可不顯示並說明原因。<b>查不到比查錯安全。</b></p>
+      </div>
+      <div class="card">
+        <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1 1 0 011 1V6h1.5a1 1 0 110 2H11v6a2 2 0 11-2 0V8H7.5a1 1 0 010-2H9V4.5a1 1 0 011-1z"/></svg></div>
+        <h3>名稱容錯</h3>
+        <p>「刑法」對得上官方全名「中華民國刑法」，名稱帶括號註記的法規也找得到。</p>
+      </div>
+    </div>
+  </section>
 
-  <h2>使用</h2>
-  <ol>
-    <li>開啟任一全國法規資料庫頁面，例如
-        <code>law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109</code>。</li>
-    <li>點一下書籤列上的「法條懸停」，右下角會顯示已標記幾處引用。</li>
-    <li>條文中的引用會出現紅色虛線底線，<b>滑鼠移上去</b>即顯示該條全文；
-        寫到第 X 項時會把那一項標黃。</li>
-  </ol>
+  <!-- ---------- 安全性 ---------- -->
+  <section id="safe">
+    <div class="sec-head"><span class="sec-num">安全</span><h2>為什麼公司資安擋不到</h2></div>
+    <p class="sec-sub">它不是程式、不是擴充功能，只是書籤列上的一個項目。</p>
+    <table>
+      <tr><th style="width:26%">項目</th><th>說明</th></tr>
+      <tr><td><b>安裝行為</b></td><td><span class="yes">無</span>　僅新增一則書籤，不寫入登錄檔、不需管理員權限，可隨時刪除且不留痕跡。</td></tr>
+      <tr><td><b>對外連線</b></td><td><span class="yes">無</span>　條文直接向你正在瀏覽的 <code>law.moj.gov.tw</code> 取得，<b>連線從未離開該網域</b>。</td></tr>
+      <tr><td><b>伺服器</b></td><td><span class="yes">無</span>　<b>沒有屬於開發者的伺服器</b>，開發者看不到任何查詢紀錄。</td></tr>
+      <tr><td><b>資料儲存</b></td><td><span class="yes">無</span>　快取只存在當前分頁的記憶體，關掉分頁即消失。</td></tr>
+      <tr><td><b>原始碼</b></td><td><a href="https://github.com/coseto6125/law-hover-bookmarklet" target="_blank" rel="noopener">GitHub 公開</a>，MIT 授權，可自行檢視與建置。</td></tr>
+    </table>
+    <div class="callout">
+      <p><b>唯一的代價：每換一頁要重點一次書籤。</b>它不會像擴充功能那樣自動生效，這是不安裝任何東西所必須付出的代價。</p>
+    </div>
+  </section>
 
-  <div class="warn">
-    <b>與擴充功能版的差別：</b>書籤版<b>每換一頁要重點一次</b>，不會自動生效。
-    這是不安裝任何東西所必須付出的代價。
-  </div>
+  <!-- ---------- 疑難排解（折疊） ---------- -->
+  <section id="faq">
+    <div class="sec-head"><span class="sec-num">排除</span><h2>遇到狀況</h2></div>
+    <p class="sec-sub">點開看處理方式。</p>
 
-  <h2>為什麼這樣是安全的</h2>
-  <table>
-    <tr><th>項目</th><th>說明</th></tr>
-    <tr><td>對外連線</td><td>無。條文直接向你正在瀏覽的 <code>law.moj.gov.tw</code> 取得，連線從未離開該網域。</td></tr>
-    <tr><td>伺服器</td><td>無。沒有屬於開發者的伺服器，開發者看不到任何查詢紀錄。</td></tr>
-    <tr><td>資料儲存</td><td>無。快取只存在當前分頁的記憶體，關掉即消失。</td></tr>
-    <tr><td>安裝行為</td><td>無。僅新增一則書籤，可隨時刪除，不留任何痕跡。</td></tr>
-  </table>
+    <div class="faq">
+      <details class="qa">
+        <summary>點了書籤沒反應，畫面什麼都沒變</summary>
+        <div class="qa-b">
+          <p>先確認網址列是 <code>https://law.moj.gov.tw/...</code>，本工具<b>僅在該站運作</b>，在其他網站點了不會有任何反應。</p>
+          <p>若網址正確，點下去後畫面<b>最上方中央</b>會出現一條綠色提示，告訴你標記了幾處引用，同時被標記的字會閃兩下黃色。若提示寫「沒有找到法條引用」，代表這一頁本來就沒有條號可標。</p>
+        </div>
+      </details>
 
-  <h2>疑難排解</h2>
-  <table>
-    <tr><th>狀況</th><th>處理</th></tr>
-    <tr><td>點了沒反應</td><td>確認網址列是 <code>https://law.moj.gov.tw/...</code>。本工具僅在該站運作。</td></tr>
-    <tr><td>貼上網址後前面的 <code>javascript:</code> 不見了</td>
-        <td>瀏覽器的安全機制會在貼上時移除。請把游標移到最前面手動補上 <code>javascript:</code>。</td></tr>
-    <tr><td>顯示「查不到條文」</td>
-        <td>刻意設計：驗證失敗時寧可不顯示。<b>查不到比查錯安全。</b>請點面板內連結至原站確認。</td></tr>
-    <tr><td>公司鎖住書籤列</td><td>那就真的無解，只能改用原站的查詢功能。</td></tr>
-  </table>
+      <details class="qa">
+        <summary>看不到書籤列，按鈕拖不上去</summary>
+        <div class="qa-b">
+          <p>按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd> 叫出書籤列（Mac 是 <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>）。書籤列就是網址列正下方那一條。</p>
+          <p>還是不行的話，用上方安裝區的「手動貼上」：在書籤列<b>按右鍵 → 新增網頁</b>，名稱自取，網址貼上那段文字。</p>
+        </div>
+      </details>
 
-  <h2>緣起</h2>
-  <p>概念源自 <a href="https://yinxian.vercel.app/" target="_blank" rel="noopener">引線</a>
-     這款 Chrome 擴充功能，它把「看到法條，滑過去就好」做得很好。
-     本工具<b>不是引線的移植或衍生</b>，與其開發者無關，也未參考其原始碼（引線並未開源），
-     只是因為擴充功能在許多企業資安控管下裝不了，才用書籤重新實作同一個想法。</p>
-  <p><b>若你的環境能安裝擴充功能，請直接用引線</b>，它支援地方法規、函釋、歷史條文與 PDF，
-     功能完整得多。本工具只解決「什麼都不能裝」這一個處境，且僅在全國法規資料庫上運作。</p>
+      <details class="qa">
+        <summary>貼上網址後，開頭的 <code>javascript:</code> 不見了</summary>
+        <div class="qa-b">
+          <p>這是瀏覽器的安全機制，貼上時會自動移除這段前綴，避免使用者被誘導貼入惡意程式。</p>
+          <p>請把游標移到網址<b>最前面，手動補上</b> <code>javascript:</code>（含冒號），再儲存即可。</p>
+        </div>
+      </details>
 
-  <div class="foot">
-    條文內容來自法務部<b>全國法規資料庫</b>，著作權歸屬原機關。<br>
-    本工具僅提供查詢便利，不對條文的即時性與正確性負責，正式引用請以官方網站為準。<br>
-    原始碼：<a href="https://github.com/coseto6125/law-hover-bookmarklet" target="_blank" rel="noopener">GitHub</a>（MIT 授權）
-  </div>
+      <details class="qa">
+        <summary>顯示「查不到條文」</summary>
+        <div class="qa-b">
+          <p>這是<b>刻意設計</b>：抓回條文後會先驗證確實是該法規該條，驗證失敗就不顯示，並告訴你卡在哪一步。</p>
+          <p><b>查不到比查錯安全</b>，顯示錯誤條文會導致誤引。請點面板內的連結到原站確認。網路不穩時會自動重試兩次，仍失敗才會顯示此訊息。</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary>換一頁之後標記就消失了</summary>
+        <div class="qa-b">
+          <p>正常。書籤只作用在點擊當下那一頁，<b>每換一頁要重新點一次</b>。</p>
+          <p>這是不安裝擴充功能所必須付出的代價。擴充功能能自動生效是因為它常駐在瀏覽器裡，而書籤沒有這個能力。</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary>公司把書籤列鎖住了</summary>
+        <div class="qa-b">
+          <p>若群組原則停用了書籤功能，那就真的無解，只能改用原站的查詢功能。</p>
+          <p>不過多數企業控管的對象是<b>安裝程式與擴充功能</b>，書籤通常不在管制範圍內，值得先試試。</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary>這會不會把我看的公文內容傳出去</summary>
+        <div class="qa-b">
+          <p><b>不會。</b>本工具沒有屬於開發者的伺服器，也沒有任何對外連線。</p>
+          <p>查條文時唯一的連線，是向你正在瀏覽的 <code>law.moj.gov.tw</code> 索取該條條文，<b>連線從未離開該網域</b>，也不夾帶你正在看的內容。<a href="https://github.com/coseto6125/law-hover-bookmarklet" target="_blank" rel="noopener">原始碼公開</a>可自行檢視。</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary>發現條文顯示錯誤，要怎麼回報</summary>
+        <div class="qa-b">
+          <p>裝好之後畫面<b>右下角</b>有「✉ 回報問題」，或直接在條文面板底部點<b>「這條顯示錯了」</b>，後者會自動預選問題類型並帶入該條的原文與顯示內容。</p>
+          <p>回報表單會自動附上網址、解析結果與錯誤記錄，<b>不必截圖也不必開開發者工具</b>。你只需要貼上出問題的法條文句。也可直接寄到 <a href="mailto:enor@e-life-ai.com">enor@e-life-ai.com</a>。</p>
+        </div>
+      </details>
+
+      <details class="qa">
+        <summary>書籤上為什麼沒有圖示</summary>
+        <div class="qa-b">
+          <p>書籤圖示取自<b>拖曳當下所在頁面的圖示</b>。從本頁拖曳的話會帶上紅色方形圖示。</p>
+          <p>若圖示是空白的，多半是瀏覽器還沒抓到本頁圖示，<b>重新整理本頁後再拖一次</b>即可。用手動貼上方式新增的書籤則沒有圖示，這不影響功能。</p>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- ---------- 回報 ---------- -->
+  <section id="report">
+    <div class="sec-head"><span class="sec-num">回報</span><h2>發現問題請告訴我</h2></div>
+    <p class="sec-sub">法條的寫法千變萬化，一定有沒考慮到的情況。<b>顯示錯誤的資料比查不到更危險</b>，請務必回報。</p>
+
+    <div class="rpt">
+      <div class="rpt-l">
+        <div class="rpt-ico">
+          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M2.5 5.5A1.5 1.5 0 014 4h12a1.5 1.5 0 011.5 1.5v.34l-7.5 4.2-7.5-4.2V5.5z"/><path d="M17.5 7.6V14.5A1.5 1.5 0 0116 16H4a1.5 1.5 0 01-1.5-1.5V7.6l7.13 4a.75.75 0 00.74 0l7.13-4z"/></svg>
+        </div>
+        <div>
+          <div class="rpt-t">直接在工具裡回報最快</div>
+          <p class="rpt-d">裝好之後，畫面<b>右下角</b>會有「✉ 回報問題」。點下去會自動帶入網址、解析結果與錯誤記錄，<b>不必截圖，也不必開開發者工具</b>。</p>
+        </div>
+      </div>
+
+      <div class="rpt-steps">
+        <div class="rpt-step">
+          <span class="rpt-n">1</span>
+          <div>
+            <b>選問題類型</b>
+            <span>「沒有顯示資料」或「資料顯示錯誤」，兩者的排查方向不同。</span>
+          </div>
+        </div>
+        <div class="rpt-step">
+          <span class="rpt-n">2</span>
+          <div>
+            <b>貼上出問題的法條文句</b>
+            <span>直接從頁面複製整句貼上。這是最有用的線索，多數解析問題都能由原文重現。</span>
+          </div>
+        </div>
+        <div class="rpt-step">
+          <span class="rpt-n">3</span>
+          <div>
+            <b>送出</b>
+            <span>診斷資訊已自動帶入且可自行刪改，按「用 Email 回報」開啟郵件即可。</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="rpt-mail">
+        也可以直接寄信：
+        <a href="mailto:enor@e-life-ai.com?subject=%5B%E6%B3%95%E6%A2%9D%E6%87%B8%E5%81%9C%5D%20%E5%95%8F%E9%A1%8C%E5%9B%9E%E5%A0%B1">enor@e-life-ai.com</a>
+        <span class="rpt-or">或</span>
+        <a href="https://github.com/coseto6125/law-hover-bookmarklet/issues/new" target="_blank" rel="noopener">開 GitHub Issue</a>
+      </div>
+
+      <div class="callout ok" style="margin:0">
+        <p><b>回報內容不含你正在瀏覽的公文。</b>只有網址、本頁法規名稱、標記結果樣本與錯誤記錄，送出前你都看得到，也可以自行刪改。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- 緣起 ---------- -->
+  <section>
+    <div class="sec-head"><span class="sec-num">緣起</span><h2>概念源自「引線」</h2></div>
+    <p class="sec-sub">先把話說清楚，免得誤會。</p>
+    <div class="callout ok">
+      <p>概念源自 <a href="https://yinxian.vercel.app/" target="_blank" rel="noopener">引線</a> 這款 Chrome 擴充功能，它把「看到法條，滑過去就好」做得很好。</p>
+      <p>本工具<b>不是引線的移植或衍生</b>，與其開發者無關，也未參考其原始碼（引線並未開源）。之所以獨立重寫，是因為擴充功能在許多企業資安控管下裝不了，而書籤是該限制下唯一還能在原網頁上就地作用的途徑。</p>
+    </div>
+    <table>
+      <tr><th style="width:26%"></th><th>引線（Chrome 擴充功能）</th><th>本工具（書籤）</th></tr>
+      <tr><td><b>安裝</b></td><td>需安裝擴充功能</td><td><span class="yes">只加一則書籤</span></td></tr>
+      <tr><td><b>生效方式</b></td><td><span class="yes">自動，永久</span></td><td>每頁點一次</td></tr>
+      <tr><td><b>適用範圍</b></td><td><span class="yes">任何網站、PDF</span></td><td>僅 law.moj.gov.tw</td></tr>
+      <tr><td><b>功能廣度</b></td><td><span class="yes">地方法規、函釋、歷史條文、PDF</span></td><td>僅條文懸停</td></tr>
+    </table>
+    <div class="callout">
+      <p><b>若你的環境能安裝擴充功能，請直接用引線</b>，功能完整得多。本工具只解決「什麼都不能裝」這一個處境。</p>
+    </div>
+  </section>
 
 </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>條文內容來自法務部<b>全國法規資料庫</b>，著作權歸屬原機關。</p>
+    <p>本工具僅提供查詢便利，不對條文的即時性與正確性負責，正式引用請<b>以官方網站為準</b>。</p>
+    <p style="margin-top:14px">
+      <a href="https://github.com/coseto6125/law-hover-bookmarklet" target="_blank" rel="noopener">原始碼（MIT）</a>
+      　·　<a href="https://github.com/coseto6125/law-hover-bookmarklet/issues/new" target="_blank" rel="noopener">回報問題</a>
+      　·　<a href="mailto:enor@e-life-ai.com?subject=%5B%E6%B3%95%E6%A2%9D%E6%87%B8%E5%81%9C%5D%20%E5%95%8F%E9%A1%8C%E5%9B%9E%E5%A0%B1">enor@e-life-ai.com</a>
+      　·　<a href="https://law.moj.gov.tw/" target="_blank" rel="noopener">全國法規資料庫</a>
+    </p>
+  </div>
+</footer>
+
+<!-- 範例用的條文面板 -->
+<div class="panel" id="panel" role="tooltip">
+  <div class="panel-h" id="panelH"></div>
+  <div class="panel-b" id="panelB"></div>
+  <div class="panel-f">在全國法規資料庫開啟　·　複製條文</div>
+</div>
+
+<!-- ---------- 動態安裝引導 ---------- -->
+<div class="guide" id="guide" role="dialog" aria-modal="true" aria-labelledby="guideTitle">
+  <div class="guide-box">
+    <div class="guide-top">
+      <h3 id="guideTitle">怎麼把書籤裝上去</h3>
+      <button class="x" id="guideClose" aria-label="關閉">✕</button>
+    </div>
+
+    <div class="steps">
+      <div class="step" id="st0"><i></i></div>
+      <div class="step" id="st1"><i></i></div>
+      <div class="step" id="st2"><i></i></div>
+      <div class="step" id="st3"><i></i></div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="chrome-bar">
+        <span class="dot" style="background:#e9695f"></span>
+        <span class="dot" style="background:#e9b84f"></span>
+        <span class="dot" style="background:#5cb85c"></span>
+        <span class="chrome-url" id="stageUrl">law-hover-bookmarklet.pages.dev</span>
+      </div>
+      <div class="bm-bar" id="bmBar">
+        <span class="bm">常用</span>
+        <span class="bm">內部系統</span>
+        <span class="bm-drop" id="bmDrop"></span>
+        <span class="bm-slot" id="bmSlot"><span class="bm-new" id="bmNew"><img src="icon-16.png" alt="" width="12" height="12">法條懸停</span></span>
+      </div>
+      <div class="stage-body" id="stageBody">
+        <div id="stageInstall">
+          <span class="stage-btn" id="stageBtn">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M10 2a1 1 0 011 1v9.59l3.3-3.3a1 1 0 111.4 1.42l-5 5a1 1 0 01-1.4 0l-5-5a1 1 0 111.4-1.42L9 12.6V3a1 1 0 011-1z"/></svg>
+            法條懸停
+          </span>
+          <div class="stage-line w70"></div>
+          <div class="stage-line w45"></div>
+        </div>
+        <div id="stageLaw" style="display:none">
+          <div style="font-size:12.5px;line-height:2;color:#31415c">
+            建築物非經申請主管建築機關審查許可，不得擅自建造。但合於<span class="stage-cite" id="sc1">第七十八條</span>規定者，不在此限。
+          </div>
+          <div class="stage-line w70"></div>
+          <div class="mini-panel" id="miniPanel">
+            <b>建築法 第 78 條</b>
+            建築物之施工管理，除本法另有規定外，由中央主管建築機關定之……
+          </div>
+        </div>
+        <svg class="ghost" id="ghost" viewBox="0 0 24 24" fill="#fff" stroke="#16233a" stroke-width="1.5" stroke-linejoin="round">
+          <path d="M5 2l14 9-6.5 1.2L9.8 19 5 2z"/>
+        </svg>
+        <span class="ghost-chip" id="ghostChip"><img src="icon-16.png" alt="" width="12" height="12">法條懸停</span>
+      </div>
+    </div>
+
+    <div class="guide-cap">
+      <h4 id="capT">準備好了嗎</h4>
+      <p id="capD">按「開始播放」看完整流程，大約 20 秒。</p>
+    </div>
+
+    <div class="guide-foot">
+      <button class="btn" id="guideAgain">重播</button>
+      <span class="sp"></span>
+      <button class="btn" id="guideSkip">關閉</button>
+      <button class="btn primary" id="guidePlay">開始播放</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- 複製 ---------- */
+var copyBtn=document.getElementById('copyBtn'),bmText=document.getElementById('bmText');
+copyBtn.addEventListener('click',function(){
+  bmText.select();
+  var done=function(){copyBtn.textContent='已複製 ✓';setTimeout(function(){copyBtn.textContent='複製網址';},1600);};
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(bmText.value).then(done,function(){try{document.execCommand('copy');done();}catch(e){}});
+  }else{try{document.execCommand('copy');done();}catch(e){}}
+});
+
+/* 點擊拖曳鈕時給提示，避免使用者以為壞了 */
+document.getElementById('dragBtn').addEventListener('click',function(e){
+  e.preventDefault();
+  openGuide();
+});
+
+/* ---------- 範例面板 ---------- */
+var ART={
+  '78':{t:'建築法 第 78 條',l:['建築物之施工管理，除本法另有規定外，由中央主管建築機關定之。']},
+  '98':{t:'建築法 第 98 條',l:['特種建築物得經行政院之許可，不適用本法全部或一部之規定。']},
+  '99':{t:'建築法 第 99 條',l:['左列各款經直轄市、縣（市）主管建築機關許可者，得不適用本法全部或一部之規定：','一、紀念性之建築物。','二、地面下之建築物。','三、臨時性之建築物。','四、海港、碼頭、鐵路車站、航空站等範圍內之雜項工作物。']},
+  'land25':{t:'土地法 第 25 條',l:['直轄市或縣（市）政府對於其所管公有土地，非經該管區內民意機關同意，並經行政院核准，不得處分或設定負擔或為超過十年期間之租賃。']},
+  '77-2':{t:'建築法 第 77 條之 2 · 第1項',x:1,l:[
+    {t:'建築物室內裝修應遵守左列規定：',top:true},
+    {t:'一、供公眾使用建築物之室內裝修應申請審查許可，非供公眾使用建築物，經內政部認有必要時，亦同。但中央主管機關得授權建築師公會或其他相關專業技術團體審查。',sub:true},
+    {t:'二、裝修材料應合於建築技術規則之規定。',sub:true},
+    {t:'三、不得妨害或破壞防火避難設施、消防設備、防火區劃及主要構造。',sub:true},
+    {t:'四、不得妨害或破壞保護民眾隱私權設施。',sub:true},
+    {t:'前項建築物室內裝修應由經內政部登記許可之室內裝修從業者辦理。',top:true},
+    {t:'室內裝修從業者應經內政部登記許可，並依其業務範圍及責任執行業務。',top:true}
+  ]}
+};
+var panel=document.getElementById('panel'),pH=document.getElementById('panelH'),pB=document.getElementById('panelB'),hideT=null;
+
+function showPanel(el){
+  var a=ART[el.dataset.k];if(!a)return;
+  clearTimeout(hideT);
+  pH.textContent=a.t;
+  pB.innerHTML='';
+  var topIdx=0;
+  a.l.forEach(function(ln){
+    var isObj=typeof ln==='object',text=isObj?ln.t:ln,sub=isObj&&ln.sub;
+    if(!sub)topIdx++;
+    var d=document.createElement('div');
+    d.textContent=text;
+    if(sub)d.className='sub';
+    if(a.x&&!sub&&topIdx===a.x)d.className=(d.className?d.className+' ':'')+'hit';
+    pB.appendChild(d);
+  });
+  panel.classList.add('on');
+  var r=el.getBoundingClientRect(),pw=Math.min(480,window.innerWidth-24);
+  panel.style.width=pw+'px';
+  var top=r.bottom+8,left=Math.min(r.left,window.innerWidth-pw-12);
+  if(top+panel.offsetHeight>window.innerHeight-8&&r.top>panel.offsetHeight+12)top=r.top-panel.offsetHeight-8;
+  panel.style.top=Math.max(8,top)+'px';
+  panel.style.left=Math.max(12,left)+'px';
+}
+function hidePanel(){hideT=setTimeout(function(){panel.classList.remove('on');},180);}
+[].forEach.call(document.querySelectorAll('.cite'),function(el){
+  el.addEventListener('mouseenter',function(){showPanel(el);});
+  el.addEventListener('mouseleave',hidePanel);
+  el.setAttribute('tabindex','0');
+  el.addEventListener('focus',function(){showPanel(el);});
+  el.addEventListener('blur',hidePanel);
+});
+panel.addEventListener('mouseenter',function(){clearTimeout(hideT);});
+panel.addEventListener('mouseleave',hidePanel);
+
+/* ---------- 動態安裝引導 ---------- */
+var guide=document.getElementById('guide'),ghost=document.getElementById('ghost'),
+    chip=document.getElementById('ghostChip'),slot=document.getElementById('bmSlot'),
+    bmNew=document.getElementById('bmNew'),bmDrop=document.getElementById('bmDrop'),
+    stageBtn=document.getElementById('stageBtn'),stageInstall=document.getElementById('stageInstall'),
+    stageLaw=document.getElementById('stageLaw'),sc1=document.getElementById('sc1'),
+    mini=document.getElementById('miniPanel'),stageUrl=document.getElementById('stageUrl'),
+    capT=document.getElementById('capT'),capD=document.getElementById('capD'),
+    playBtnG=document.getElementById('guidePlay');
+var timers=[],reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function at(ms,fn){timers.push(setTimeout(fn,reduce?Math.min(ms,120):ms));}
+function clearAll(){timers.forEach(clearTimeout);timers=[];}
+function setStep(i){
+  for(var k=0;k<4;k++){
+    var s=document.getElementById('st'+k);
+    s.className='step'+(k<i?' done':k===i?' now':'');
+  }
+}
+function cap(t,d){capT.textContent=t;capD.innerHTML=d;}
+function moveGhost(x,y){ghost.style.transform='translate('+x+'px,'+y+'px)';}
+
+function reset(){
+  clearAll();
+  ghost.classList.remove('on');chip.classList.remove('on');
+  ghost.style.transition='none';moveGhost(20,52);
+  void ghost.offsetWidth;ghost.style.transition='';
+  slot.classList.remove('open');bmNew.classList.remove('on');bmDrop.classList.remove('on');
+  stageBtn.classList.remove('faded');
+  stageInstall.style.display='';stageLaw.style.display='none';
+  sc1.classList.remove('on');mini.classList.remove('on');
+  stageUrl.textContent='law-hover-bookmarklet.pages.dev';
+  setStep(-1);
+  cap('準備好了嗎','按「開始播放」看完整流程，大約 20 秒。');
+  playBtnG.disabled=false;playBtnG.textContent='開始播放';
+}
+
+function play(){
+  reset();
+  playBtnG.disabled=true;playBtnG.textContent='播放中…';
+
+  /* 步驟 1：叫出書籤列 */
+  at(60,function(){
+    setStep(0);
+    cap('1 · 先叫出書籤列','按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>。書籤列就是網址列下面那一條。');
+    ghost.classList.add('on');
+  });
+
+  /* 步驟 2：拖曳按鈕到書籤列 */
+  at(2500,function(){
+    setStep(1);
+    cap('2 · 把按鈕拖上去','用滑鼠<b>按住</b>紅色按鈕，拖到書籤列上放開。不是點擊，是拖曳。');
+    moveGhost(26,60);
+  });
+  at(3400,function(){
+    chip.classList.add('on');       /* 抓起按鈕 */
+    stageBtn.classList.add('faded');
+  });
+  at(4000,function(){ moveGhost(70,-6); bmDrop.classList.add('on'); });   /* 拖到書籤列 */
+  at(5000,function(){
+    chip.classList.remove('on');    /* 放開 */
+    bmDrop.classList.remove('on');
+    slot.classList.add('open');
+    at(180,function(){bmNew.classList.add('on');});
+  });
+  at(5900,function(){
+    cap('2 · 完成','書籤列上多了一則「法條懸停」。<b>它只是一則書籤，不是安裝程式。</b>');
+  });
+
+  /* 步驟 3：到法規網點一下 */
+  at(7600,function(){
+    setStep(2);
+    cap('3 · 到法規網點一下','打開任何一頁全國法規資料庫，點書籤列上的「法條懸停」。');
+    stageInstall.style.display='none';stageLaw.style.display='';
+    stageUrl.textContent='law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109';
+    stageBtn.classList.remove('faded');
+    moveGhost(88,-8);
+  });
+  at(9000,function(){
+    bmNew.style.transform='scale(.9)';
+    at(160,function(){bmNew.style.transform='';});
+    sc1.classList.add('on');       /* 標記出現 */
+    cap('3 · 條號被標起來了','頁面上的法條引用出現紅色虛線底線。<b>每換一頁要重點一次。</b>');
+  });
+
+  /* 步驟 4：滑過去看條文 */
+  at(11200,function(){
+    setStep(3);
+    cap('4 · 滑過去就好','把滑鼠移到虛線上，條文出現在原地，視線不用離開。');
+    moveGhost(52,60);
+  });
+  at(12400,function(){ mini.classList.add('on'); });
+  at(13600,function(){
+    setStep(4);
+    cap('就這樣','整個過程不需要安裝任何程式，也沒有任何對外連線。現在關掉這個視窗，把按鈕拖到書籤列試試。');
+    ghost.classList.remove('on');
+    playBtnG.disabled=false;playBtnG.textContent='再看一次';
+  });
+}
+
+function openGuide(){guide.classList.add('on');document.body.style.overflow='hidden';reset();at(260,play);}
+function closeGuide(){guide.classList.remove('on');document.body.style.overflow='';clearAll();}
+
+document.getElementById('helpBtn').addEventListener('click',openGuide);
+document.getElementById('playBtn').addEventListener('click',openGuide);
+document.getElementById('guideClose').addEventListener('click',closeGuide);
+document.getElementById('guideSkip').addEventListener('click',closeGuide);
+document.getElementById('guideAgain').addEventListener('click',play);
+playBtnG.addEventListener('click',play);
+guide.addEventListener('click',function(e){if(e.target===guide)closeGuide();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&guide.classList.contains('on'))closeGuide();});
+
+})();
+</script>
 </body>
 </html>

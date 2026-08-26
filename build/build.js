@@ -32,12 +32,31 @@ fs.writeFileSync(path.join(docs, 'index.html'), out);
 fs.writeFileSync(path.join(docs, 'lawhover.bookmarklet.txt'), url);
 // 停用 Jekyll 處理，安裝頁是靜態 HTML，不需要也不應被處理
 fs.writeFileSync(path.join(docs, '.nojekyll'), '');
+// 靜態素材（favicon、manifest）複製到輸出目錄。
+// favicon 是必要的：拖曳書籤時，瀏覽器以來源頁面的 favicon 作為書籤圖示。
+const assets = path.join(root, 'src/assets');
+for (const f of fs.readdirSync(assets)) {
+  fs.copyFileSync(path.join(assets, f), path.join(docs, f));
+  fs.copyFileSync(path.join(assets, f), path.join(root, 'dist', f));
+}
+
 // Cloudflare Pages 標頭設定（GitHub Pages 會忽略此檔）
 fs.writeFileSync(path.join(docs, '_headers'), [
   '/*',
   '  X-Content-Type-Options: nosniff',
   '  Referrer-Policy: no-referrer',
-  "  Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  // 安裝頁的互動（範例懸停、引導動畫）是 inline script，必須放行，
+  // 否則頁面會被自己的 CSP 擋掉。仍禁止載入任何外部程式碼。
+  "  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; manifest-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  '',
+  '/*.png',
+  '  Cache-Control: public, max-age=604800',
+  '',
+  '/*.svg',
+  '  Cache-Control: public, max-age=604800',
+  '',
+  '/*.ico',
+  '  Cache-Control: public, max-age=604800',
   ''
 ].join('\n'));
 

@@ -1,0 +1,15 @@
+{
+  "name": "法條懸停（書籤版）",
+  "short_name": "法條懸停",
+  "description": "在全國法規資料庫頁面上滑過法條引用即顯示條文，零安裝、零對外連線。",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f6f2",
+  "theme_color": "#9c2b2b",
+  "lang": "zh-Hant",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

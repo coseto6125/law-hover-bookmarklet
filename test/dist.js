@@ -55,10 +55,45 @@ ok('說明貼上時 javascript: 會被移除', text.includes('javascript:') && t
 ok('隱私：聲明零對外連線', text.includes('連線從未離開該網域'));
 ok('隱私：聲明無開發者伺服器', text.includes('沒有屬於開發者的伺服器'));
 ok('標示資料來源與免責', text.includes('全國法規資料庫') && text.includes('以官方網站為準'));
-ok('提示公司鎖書籤列的情況', text.includes('公司鎖住書籤列'));
+ok("提示公司鎖書籤列的情況", text.includes("書籤列鎖住") || text.includes("公司把書籤列鎖住"));
 ok('標明概念源自引線且非衍生作品', text.includes('引線') && text.includes('不是引線的移植或衍生'));
 ok('指出能裝擴充功能者應直接用引線', text.includes('請直接用引線'));
 ok('提供原始碼連結', html.includes('github.com/coseto6125/law-hover-bookmarklet'));
+ok('提供回報 email', html.includes('enor@e-life-ai.com'));
+ok('說明兩階段回報類型',
+   text.includes('沒有顯示資料') && text.includes('資料顯示錯誤'));
+ok('說明不需截圖', text.includes('不必截圖'));
+ok('說明回報不含公文內容', text.includes('不含你正在瀏覽的公文'));
+ok('宣告 favicon（拖曳書籤時帶圖示）',
+   /<link[^>]+rel="icon"[^>]+icon\.svg/.test(html) && html.includes('favicon.ico'));
+ok('疑難排解改為折疊式', (html.match(/<details class="qa"/g) || []).length >= 6,
+   '折疊項數 ' + (html.match(/<details class="qa"/g) || []).length);
+
+console.log('\n\x1b[1m安裝頁自身的 CSP（不可擋掉自己）\x1b[0m');
+{
+  const hdr = fs.readFileSync(path.join(root, 'docs/_headers'), 'utf8');
+  const csp = (hdr.match(/Content-Security-Policy: (.+)/) || [])[1] || '';
+  ok('_headers 有設定 CSP', !!csp, hdr.slice(0, 80));
+  // 安裝頁的互動是 inline script，CSP 必須放行，否則頁面功能全失效
+  ok('放行 inline script（否則範例與引導動畫失效）',
+     /script-src[^;]*'unsafe-inline'/.test(csp), csp);
+  ok('放行 inline style', /style-src[^;]*'unsafe-inline'/.test(csp));
+  ok('放行 Google Fonts', /fonts\.googleapis\.com/.test(csp) && /fonts\.gstatic\.com/.test(csp));
+  ok('允許自身圖示', /img-src[^;]*'self'/.test(csp));
+  ok('禁止外部連線（安裝頁不需要）', /connect-src 'none'/.test(csp), csp);
+  ok('禁止被嵌入 iframe', /frame-ancestors 'none'/.test(csp));
+}
+
+console.log('\n\x1b[1m安裝頁素材齊備\x1b[0m');
+{
+  for (const f of ['icon.svg', 'icon-16.png', 'icon-32.png', 'icon-180.png',
+                   'icon-192.png', 'icon-512.png', 'favicon.ico', 'manifest.webmanifest']) {
+    ok('docs/' + f + ' 存在', fs.existsSync(path.join(root, 'docs', f)));
+  }
+  const mf = JSON.parse(fs.readFileSync(path.join(root, 'docs/manifest.webmanifest'), 'utf8'));
+  ok('manifest 名稱與主題色正確', mf.short_name === '法條懸停' && mf.theme_color === '#9c2b2b',
+     JSON.stringify({ n: mf.short_name, c: mf.theme_color }));
+}
 
 console.log('\n\x1b[1m產物實際可執行（以打包版跑真實頁面）\x1b[0m');
 const page = fs.readFileSync(path.join(root, 'test/fixtures/lawall.html'), 'utf8');
