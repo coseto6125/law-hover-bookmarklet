@@ -179,15 +179,49 @@
   var TAIL = '(?:\\s*第\\s*(' + NUM + ')\\s*項)?(?:\\s*第\\s*(' + NUM + ')\\s*款)?';
   // 具名引用：法規名稱 + 第X條(之X) + 可選 項/款
   var RE = new RegExp(
-    '(?:「([^」]{2,30}?' + SUFFIX + ')」|([\\u4e00-\\u9fa5]{2,20}?' + SUFFIX + '))' +
+    /* 長度上限放寬：官方法規名可達 40 字以上，例如
+     * 「營造業承攬工程造價限額工程規模範圍申報淨值及一定期間承攬總額認定辦法」（34 字）。
+     * 原本 20/30 字上限會讓具名比對失敗，接著裸條號規則把內部的「第3條」
+     * 綁成本頁法規，顯示出條號正確但法規完全錯誤的條文（codex review 實測）。 */
+    '(?:「([^」]{2,60}?' + SUFFIX + ')」|([\\u4e00-\\u9fa5]{2,45}?' + SUFFIX + '))' +
     '\\s*第\\s*(' + NUM + ')\\s*條' +
     '(?:\\s*之\\s*(' + NUM + '))?' + TAIL,
     'g');
   // 裸條號：本法／同法／前法規名皆省略，指向當前頁面的法規
   // （法規內文最常見的形式，如「依第九十九條規定」「本法第五條」）
   var SUFFIX_ONLY = new RegExp('^' + SUFFIX + '$');
+  /* 自指詞（指本頁法規）與前指詞（指前文最近提到的法規）語意不同，必須分開。
+   * 「同法」「該法」在條文中一律是前指，綁成本頁法規會顯示另一部法的條文
+   * （codex review 實測：行政程序法頁面上「建築法第五條及同法第七條」，
+   *   後者被綁成行政程序法）。 */
   var SELF_WORDS = ['本法', '本條例', '本規則', '本辦法', '本標準', '本細則',
-                    '本準則', '本通則', '同法', '同條例', '該法', '該條例'];
+                    '本準則', '本通則'];
+  var ANAPHORA = ['同法', '同條例', '同規則', '同辦法', '該法', '該條例', '該規則', '該辦法'];
+
+  /* 施行細則等子法會寫「○○法（以下簡稱本法）」，此時「本法」指母法而非本頁。
+   * 從頁面文字找出這個定義，找不到才視為指向本頁。 */
+  /* 「本法」的實際指向：子法若定義了「○○法（以下簡稱本法）」就指母法，
+   * 否則指本頁法規。母法需另行搜尋，故不帶 pcode。 */
+  function selfTarget() {
+    var a = selfAlias();
+    return a ? { name: a.name, pcode: null } : { name: SELF.name, pcode: SELF.pcode };
+  }
+
+  var aliasCache;
+  function selfAlias() {
+    if (aliasCache !== undefined) return aliasCache;
+    aliasCache = null;
+    var txt = (document.body ? document.body.textContent : '').slice(0, 4000);
+    var m = new RegExp('([\\u4e00-\\u9fa5]{2,40}' + SUFFIX + ')\\s*[（(]\\s*以下簡稱\\s*(本[\\u4e00-\\u9fa5]{1,3})\\s*[）)]').exec(txt);
+    if (m) {
+      // 貪婪比對會把前一句吃進來，用與法規名相同的左邊界規則切乾淨
+      var nm = trimName(cutLeft(m[1]));
+      if (nm && nm.length >= 2 && nm !== (SELF && SELF.name) && !SUFFIX_ONLY.test(nm)) {
+        aliasCache = { name: nm, word: m[2] };
+      }
+    }
+    return aliasCache;
+  }
   var SELF_PREFIX = '(?:本法|本條例|本規則|本辦法|本標準|本細則|本準則|本通則|同法|同條例|該法)?';
   var RE_SELF = new RegExp(
     SELF_PREFIX + '\\s*第\\s*(' + NUM + ')\\s*條(?:\\s*之\\s*(' + NUM + '))?' + TAIL,
@@ -699,8 +733,11 @@
 
   var RULES = [
     '.' + CLS.mark + '{border-bottom:1.5px dotted #c0392b;cursor:help;background:rgba(192,57,43,.06)}',
-    '.' + CLS.panel + '{position:absolute;top:0;left:0;z-index:2147483647;max-width:520px;' +
-      'max-height:60vh;overflow:auto;background:#fff;border:1px solid #c8ccd4;border-radius:8px;' +
+    /* 用 fixed 而非 absolute：absolute 需換算 scrollY，頁面一捲動座標就過時，
+     * 導致面板跑出畫面上緣（實測小視窗會發生）。fixed 直接對應可視範圍。 */
+    '.' + CLS.panel + '{position:fixed;top:0;left:0;z-index:2147483647;max-width:520px;' +
+      'max-height:calc(100vh - 24px);overflow:auto;overscroll-behavior:contain;' +
+      '-webkit-overflow-scrolling:touch;background:#fff;border:1px solid #c8ccd4;border-radius:8px;' +
       'box-shadow:0 8px 28px rgba(0,0,0,.18);padding:14px 16px;text-align:left;color:#1a1a1a;' +
       'font:14px/1.75 system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif}',
     '.' + CLS.hide + '{display:none !important}',
@@ -840,11 +877,12 @@
   }
 
   // 改寫規則本身，而非元素的 style，藉此完全避開 CSP inline style 限制
-  function setPanelPos(top, left) {
+  function setPanelPos(top, left, maxH) {
     if (posRule && posRule.style) {
       try {
         posRule.style.setProperty('top', top + 'px');
         posRule.style.setProperty('left', left + 'px');
+        if (maxH) posRule.style.setProperty('max-height', maxH + 'px');
         return true;
       } catch (e) {}
     }
@@ -873,18 +911,54 @@
   panel.addEventListener('mouseleave', scheduleHide);
   function scheduleHide() { hideTimer = setTimeout(function () { hide(panel); }, 250); }
 
+  /* 面板定位。
+   * 優先顯示在標記下方；下方放不下且上方空間足夠時才往上翻。
+   * 兩邊都放不下時（視窗矮或條文長），貼齊可視範圍並讓面板自行捲動，
+   * 絕不可超出畫面上緣，否則使用者看不到條號標題（實測 500px 高的視窗會發生）。 */
+  var GAP = 6, EDGE = 8;
+  var lastAnchor = null;
+
   function showPanel(el, buildFn) {
     clearTimeout(hideTimer);
     panel.innerHTML = '';
     buildFn(panel);
     show(panel);
-    var r = el.getBoundingClientRect();
-    var top = r.bottom + window.scrollY + 6;
-    var left = Math.min(r.left + window.scrollX, window.scrollX + document.documentElement.clientWidth - panel.offsetWidth - 16);
-    if (top + panel.offsetHeight > window.scrollY + window.innerHeight && r.top > panel.offsetHeight + 12) {
-      top = r.top + window.scrollY - panel.offsetHeight - 6;
+    lastAnchor = el;
+    place(el);
+    /* 沿革等內容是非同步填入的，填完高度會變。
+     * 不重新定位的話，長條文會超出畫面下緣（實測 80 款的條文會）。 */
+    if (!showPanel.ro && window.ResizeObserver) {
+      showPanel.ro = new ResizeObserver(function () {
+        if (lastAnchor && !panel.classList.contains(CLS.hide)) place(lastAnchor);
+      });
+      showPanel.ro.observe(panel);
     }
-    setPanelPos(top, Math.max(8, left));
+  }
+
+  function place(el) {
+    var r = el.getBoundingClientRect();
+    var vh = window.innerHeight, vw = document.documentElement.clientWidth;
+    var ph = panel.offsetHeight, pw = panel.offsetWidth;
+    var below = vh - r.bottom - GAP;          // 標記下方可用高度
+    var above = r.top - GAP;                  // 標記上方可用高度
+
+    var top;
+    if (ph <= below) {
+      top = r.bottom + GAP;                   // 放得下，顯示在下方
+    } else if (ph <= above) {
+      top = r.top - ph - GAP;                 // 上方放得下，往上翻
+    } else {
+      // 兩邊都放不下：貼齊空間較大的一側，面板自行捲動
+      top = below >= above ? r.bottom + GAP : Math.max(EDGE, vh - ph - EDGE);
+    }
+    // 最後把座標夾在可視範圍內，寧可蓋住標記也不能跑出畫面
+    top = Math.max(EDGE, Math.min(top, vh - Math.min(ph, vh - EDGE * 2) - EDGE));
+
+    var left = Math.max(EDGE, Math.min(r.left, vw - pw - EDGE));
+    /* 高度上限依定位後的可用空間決定。
+     * 靜態的 max-height:100vh 在 top 有偏移時仍會超出下緣，
+     * 使用者看不到面板底部的「複製條文」等連結（實測 80 款的長條文會發生）。 */
+    setPanelPos(top, left, Math.max(120, vh - top - EDGE));
   }
 
   /* 連結建構器。原本 12 處都在重複 el + href + target + rel + click 這組樣板，
@@ -1356,6 +1430,11 @@
     while ((m = RE.exec(text)) !== null) {
       var rawName = m[1] || m[2];
       // 先切硬邊界（條號、連接詞、標點），再剝除殘留的公文前綴
+      /* 引號已是明確邊界，不可再切。
+       * 未加引號時用 cutLeft 切左界，但「及」「與」既可能是句子連接詞，
+       * 也可能在法規名內部（如「…申報淨值及一定期間承攬總額認定辦法」）。
+       * 無法從語法區分，故保留較短的切法：寧可查不到，也不要查錯。
+       * 使用者可加引號讓程式正確辨識，安裝頁的說明有提到這一點。 */
       var name = m[1] ? rawName : trimName(cutLeft(rawName));
       var tiao = cn2num(m[3]);
       if (!tiao || name.length < 2) continue;
@@ -1364,16 +1443,41 @@
       /* 「本法」「同法」等自指詞：指向當前頁面的法規，不必另行搜尋。
        * 必須比對「未經 trimName 的原文」：trimName 會把「本辦法」剝成「辦法」，
        * 此時自指判定必然落空，還會拿泛稱去搜尋別部法規（fable review 實測）。 */
-      var isSelf = SELF_WORDS.indexOf(name) >= 0 || SELF_WORDS.indexOf(rawName) >= 0;
+      var endsWith = function (list) {
+        for (var i2 = 0; i2 < list.length; i2++) {
+          if (name === list[i2] || rawName === list[i2] ||
+              rawName.slice(-list[i2].length) === list[i2]) return true;
+        }
+        return false;
+      };
+      var isSelf = endsWith(SELF_WORDS);
+      var isAna = !isSelf && endsWith(ANAPHORA);
       if (isSelf && !SELF) continue;
       /* 剝除前綴後只剩泛稱字尾（如「辦法」「法」）不是有效的法規名，
        * 拿去搜尋會得到隨機的某部法規。查不到比查錯安全，直接放棄。 */
-      if (!isSelf && SUFFIX_ONLY.test(name)) continue;
+      if (!isSelf && !isAna && SUFFIX_ONLY.test(name)) continue;
       // 自指詞要完整標記（「本辦法第1條」而非「辦法第1條」），故不剝除前綴
-      var drop = (m[1] || isSelf) ? 0 : (rawName.length - name.length);
+      /* 標記範圍：
+       *   引號法規名、前指詞 → 完整保留
+       *   自指詞 → 只保留自指詞本身（rawName 可能含前文，如「…應依照本法」）
+       *   一般法規名 → 剝除前綴 */
+      var drop;
+      if (m[1]) drop = 0;
+      else if (isSelf || isAna) {
+        var kw = isSelf ? SELF_WORDS : ANAPHORA;
+        var found = -1;
+        for (var ki = 0; ki < kw.length; ki++) {
+          var at = rawName.lastIndexOf(kw[ki]);
+          if (at > found) found = at;
+        }
+        drop = found > 0 ? found : 0;
+      } else drop = rawName.length - name.length;
       hits.push({
         start: m.index + drop, end: m.index + m[0].length,
-        name: isSelf ? SELF.name : name, pcode: isSelf ? SELF.pcode : null,
+        // 前指詞（同法/該法）指向前文最近的具名引用，於下方 sort 後統一解析
+        name: isAna ? null : (isSelf ? selfTarget().name : name),
+        pcode: isAna ? null : (isSelf ? selfTarget().pcode : null),
+        ana: isAna || false,
         flno: m[4] ? tiao + '-' + cn2num(m[4]) : String(tiao),
         xiang: m[5] ? cn2num(m[5]) : null, kuan: m[6] ? cn2num(m[6]) : null
       });
@@ -1427,6 +1531,20 @@
     }
 
     hits.sort(function (a, b) { return a.start - b.start; });
+
+    /* 前指詞（同法/該法）指向前文最近的具名引用。
+     * 找不到前文可指時退回本頁法規，但不可直接綁定，否則會顯示別部法的條文。 */
+    for (var ai = 0; ai < hits.length; ai++) {
+      if (!hits[ai].ana) continue;
+      var ref = null;
+      for (var aj = ai - 1; aj >= 0; aj--) {
+        if (!hits[aj].ana && !hits[aj].ex) { ref = hits[aj]; break; }
+      }
+      if (ref) { hits[ai].name = ref.name; hits[ai].pcode = ref.pcode; }
+      else if (SELF) { hits[ai].name = SELF.name; hits[ai].pcode = SELF.pcode; }
+      else { hits[ai].drop = true; }
+    }
+    hits = hits.filter(function (h) { return !h.drop && h.name; });
     // 去除重疊
     var out = [];
     hits.forEach(function (h) {

@@ -264,6 +264,71 @@ async function run() {
        /第 5 條/.test(txt) && !/第 3 條/.test(txt), txt.slice(0, 45));
   }
 
+  console.log('\n\x1b[1m自指詞與前指詞（第二輪 review 的 critical）\x1b[0m');
+  {
+    const mk = (html, url) => {
+      const d = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
+      d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+      d.window.eval(code);
+      return [...d.window.document.querySelectorAll('[data-flno]')];
+    };
+
+    /* 子法寫「○○法（以下簡稱本法）」時，「本法」指母法而非本頁。
+     * 綁成本頁會顯示施行細則自己的條文，內容完全不同。 */
+    let ms = mk('<body><h2 id="hlLawName">公教人員保險法施行細則</h2>' +
+      '<p>本細則依公教人員保險法（以下簡稱本法）第五條規定訂定之。</p>' +
+      '<p>承保機關每年應依照本法第五條第二項辦理。</p></body>',
+      'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=S0070002');
+    const selfRef = ms.find(m => m.textContent.indexOf('本法') >= 0);
+    ok('「以下簡稱本法」時，本法指母法而非本頁',
+       selfRef && selfRef.dataset.name === '公教人員保險法' && !selfRef.dataset.pcode,
+       selfRef ? selfRef.dataset.name : '未辨識');
+    ok('自指詞標記範圍只含自指詞本身',
+       selfRef && selfRef.textContent === '本法第五條第二項', selfRef && JSON.stringify(selfRef.textContent));
+
+    /* 「同法／該法」是前指詞，指前文最近提到的法規，不是本頁法規。 */
+    ms = mk('<body><h2 id="hlLawName">行政程序法</h2><p>依建築法第五條及同法第七條規定。</p></body>',
+      'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=A0030055');
+    const ana = ms.find(m => m.textContent.indexOf('同法') >= 0);
+    ok('「同法」指前文最近提到的法規', ana && ana.dataset.name === '建築法',
+       ana ? ana.dataset.name : '未辨識');
+    ok('「同法」不被誤綁本頁法規', ana && !ana.dataset.pcode);
+
+    /* 沒有前文可指時退回本頁，但不可顯示錯誤法規 */
+    ms = mk('<body><h2 id="hlLawName">建築法</h2><p>依同法第七條規定。</p></body>',
+      'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109');
+    ok('無前文可指時退回本頁法規',
+       ms.length === 1 && ms[0].dataset.name === '建築法', ms.map(m => m.dataset.name).join());
+  }
+
+  console.log('\n\x1b[1m長法規名（第二輪 review 的 critical）\x1b[0m');
+  {
+    /* 官方法規名可達 34 字以上。具名比對失敗時，裸條號規則會把內部的
+     * 「第3條」綁成本頁法規，顯示出條號正確但法規完全錯誤的條文。 */
+    const LONG = '營造業承攬工程造價限額工程規模範圍申報淨值及一定期間承攬總額認定辦法';
+    const mk2 = txt => {
+      const d = new JSDOM('<body><h2 id="hlLawName">測試法</h2><p>' + txt + '</p></body>',
+        { url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=X',
+          runScripts: 'outside-only', pretendToBeVisual: true });
+      d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+      d.window.eval(code);
+      return [...d.window.document.querySelectorAll('[data-flno]')];
+    };
+    let ms = mk2('依「' + LONG + '」第3條規定。');
+    ok('引號內的 34 字法規名可正確辨識',
+       ms.length === 1 && ms[0].dataset.name === LONG, ms.map(m => m.dataset.name).join());
+    ok('不會退回綁成本頁法規', ms.length === 1 && !ms[0].dataset.pcode,
+       ms.map(m => m.dataset.name + (m.dataset.pcode ? '[本頁]' : '')).join());
+
+    /* 未加引號時，法規名內部的「及」與句子連接詞無法從語法區分，
+     * 會被切成較短的名稱。此時寧可查不到也不能綁成本頁法規（查錯更危險）。
+     * 使用者加引號即可正確辨識。 */
+    ms = mk2('依' + LONG + '第3條規定。');
+    ok('未加引號的長法規名不會被誤綁本頁法規',
+       ms.every(m => !m.dataset.pcode),
+       ms.map(m => m.dataset.name + (m.dataset.pcode ? '[本頁]' : '')).join());
+  }
+
   console.log('\n\x1b[1m請求去重（review 發現）\x1b[0m');
   {
     /* 滑鼠在同一標記上移動會重複觸發 mouseover，

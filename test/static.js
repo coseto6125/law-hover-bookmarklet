@@ -29,7 +29,7 @@ const GLOBALS = new Set([
   'Uint8Array','Int8Array','Uint16Array','Uint32Array','Float32Array','Float64Array',
   'ArrayBuffer','DataView','TextDecoder','TextEncoder','DecompressionStream',
   'Node','NodeFilter','Element','HTMLElement','DOMParser','XMLHttpRequest',
-  'MouseEvent','Event','CustomEvent','MutationObserver','IntersectionObserver',
+  'MouseEvent','Event','CustomEvent','MutationObserver','IntersectionObserver','ResizeObserver','PerformanceObserver',
   'getComputedStyle','matchMedia','alert','confirm','prompt','undefined','NaN','Infinity',
   'arguments','this','globalThis','structuredClone','queueMicrotask','CSS','Image',
 ]);

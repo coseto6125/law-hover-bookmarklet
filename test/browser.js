@@ -127,7 +127,9 @@ async function main() {
   ok('面板已顯示', !!panel, panel ? '' : '未找到顯示中的面板');
   if (panel) {
     ok('面板含真實條文內容', panel.text.includes('本法適用地區如左'), panel.text.slice(0, 60));
-    ok('面板定位樣式生效（規則層級）', panel.position === 'absolute', panel.position);
+    // 用 fixed 而非 absolute：absolute 需換算 scrollY，頁面捲動後座標會過時
+    ok('面板定位樣式生效（fixed，避免捲動後跑出畫面）',
+       panel.position === 'fixed', panel.position);
     ok('面板浮在最上層', panel.zIndex === '2147483647', panel.zIndex);
     ok('面板背景生效（非透明）', /255,\s*255,\s*255/.test(panel.bg), panel.bg);
     ok('面板座標已套用', panel.top !== 'auto' && panel.top !== '0px', 'top=' + panel.top + ' left=' + panel.left);
