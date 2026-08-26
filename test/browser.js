@@ -151,6 +151,37 @@ async function main() {
     ok('再次點擊不會重複建立面板', after.panels === 1, '面板數 ' + after.panels);
   }
 
+  console.log('\n\x1b[1m修法紀錄（由沿革反查）\x1b[0m');
+  {
+    async function hoverArt(flno) {
+      await page.evaluate(n => {
+        const x = [...document.querySelectorAll('[data-flno]')]
+          .find(e => e.dataset.flno === n && e.dataset.pcode);
+        x.scrollIntoView({ block: 'center' });
+        x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      }, flno);
+      await page.waitForTimeout(9000);
+      return page.evaluate(() => {
+        const q = [...document.body.children].find(n => {
+          const c = String(n.className || '').split(' ');
+          return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+        });
+        return q ? q.textContent.replace(/\s+/g, ' ') : '';
+      });
+    }
+    // 建築法第 3 條曾於 92 年修正，第 78 條自公布後未修正
+    const t3 = await hoverArt('3');
+    ok('修正過的條文顯示修正次數', /本條修正 \d+ 次/.test(t3),
+       t3.slice(Math.max(0, t3.search(/本條修正|未見/) - 10), 90));
+    ok('列出修正年份', /九十二年|\d+年/.test(t3));
+    ok('提供完整沿革連結', /查看完整沿革/.test(t3));
+
+    const t78 = await hoverArt('78');
+    ok('未修正的條文明確說明', /未見此條的修正紀錄/.test(t78),
+       t78.slice(Math.max(0, t78.search(/未見|本條修正/) - 10), 80));
+    ok('查沿革過程無 CSP 違規', (await page.evaluate(() => window.__csp.length)) === 0);
+  }
+
   console.log('\n\x1b[1m司法院解釋（線上取文）\x1b[0m');
   {
     // 法規頁本身沒有釋字引用，注入一段模擬公文後重新掃描

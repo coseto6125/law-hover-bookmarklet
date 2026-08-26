@@ -190,6 +190,48 @@
     });
   }
 
+  var histCache = {};
+  /* 取得法規沿革，並挑出提到指定條號的修法紀錄。
+   * 原站沒有「歷史條文」功能（LawOldVer 等端點皆回 400），
+   * 但沿革頁載明每次修法動到哪幾條，足以回答「這條何時改過」。
+   * 讀舊函釋時，這是判斷條文是否已異動的關鍵線索。 */
+  function fetchHistory(pcode) {
+    if (histCache[pcode]) return Promise.resolve(histCache[pcode]);
+    var url = HOST + '/LawClass/LawHistory.aspx?pcode=' + pcode;
+    return fetchText(url).then(function (html) {
+      var doc = parseHTML(html);
+      var rows = doc.querySelectorAll('.law-history .row .col-data, .law-history .col-data');
+      var list = [];
+      for (var i = 0; i < rows.length; i++) {
+        var t = rows[i].textContent.replace(/\s+/g, ' ').trim();
+        if (!/^\d+\.\s*中華民國/.test(t)) continue;
+        // 「令修正公布第 40、77-3、77-4、87 條條文」→ 取出條號清單
+        var arts = [];
+        var seg = /第\s*([0-9\-、，,\s]+?)\s*條/g, m2;
+        while ((m2 = seg.exec(t)) !== null) {
+          m2[1].split(/[、，,\s]+/).forEach(function (x) {
+            x = x.trim();
+            if (x && arts.indexOf(x) < 0) arts.push(x);
+          });
+        }
+        var dm = /中華民國([^總令]{2,24}?)(?:總統|行政院|令)/.exec(t);
+        list.push({ text: t, arts: arts, when: dm ? dm[1].trim() : '' });
+      }
+      histCache[pcode] = { url: url, list: list };
+      return histCache[pcode];
+    });
+  }
+
+  // 挑出動到指定條號的修法紀錄
+  function historyFor(hist, flno) {
+    var out = [];
+    var want = String(flno);
+    for (var i = 0; i < hist.list.length; i++) {
+      if (hist.list[i].arts.indexOf(want) >= 0) out.push(hist.list[i]);
+    }
+    return out;
+  }
+
   var exCache = {};
   var cjIndex = null;   // 憲判字：年+號 -> JC 流水號
 
@@ -285,7 +327,7 @@
       var got = title.replace(/\s/g, '');
       var want = '第' + String(flno).replace('-', '-') + '條';
       if (got.indexOf(String(flno).split('-')[0]) < 0) throw new Error('條號驗證失敗');
-      var res = { title: title, law: lawName.trim(), lines: lines, url: url };
+      var res = { title: title, law: lawName.trim(), lines: lines, url: url, pcode: pcode };
       artCache[key] = res;
       return res;
     });
@@ -308,7 +350,7 @@
     fab: PFX + 'fab', dlg: PFX + 'dlg', dlgIn: PFX + 'dgi', dlgH: PFX + 'dgh',
     row: PFX + 'row', opt: PFX + 'opt', ta: PFX + 'ta', btn: PFX + 'btn',
     btnP: PFX + 'btnp', dgf: PFX + 'dgf', lbl: PFX + 'lbl', diag: PFX + 'dg2',
-    rptLink: PFX + 'rl'
+    rptLink: PFX + 'rl', hist: PFX + 'hs', histI: PFX + 'hi'
   };
 
   var RULES = [
@@ -384,6 +426,10 @@
     '.' + CLS.btnP + ':hover{background:#8a2424;border-color:#8a2424;color:#fff}',
     '.' + CLS.rptLink + '{color:#9c2b2b;cursor:pointer;text-decoration:underline;' +
       'text-underline-offset:2px;font-size:12px;margin-left:10px}',
+    /* 修法紀錄：讀舊函釋時需要知道這條後來改過沒有 */
+    '.' + CLS.hist + '{margin-top:9px;padding:8px 11px;background:#fdf6e3;' +
+      'border-left:3px solid #c99a2e;border-radius:0 5px 5px 0;font-size:12px;line-height:1.7}',
+    '.' + CLS.histI + '{color:#6b5a2e;margin:1px 0}',
     /* 標記閃現：讓使用者一眼看到「哪些字被標起來了」 */
     '@keyframes ' + PFX + 'flash{0%,100%{background:rgba(192,57,43,.06)}' +
       '35%{background:rgba(224,168,0,.5)}}',
@@ -508,6 +554,33 @@
       body.appendChild(d);
     });
     box.appendChild(body);
+
+    /* 修法紀錄：原站沒有歷史條文全文，但沿革載明每次修法動到哪幾條。
+     * 讀舊函釋時，這是判斷條文是否已異動的關鍵線索。 */
+    if (art.pcode && hit.flno) {
+      var hbox = el('div', CLS.hist);
+      hbox.appendChild(el('div', CLS.histI, '查詢修法紀錄…'));
+      box.appendChild(hbox);
+      fetchHistory(art.pcode).then(function (h) {
+        var rec = historyFor(h, hit.flno);
+        hbox.innerHTML = '';
+        if (!rec.length) {
+          hbox.appendChild(el('div', CLS.histI, '沿革中未見此條的修正紀錄（可能自公布後未修正）'));
+        } else {
+          hbox.appendChild(el('b', null, '本條修正 ' + rec.length + ' 次：'));
+          rec.slice(0, 4).forEach(function (r) {
+            hbox.appendChild(el('div', CLS.histI, '· ' + (r.when || r.text.slice(0, 40))));
+          });
+          if (rec.length > 4) hbox.appendChild(el('div', CLS.histI, '…另有 ' + (rec.length - 4) + ' 次'));
+        }
+        var hl = el('a', CLS.link, '查看完整沿革');
+        hl.href = h.url; hl.target = '_blank'; hl.rel = 'noopener';
+        hbox.appendChild(hl);
+      }).catch(function () {
+        hbox.innerHTML = '';
+        hbox.appendChild(el('div', CLS.histI, '沿革查詢失敗'));
+      });
+    }
 
     var foot = el('div', CLS.foot);
     var a = el('a', CLS.link, '在全國法規資料庫開啟');
@@ -987,6 +1060,7 @@
   document.body.appendChild(fab);
 
   window.__lawhover__ = {
+    hist: fetchHistory, histFor: historyFor,
     toggle: function () { scan(document.body); },
     count: function () { return count; }
   };

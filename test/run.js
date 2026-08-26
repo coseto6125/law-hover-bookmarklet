@@ -228,8 +228,11 @@ async function run() {
   const before = calls.length;
   m3.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
   await new Promise(r => setTimeout(r, 600));
-  ok('同一條再查不重複請求（命中快取）', calls.length === before,
-     '新增 ' + (calls.length - before) + ' 次請求');
+  // 條文本身命中快取；沿革是另一個端點，首次查詢會有一次額外請求
+  const added = calls.slice(before);
+  ok('同一條再查不重複取條文（命中快取）',
+     !added.some(u => /LawSingle/.test(u)),
+     added.join(' | '));
 
   console.log('\n' + (fail === 0
     ? `\x1b[32m全部通過：${pass} 項\x1b[0m`
