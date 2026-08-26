@@ -65,10 +65,13 @@ const loader =
   // 倒數迴圈：避開 '+' 被轉義成 %2B（i++ 與 i+=1 皆會）
   'for(var i=n;i--;)u[i]=b.charCodeAt(i);' +
   'new Response(new Blob([u]).stream().pipeThrough(new DecompressionStream("gzip"))).text()' +
+  /* 執行方式：用 inline script（textContent）而非 blob script。
+   * 各站 CSP 不同，實測：
+   *   law.moj.gov.tw  script-src 有 'strict-dynamic' → blob 與 inline 皆可
+   *   laws.gov.taipei script-src 'self' 'unsafe-inline' → blob 被擋，inline 可用
+   * inline script 由 javascript: 書籤（已豁免 CSP）建立，兩者皆通過。 */
   '.then(function(t){var s=document.createElement("script");' +
-  's.src=URL.createObjectURL(new Blob([t],{type:"text/javascript"}));' +
-  's.onload=function(){URL.revokeObjectURL(s.src);s.remove()};' +
-  'document.head.appendChild(s)})})()';
+  's.textContent=t;document.head.appendChild(s);s.remove()})})()';
 // javascript: 網址中需轉義的字元
 const url = loader.replace(/%/g, '%25').replace(/#/g, '%23').replace(/\?/g, '%3F')
                   .replace(/&/g, '%26').replace(/'/g, '%27').replace(/ /g, '%20')

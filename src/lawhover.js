@@ -31,6 +31,9 @@
       name: '全國法規資料庫',
       match: /(^|\.)law\.moj\.gov\.tw$/,
       idParam: 'pcode',
+      headSel: '.col-no',
+      resultSel: 'a[href*="pcode="]',
+      idRe: /pcode=([A-Z0-9]+)/i,
       selfLaw: function () {
         var m = /pcode=([A-Z0-9]+)/i.exec(location.search);
         if (!m) return null;
@@ -50,12 +53,22 @@
       name: '臺北市法規查詢系統',
       match: /(^|\.)laws\.gov\.taipei$/,
       idParam: 'FL',
+      headSel: '.col-no',
+      // 臺北搜尋結果連到 /Law/LawSearch/LawInformation/FL039973
+      resultSel: 'a[href*="LawInformation/"]',
+      idRe: /LawInformation\/(FL\d+)/i,
       selfLaw: function () {
         // 網址形如 /Law/LawSearch/LawArticleContent/FL039973
         var m = /\/(FL\d+)/i.exec(location.pathname);
         if (!m) return null;
-        var el = document.querySelector('.cont-title, h2.title, .law-title');
-        return { id: m[1], name: el ? el.textContent.trim() : '本法規' };
+        var el = document.querySelector('.cont-title, .law-title, .col-article h3');
+        var nm = el ? el.textContent.trim() : '';
+        if (!nm || nm.length > 40) {
+          // 退回頁面上第一個條號所屬區塊的標題
+          var h = document.querySelector('h3');
+          nm = h ? h.textContent.split('\n')[0].trim() : '本法規';
+        }
+        return { id: m[1], name: nm };
       },
       articleUrl: function (id) {
         // 台北沒有單條端點，取全文後再由 parse 挑出該條
@@ -70,6 +83,64 @@
       wholePage: true      // articleUrl 回傳全文，需自行挑條
     }
   ];
+
+  /* 地方法規：20 個縣市共用同一套「主管法規共用系統」，
+   * 端點與參數完全相同，只有 host 與路徑前綴不同。
+   * 條文 DOM 有兩種模式（table / blob），需執行時探測而非查表，
+   * 因為同一套系統在不同縣市的樣板不一致。 */
+  var GLRS = {
+    'exlaw.klcg.gov.tw': '基隆市', 'law.tycg.gov.tw': '桃園市',
+    'hclaw.hsinchu.gov.tw/law': '新竹縣', 'law.hccg.gov.tw': '新竹市',
+    'law.miaoli.gov.tw/glrsnewsout': '苗栗縣', 'law.taichung.gov.tw': '臺中市',
+    'lawsearch.chcg.gov.tw/GLRSNEWSOUT': '彰化縣', 'glrs.nantou.gov.tw': '南投縣',
+    'law.yunlin.gov.tw': '雲林縣', 'law.cyhg.gov.tw': '嘉義縣',
+    'law.chiayi.gov.tw': '嘉義市', 'law01.tainan.gov.tw/glrsnewsout': '臺南市',
+    'outlaw.kcg.gov.tw': '高雄市', 'ptlaw.pthg.gov.tw': '屏東縣',
+    'glrslaw.e-land.gov.tw': '宜蘭縣', 'glrs.hl.gov.tw/glrsout': '花蓮縣',
+    'law.taitung.gov.tw': '臺東縣', 'law.penghu.gov.tw/glrsnewsout': '澎湖縣',
+    'law.kinmen.gov.tw': '金門縣', 'law.matsu.gov.tw': '連江縣'
+  };
+
+  // 找出目前頁面對應的共用系統設定（含路徑前綴）
+  var glrsKey = (function () {
+    var h = location.hostname;
+    if (GLRS[h]) return h;
+    for (var k in GLRS) {
+      if (k.indexOf(h + '/') === 0 &&
+          location.pathname.toLowerCase().indexOf('/' + k.split('/')[1].toLowerCase()) === 0) return k;
+    }
+    return null;
+  })();
+
+  if (glrsKey) {
+    var glrsBase = HOST + (glrsKey.indexOf('/') > 0 ? '/' + glrsKey.split('/')[1] : '');
+    SITES.push({
+      id: 'glrs',
+      name: GLRS[glrsKey] + '法規查詢系統',
+      match: /.*/,
+      // table 模式用 td.th[scope=row]；blob 模式沒有條號元素，故可能為 0
+      headSel: 'td.th[scope="row"], .col-no',
+      // 地方共用系統搜尋結果連到 LawContent.aspx?id=GL000683
+      resultSel: 'a[href*="LawContent"][href*="id="]',
+      idRe: /[?&]id=([A-Za-z0-9]+)/i,
+      selfLaw: function () {
+        var m = /[?&]id=([A-Za-z0-9]+)/i.exec(location.search);
+        if (!m) return null;
+        // 法規名在 <title> 最後一段：「○○縣政府主管法規共用系統-法規內容-○○自治條例」
+        var t = document.title.split('-');
+        var nm = t.length > 2 ? t[t.length - 1].trim() : '';
+        if (!nm) {
+          var el = document.querySelector('#ctl00_cp_content_lbLawName, .law-name');
+          nm = el ? el.textContent.trim() : '本法規';
+        }
+        return { id: m[1], name: nm };
+      },
+      articleUrl: function (id) { return glrsBase + '/LawContent.aspx?id=' + id; },
+      searchUrl: function (name) { return glrsBase + '/SearchAllResultList.aspx?KW=' + ENC(name); },
+      historyUrl: function (id) { return glrsBase + '/LawContentHistoryList.aspx?id=' + id; },
+      wholePage: true
+    });
+  }
 
   var SITE = (function () {
     for (var i = 0; i < SITES.length; i++) {
@@ -114,6 +185,7 @@
     'g');
   // 裸條號：本法／同法／前法規名皆省略，指向當前頁面的法規
   // （法規內文最常見的形式，如「依第九十九條規定」「本法第五條」）
+  var SUFFIX_ONLY = new RegExp('^' + SUFFIX + '$');
   var SELF_WORDS = ['本法', '本條例', '本規則', '本辦法', '本標準', '本細則',
                     '本準則', '本通則', '同法', '同條例', '該法', '該條例'];
   var SELF_PREFIX = '(?:本法|本條例|本規則|本辦法|本標準|本細則|本準則|本通則|同法|同條例|該法)?';
@@ -143,6 +215,29 @@
                 '參', '如', '至', '而', '並', '且', '惟', '但', '故', '則', '乃', '係'];
   // 這些是法規官方全名的一部分，剝除前綴時不可越過它們
   var KEEP = ['中華民國', '臺灣省', '台灣省', '直轄市', '縣（市）'];
+  /* 法規名的左邊界。
+   * 原本只靠前綴黑名單修剪，遇到「第一百六十四條及民法」「行政機關依中央法規標準法」
+   * 這類真實條文就會把前一段吃進來，導致完全查不到（codex review 實測三例）。
+   * 改為先以硬邊界切開：條號結尾、連接詞、標點之後才是法規名的起點。 */
+  /* 邊界只認明確的語法標記：
+   *   完整的「第N條/項/款/目」（不可只認單一個「條」字，
+   *   否則「中華民國憲法增修條文」會被切成「文」）
+   *   標點、連接詞、動詞
+   * 取最後一個邊界之後的部分作為法規名。 */
+  var HARD_EDGE = new RegExp(
+    '(?:第\\s*' + NUM + '\\s*[條項款目]|[、，,；;。．：:（）()「」『』《》〈〉\\s]|' +
+    '及|或|與|暨|準用|適用|規定|所稱|依據|依照|按照|依|按)', 'g');
+  function cutLeft(raw) {
+    var last = 0, m;
+    HARD_EDGE.lastIndex = 0;
+    while ((m = HARD_EDGE.exec(raw)) !== null) {
+      var end = m.index + m[0].length;
+      if (end < raw.length) last = end;
+      if (HARD_EDGE.lastIndex <= m.index) HARD_EDGE.lastIndex = m.index + 1;
+    }
+    return last > 0 ? raw.slice(last) : raw;
+  }
+
   function trimName(name) {
     var changed = true;
     while (changed && name.length > 2) {
@@ -245,6 +340,10 @@
 
   function findPcode(name) {
     if (pcodeCache[name]) return Promise.resolve(pcodeCache[name]);
+    return once('pc|' + name, function () { return findPcode_(name); });
+  }
+  function findPcode_(name) {
+    if (pcodeCache[name]) return Promise.resolve(pcodeCache[name]);
     // 本頁若就是該法規，直接用網址上的 pcode，免一次搜尋
     var self = /pcode=([A-Z0-9]+)/i.exec(location.search);
     var h1 = document.querySelector('#hlLawName, .table-list .h3, h2');
@@ -254,13 +353,13 @@
     }
     var url = SITE.searchUrl(name);
     return fetchDoc(url).then(function (doc) {
-      var rows = doc.querySelectorAll('a[href*="pcode="]');
+      var rows = doc.querySelectorAll(SITE.resultSel || 'a[href*="pcode="]');
       var best = null, bestScore = 0;
       for (var i = 0; i < rows.length; i++) {
         var href = rows[i].getAttribute('href') || '';
         // 英譯版是另一套內容，條號對不上，必須排除
         if (/\/ENG\//i.test(href)) continue;
-        var m = /pcode=([A-Z0-9]+)/i.exec(href);
+        var m = (SITE.idRe || /pcode=([A-Z0-9]+)/i).exec(href);
         if (!m) continue;
         var sc = scoreCandidate(rows[i].textContent.trim(), name);
         if (sc > bestScore) { bestScore = sc; best = m[1]; if (sc === 100) break; }
@@ -277,25 +376,42 @@
    * 讀舊函釋時，這是判斷條文是否已異動的關鍵線索。 */
   function fetchHistory(pcode) {
     if (histCache[pcode]) return Promise.resolve(histCache[pcode]);
+    return once('hist|' + pcode, function () { return fetchHistory_(pcode); });
+  }
+  function fetchHistory_(pcode) {
     var url = SITE.historyUrl ? SITE.historyUrl(pcode) : null;
     if (!url) return Promise.reject(new Error('本站未提供沿革'));
     return fetchText(url).then(function (html) {
       var doc = parseHTML(html);
-      var rows = doc.querySelectorAll('.law-history .row .col-data, .law-history .col-data');
-      var list = [];
-      for (var i = 0; i < rows.length; i++) {
-        var t = rows[i].textContent.replace(/\s+/g, ' ').trim();
-        if (!/^\d+\.\s*中華民國/.test(t)) continue;
+      /* 沿革條目的呈現方式各站差異極大（元素列、純文字段落、表格），
+       * 用選擇器逐一適配很脆弱。改為對整份文字做切分：
+       * 沿革條目一律是「N. 中華民國…」的形態，直接以此切割最可靠。 */
+      var whole = (doc.body || doc).textContent.replace(/\u00a0/g, ' ');
+      var itemRe = /(^|\s)(\d+)\.\s*(中華民國[\s\S]*?)(?=(?:\s\d+\.\s*中華民國)|$)/g;
+      var texts = [], mm2;
+      while ((mm2 = itemRe.exec(whole)) !== null) {
+        var body = mm2[3].replace(/\s+/g, ' ').trim();
+        if (body.length > 400) body = body.slice(0, 400);   // 避免吃到頁尾雜訊
+        texts.push(mm2[2] + '. ' + body);
+      }
+      var list = [], seen = {};
+      for (var i = 0; i < texts.length; i++) {
+        var t = texts[i];
+        if (seen[t]) continue;
+        seen[t] = 1;
         // 「令修正公布第 40、77-3、77-4、87 條條文」→ 取出條號清單
         var arts = [];
-        var seg = /第\s*([0-9\-、，,\s]+?)\s*條/g, m2;
+        // 注意排除「全文 14 條」這種總數描述，它不是被修正的條號清單
+        var seg = /(?:^|[^全文])第\s*([0-9\-、，,\s]+?)\s*條/g, m2;
         while ((m2 = seg.exec(t)) !== null) {
           m2[1].split(/[、，,\s]+/).forEach(function (x) {
             x = x.trim();
             if (x && arts.indexOf(x) < 0) arts.push(x);
           });
         }
-        var dm = /中華民國([^總令國]{2,24}?)(?:總統|行政院|國民政府|令|國民大會)/.exec(t);
+        // 中央用中文數字（一百十一年五月十一日），地方多用阿拉伯數字（115年1月23日）
+        var dm = /中華民國\s*([0-9〇一二三四五六七八九十百零]{1,6}\s*年\s*[0-9一二三四五六七八九十]{1,3}\s*月\s*[0-9一二三四五六七八九十]{1,4}\s*日)/.exec(t)
+              || /中華民國([^總令國]{2,24}?)(?:總統|行政院|國民政府|令|國民大會)/.exec(t);
         // 全文修正／制定公布時沒有列出個別條號，視為「動到所有條文」
         var whole = /全文修正|制定公布|全文.{0,4}條|訂定發布|制定/.test(t) && !arts.length;
         list.push({ text: t, arts: arts, when: dm ? dm[1].trim() : '', whole: whole });
@@ -423,30 +539,136 @@
     });
   }
 
+  /* 條號正規化：各站寫法不一（阿拉伯／中文數字、全形、空白、之X），
+   * 統一轉成 "77-2" 這種形式才能比對。 */
+  function normFlno(t) {
+    // 之X 條有兩種寫法：「第 77 條之 2」與「第 77-2 條」，兩者都要認得
+    var m = /第\s*([0-9０-９一二三四五六七八九十百千]+)(?:\s*[-\u2010-\u2015\uff0d]\s*([0-9０-９]+))?\s*條(?:\s*之\s*([0-9０-９一二三四五六七八九十百千]+))?/
+      .exec(String(t).replace(/\u3000/g, ' '));
+    if (!m) return null;
+    var a = cn2num(m[1]);
+    if (!a) return null;
+    var sub = m[2] || m[3];
+    return sub ? a + '-' + cn2num(sub) : String(a);
+  }
+
+  /* 從「整部法規」的頁面中挑出指定條文。
+   * 地方法規站沒有單條端點，只能取全文再切。兩種樣板都要支援：
+   *   table 模式：每條一個 <tr>，條號在 td.th
+   *   blob  模式：全部條文塞在一個 div，只能靠條號文字切分
+   * 模式必須執行時探測，同一套系統在不同縣市的樣板並不一致。 */
+  function pickFromWhole(doc, flno) {
+    var want = String(flno);
+
+    // table 模式
+    var rows = doc.querySelectorAll('#ctl00_cp_content_tableLawArticleBasic tr, .row');
+    for (var i = 0; i < rows.length; i++) {
+      var no = rows[i].querySelector('td.th[scope="row"], .col-no');
+      if (!no) continue;
+      if (normFlno(no.textContent) !== want) continue;
+      var data = rows[i].querySelector('td:nth-child(2) .ClearCss, .col-data, td:nth-child(2)');
+      if (!data) continue;
+      return { title: no.textContent.trim(), lines: splitLines(data) };
+    }
+
+    // blob 模式：整團文字用條號切
+    var blob = doc.querySelector('#ctl00_cp_content_divLawContent08, .law-content, .ClearCss');
+    if (blob) {
+      var txt = blob.textContent.replace(/\r/g, '');
+      var re = /第\s*[0-9０-９一二三四五六七八九十百千]+\s*條(?:\s*之\s*[0-9０-９一二三四五六七八九十百千]+)?/g;
+      var marks = [], m;
+      while ((m = re.exec(txt)) !== null) marks.push({ i: m.index, t: m[0], end: re.lastIndex });
+      for (var k = 0; k < marks.length; k++) {
+        if (normFlno(marks[k].t) !== want) continue;
+        var body = txt.slice(marks[k].end, k + 1 < marks.length ? marks[k + 1].i : txt.length);
+        var lines = body.split('\n').map(function (x) { return x.trim(); })
+          .filter(Boolean)
+          .map(function (x) { return { text: x, top: !/^[一二三四五六七八九十]、/.test(x) }; });
+        if (lines.length) return { title: marks[k].t.trim(), lines: lines };
+      }
+    }
+    return null;
+  }
+
+  function splitLines(node) {
+    var out = [];
+    node.querySelectorAll('div, p').forEach(function (d) {
+      if (d.querySelector('div, p')) return;    // 只取葉節點，避免重複
+      var tx = d.textContent.trim();
+      if (tx) out.push({ text: tx, top: !/^[一二三四五六七八九十]、/.test(tx) });
+    });
+    if (!out.length) {
+      node.textContent.split('\n').forEach(function (x) {
+        x = x.trim();
+        if (x) out.push({ text: x, top: !/^[一二三四五六七八九十]、/.test(x) });
+      });
+    }
+    return out;
+  }
+
+  /* 進行中的請求也要快取，否則滑鼠在同一標記上移動會重複發出請求
+   * （codex review 實測：完成前送兩次 mouseover 會打兩次 fetch）。
+   * 失敗時移除，讓下次可重試。 */
+  var inFlight = {};
+  function once(key, make) {
+    if (inFlight[key]) return inFlight[key];
+    var pr = make().then(function (v) { delete inFlight[key]; return v; },
+                         function (e) { delete inFlight[key]; throw e; });
+    inFlight[key] = pr;
+    return pr;
+  }
+
   function fetchArticle(pcode, flno) {
     var key = pcode + '|' + flno;
     if (artCache[key]) return Promise.resolve(artCache[key]);
+    return once('art|' + key, function () { return fetchArticle_(pcode, flno); });
+  }
+  function fetchArticle_(pcode, flno) {
+    var key = pcode + '|' + flno;
     var url = SITE.articleUrl(pcode, flno);
-    return fetchText(url).then(function (html) {
-      var doc = parseHTML(html);
-      var box = doc.querySelector('.law-reg-content');
-      if (!box) throw new Error('無法解析條文');
-      var lawName = (doc.querySelector('#hlLawName') || {}).textContent || '';
-      var noEl = box.querySelector('.col-no, .h3');
-      var title = noEl ? noEl.textContent.trim() : ('第 ' + flno + ' 條');
-      var lines = [];
-      box.querySelectorAll('.law-article > div').forEach(function (d) {
-        var tx = d.textContent.trim();
-        if (tx) lines.push({ text: tx, top: /show-number|line-0000/.test(d.className) && !/line-000[1-9]/.test(d.className) });
-      });
-      if (!lines.length) {
-        var tx = box.textContent.replace(/\s+/g, ' ').trim();
-        if (tx) lines.push({ text: tx, top: true });
+    // 取全文的站台以法規為快取單位，避免同一部法規重複下載
+    var pageKey = SITE.wholePage ? 'page|' + pcode : null;
+    var get = pageKey && artCache[pageKey]
+      ? Promise.resolve(artCache[pageKey])
+      : fetchDoc(url).then(function (doc) {
+          if (pageKey) artCache[pageKey] = doc;
+          return doc;
+        });
+
+    return get.then(function (doc) {
+      var lawName = (doc.querySelector('#hlLawName, #ctl00_cp_content_lbLawName') || {}).textContent || '';
+      var title, lines;
+
+      if (SITE.wholePage) {
+        var got = pickFromWhole(doc, flno);
+        if (!got) throw new Error('條文中找不到第 ' + flno + ' 條');
+        title = got.title; lines = got.lines;
+      } else {
+        var box = doc.querySelector('.law-reg-content');
+        if (!box) throw new Error('無法解析條文');
+        var noEl = box.querySelector('.col-no, .h3');
+        title = noEl ? noEl.textContent.trim() : ('第 ' + flno + ' 條');
+        lines = [];
+        box.querySelectorAll('.law-article > div').forEach(function (d) {
+          var tx = d.textContent.trim();
+          if (tx) lines.push({
+            text: tx,
+            top: /show-number|line-0000/.test(d.className) && !/line-000[1-9]/.test(d.className)
+          });
+        });
+        if (!lines.length) {
+          var tx = box.textContent.replace(/\s+/g, ' ').trim();
+          if (tx) lines.push({ text: tx, top: true });
+        }
       }
-      // 驗證：確定抓回來的是這一條，查不到比查錯安全
-      var got = title.replace(/\s/g, '');
-      var want = '第' + String(flno).replace('-', '-') + '條';
-      if (got.indexOf(String(flno).split('-')[0]) < 0) throw new Error('條號驗證失敗');
+
+      /* 驗證：確定抓回來的是這一條，查不到比查錯安全。
+       * 先前用 indexOf 子字串比對，只攔得住「取回較短的條號」，
+       * 「要第 7 條卻拿到第 77 條」會通過，而這正是最誤導人的方向。
+       * 改用 normFlno 正規化後等值比對（已處理全形、中文數字、之X）。
+       * normFlno 解不出來時維持放行，避免原站標題格式異常導致全部失效。 */
+      var gotNo = normFlno(title);
+      if (gotNo && gotNo !== String(flno)) throw new Error('條號驗證失敗');
       var res = { title: title, law: lawName.trim(), lines: lines, url: url, pcode: pcode };
       artCache[key] = res;
       return res;
@@ -1069,14 +1291,20 @@
       var subj = '[法條懸停] ' + (kind === 'wrong' ? '資料顯示錯誤' : '沒有顯示資料');
       var href = 'mailto:' + REPORT_TO + '?subject=' + encodeURIComponent(subj) +
                  '&body=' + encodeURIComponent(body());
-      // mailto 過長會被瀏覽器截斷，先確保內容已在剪貼簿
-      copyText(body()).catch(function () {});
-      if (href.length > 1900) {
-        href = 'mailto:' + REPORT_TO + '?subject=' + encodeURIComponent(subj) +
-               '&body=' + encodeURIComponent('內容較長，已複製到剪貼簿，請直接貼上（Ctrl+V）。\n\n');
-      }
-      window.open(href, '_blank');
-      send.textContent = '已開啟郵件';
+      /* mailto 過長會被瀏覽器截斷，故改為「複製到剪貼簿 + 短 mailto」。
+       * 但必須等複製結果出來：複製失敗卻送出「已複製到剪貼簿」的短信，
+       * 會讓回報內容整個遺失（codex review 實測）。 */
+      var full = body();
+      if (href.length <= 1900) { window.open(href, '_blank'); send.textContent = '已開啟郵件'; return; }
+      copyText(full).then(function () {
+        window.open('mailto:' + REPORT_TO + '?subject=' + encodeURIComponent(subj) +
+          '&body=' + encodeURIComponent('內容較長，已複製到剪貼簿，請直接貼上（Ctrl+V）。\n\n'), '_blank');
+        send.textContent = '已開啟郵件';
+      }, function () {
+        // 複製不成就不要宣稱已複製，改為讓使用者自行選取
+        diag.value = full; diag.select();
+        send.textContent = '請手動複製上方內容後寄出';
+      });
     });
     cancel.addEventListener('click', closeReport);
     f.appendChild(copy);
@@ -1127,13 +1355,22 @@
     RE.lastIndex = 0;
     while ((m = RE.exec(text)) !== null) {
       var rawName = m[1] || m[2];
-      var name = m[1] ? rawName : trimName(rawName);
+      // 先切硬邊界（條號、連接詞、標點），再剝除殘留的公文前綴
+      var name = m[1] ? rawName : trimName(cutLeft(rawName));
       var tiao = cn2num(m[3]);
       if (!tiao || name.length < 2) continue;
-      var drop = m[1] ? 0 : (rawName.length - name.length);
-      // 「本法」「同法」等自指詞：指向當前頁面的法規，不必另行搜尋
-      var isSelf = SELF_WORDS.indexOf(name) >= 0;
+      // 自指詞要完整標記（「本辦法第1條」而非「辦法第1條」），故不剝除
+      var drop = (m[1] || SELF_WORDS.indexOf(rawName) >= 0) ? 0 : (rawName.length - name.length);
+      /* 「本法」「同法」等自指詞：指向當前頁面的法規，不必另行搜尋。
+       * 必須比對「未經 trimName 的原文」：trimName 會把「本辦法」剝成「辦法」，
+       * 此時自指判定必然落空，還會拿泛稱去搜尋別部法規（fable review 實測）。 */
+      var isSelf = SELF_WORDS.indexOf(name) >= 0 || SELF_WORDS.indexOf(rawName) >= 0;
       if (isSelf && !SELF) continue;
+      /* 剝除前綴後只剩泛稱字尾（如「辦法」「法」）不是有效的法規名，
+       * 拿去搜尋會得到隨機的某部法規。查不到比查錯安全，直接放棄。 */
+      if (!isSelf && SUFFIX_ONLY.test(name)) continue;
+      // 自指詞要完整標記（「本辦法第1條」而非「辦法第1條」），故不剝除前綴
+      var drop = (m[1] || isSelf) ? 0 : (rawName.length - name.length);
       hits.push({
         start: m.index + drop, end: m.index + m[0].length,
         name: isSelf ? SELF.name : name, pcode: isSelf ? SELF.pcode : null,
@@ -1149,9 +1386,21 @@
         if (covered) continue;
         var t2 = cn2num(m[1]);
         if (!t2) continue;
+        /* 裸條號不一定指向本頁法規。
+         * 「人口販運防制法第三十二條、第三十三條」的後半段仍屬該法，
+         * 若一律綁成本法會顯示完全錯誤的條文（codex review 實測）。
+         * 往前找最近的具名引用：兩者間若只隔連接詞則視為延續，
+         * 遇句號分號等句界則作用範圍結束。 */
+        var prev = null;
+        for (var pi = 0; pi < hits.length; pi++) {
+          if (hits[pi].end <= s0 && (!prev || hits[pi].end > prev.end)) prev = hits[pi];
+        }
+        var cont = prev && !prev.ex &&
+          /^[\s、，,及與或暨至]*$/.test(text.slice(prev.end, s0));
         hits.push({
           start: s0, end: e0,
-          name: SELF.name, pcode: SELF.pcode,
+          name: cont ? prev.name : SELF.name,
+          pcode: cont ? prev.pcode : SELF.pcode,
           flno: m[2] ? t2 + '-' + cn2num(m[2]) : String(t2),
           xiang: m[3] ? cn2num(m[3]) : null, kuan: m[4] ? cn2num(m[4]) : null
         });
@@ -1221,7 +1470,7 @@
    * 條號標題顯示沿革；條文內的引用照舊顯示條文，職責分開。 */
   function markArticleHeads() {
     if (!SELF) return 0;
-    var heads = document.querySelectorAll('.col-no');
+    var heads = document.querySelectorAll(SITE.headSel || '.col-no');
     var n = 0;
     for (var i = 0; i < heads.length; i++) {
       var el0 = heads[i];
@@ -1298,12 +1547,23 @@
    *   2. 取資料
    *   3. 成功則渲染，失敗則說明原因並提供回報入口
    * 抽成 dispatch 後，新增型態只要多一個分支。 */
+  /* 懸停分派。
+   * 競態防護：快速掃過多個標記時，較早發出的請求可能較晚回來，
+   * 覆蓋掉使用者當前指向的內容，導致在 A 條旁看到 B 條的內文
+   * （codex review 實測：先顯示第 2 條，180ms 後被第 1 條覆蓋）。
+   * 以遞增序號把關，只有最新一次懸停的結果能更新面板。 */
+  var hoverSeq = 0;
   function dispatch(anchor, label, fetcher, render, report) {
+    var seq = ++hoverSeq;
     showPanel(anchor, function (box) { renderMsg(box, '查詢中…', label); });
     fetcher()
-      .then(function (data) { showPanel(anchor, function (box) { render(box, data); }); })
+      .then(function (data) {
+        if (seq !== hoverSeq) return;      // 已有更新的懸停，捨棄這次結果
+        showPanel(anchor, function (box) { render(box, data); });
+      })
       .catch(function (err) {
         logErr(report.kind || '查詢失敗', label + '：' + err.message);
+        if (seq !== hoverSeq) return;
         showPanel(anchor, function (box) {
           renderMsg(box, report.msg, err.message + '　（查不到比查錯安全）',
             { kind: 'missing', name: report.name, flno: report.flno,

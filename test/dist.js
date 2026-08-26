@@ -55,9 +55,15 @@ if (b64) {
   ok('gzip 顯著縮短網址（<40%）', raw.length < plainLen * 0.4,
      raw.length + ' vs 未壓縮 ' + plainLen + ' = ' + Math.round(raw.length / plainLen * 100) + '%');
 }
-ok('用 blob script 而非 eval 執行', /createObjectURL/.test(loader) && !/\beval\(/.test(loader));
+/* 執行方式：改用 inline script（textContent）。
+ * blob script 在 law.moj.gov.tw 可用（有 strict-dynamic），
+ * 但在 laws.gov.taipei 被擋（script-src 僅 'self' 'unsafe-inline'）。
+ * inline script 由已豁免 CSP 的 javascript: 書籤建立，兩站皆通過。 */
+ok('用 inline script 而非 eval 執行',
+   /textContent=t/.test(loader) && !/\beval\(/.test(loader));
+ok('不用 blob（部分站台的 CSP 會擋）', !/createObjectURL/.test(loader));
 ok('舊瀏覽器有明確提示', /DecompressionStream/.test(loader) && /瀏覽器版本過舊/.test(loader));
-ok('用完釋放 blob 網址（避免記憶體洩漏）', /revokeObjectURL/.test(loader));
+ok('用完移除注入的 script 節點', /s\.remove\(\)/.test(loader));
 
 console.log('\n\x1b[1m安裝頁佔位符替換\x1b[0m');
 ok('已無 __BOOKMARKLET__ 殘留', !html.includes('__BOOKMARKLET__'));
