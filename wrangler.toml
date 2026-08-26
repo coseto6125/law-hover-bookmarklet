@@ -1,0 +1,7 @@
+# Cloudflare Pages 部署設定
+#
+# 安裝頁是純靜態 HTML，不需要 Functions 或 Workers。
+# docs/ 由 build/build.js 產生，內容與 dist/ 相同。
+name = "law-hover-bookmarklet"
+compatibility_date = "2026-08-26"
+pages_build_output_dir = "docs"

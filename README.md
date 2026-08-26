@@ -4,7 +4,9 @@
 
 滑鼠移到「第七十七條之二」上，條文就出現在原地，視線不用離開正在讀的那一句。
 
-**➜ [安裝頁面](https://coseto6125.github.io/law-hover-bookmarklet/)**（把按鈕拖到書籤列即可，不需安裝任何東西）
+**➜ [安裝頁面](https://law-hover-bookmarklet.pages.dev/)**（把按鈕拖到書籤列即可，不需安裝任何東西）
+
+也可以直接開本機檔案：`docs/index.html`，不必經過網路。
 
 ## 緣起與致謝
 
@@ -102,7 +104,19 @@ npm test              # 全部測試
 建置會同時輸出到兩處：
 
 - `dist/` 本地產物
-- `docs/` GitHub Pages 來源，即線上安裝頁
+- `docs/` 靜態網站來源，同時供 Cloudflare Pages 與 GitHub Pages 使用
+
+`docs/index.html` 是自足的單一檔案，直接用瀏覽器開啟即可安裝，不需要伺服器。
+
+### 部署到 Cloudflare Pages
+
+```bash
+npx wrangler pages deploy docs --project-name law-hover-bookmarklet
+```
+
+需先 `npx wrangler login`，或設定 `CLOUDFLARE_API_TOKEN` 與 `CLOUDFLARE_ACCOUNT_ID`。
+`wrangler.toml` 已設定 `pages_build_output_dir = "docs"`，也可直接在 Cloudflare
+儀表板接上此 repo 自動部署（建置指令 `node build/build.js`，輸出目錄 `docs`）。
 
 安裝頁含可拖曳的按鈕與手動貼上兩條路徑，`test/dist.js` 會驗證兩者內容一致。
 

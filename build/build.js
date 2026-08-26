@@ -32,6 +32,14 @@ fs.writeFileSync(path.join(docs, 'index.html'), out);
 fs.writeFileSync(path.join(docs, 'lawhover.bookmarklet.txt'), url);
 // 停用 Jekyll 處理，安裝頁是靜態 HTML，不需要也不應被處理
 fs.writeFileSync(path.join(docs, '.nojekyll'), '');
+// Cloudflare Pages 標頭設定（GitHub Pages 會忽略此檔）
+fs.writeFileSync(path.join(docs, '_headers'), [
+  '/*',
+  '  X-Content-Type-Options: nosniff',
+  '  Referrer-Policy: no-referrer',
+  "  Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  ''
+].join('\n'));
 
 console.log('bookmarklet 長度：' + url.length + ' 字元');
 if (url.length > 65000) console.warn('警告：超過部分瀏覽器書籤長度上限');
