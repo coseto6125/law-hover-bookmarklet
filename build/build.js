@@ -25,6 +25,12 @@ const out = tpl.split('__BOOKMARKLET__').join(escaped);
 if (out.indexOf('__BOOKMARKLET__') >= 0) throw new Error('佔位符未完全替換');
 fs.writeFileSync(path.join(root, 'dist/install.html'), out);
 
+// 同步輸出到 docs/ 供 GitHub Pages 直接提供安裝頁
+const docs = path.join(root, 'docs');
+if (!fs.existsSync(docs)) fs.mkdirSync(docs);
+fs.writeFileSync(path.join(docs, 'index.html'), out);
+fs.writeFileSync(path.join(docs, 'lawhover.bookmarklet.txt'), url);
+
 console.log('bookmarklet 長度：' + url.length + ' 字元');
 if (url.length > 65000) console.warn('警告：超過部分瀏覽器書籤長度上限');
-console.log('已產生 dist/lawhover.bookmarklet.txt 與 dist/install.html');
+console.log('已產生 dist/ 與 docs/（GitHub Pages）');

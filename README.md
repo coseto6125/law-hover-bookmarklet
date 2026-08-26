@@ -4,6 +4,8 @@
 
 滑鼠移到「第七十七條之二」上，條文就出現在原地，視線不用離開正在讀的那一句。
 
+**➜ [安裝頁面](https://coseto6125.github.io/law-hover-bookmarklet/)**（把按鈕拖到書籤列即可，不需安裝任何東西）
+
 ## 緣起與致謝
 
 概念源自 [引線](https://yinxian.vercel.app/)（[@termcavetw](https://www.threads.net/@termcavetw) 開發的
@@ -97,7 +99,12 @@ npm test              # 全部測試
 | `test/pcode.js` | 16 部法規的名稱→pcode 對照 | 是 |
 | `test/browser.js` | 真實 Chrome，以實際書籤點擊路徑執行 | 是 |
 
-`dist/install.html` 是給使用者的 Windows 安裝說明頁，含可拖曳的按鈕。
+建置會同時輸出到兩處：
+
+- `dist/` 本地產物
+- `docs/` GitHub Pages 來源，即線上安裝頁
+
+安裝頁含可拖曳的按鈕與手動貼上兩條路徑，`test/dist.js` 會驗證兩者內容一致。
 
 ## 測試涵蓋
 
