@@ -22,13 +22,17 @@ console.log('\n\x1b[1mbookmarklet 產物\x1b[0m');
 ok('以 javascript: 開頭', raw.startsWith('javascript:'));
 ok('為單行（書籤網址不可含換行）', !/[\r\n]/.test(raw));
 ok('不含裸單引號（避免破壞 href 屬性）', !raw.includes("'"));
-ok('長度在瀏覽器書籤上限內', raw.length < 65000, raw.length + ' 字元');
+// 超過上限瀏覽器會靜默截斷，書籤整個失效且難以察覺
+ok('長度在瀏覽器書籤上限內', raw.length < 64000, raw.length + ' 字元');
+ok('保有新增功能的餘裕（<90% 額度）', raw.length < 57600,
+   raw.length + ' 字元，已用 ' + Math.round(raw.length / 640) + '%');
 let decoded;
 try { decoded = decodeURIComponent(raw.slice('javascript:'.length)); ok('可正確 URL 解碼', true); }
 catch (e) { ok('可正確 URL 解碼', false, e.message); }
 try { new (require('vm').Script)(decoded); ok('解碼後為合法 JavaScript', true); }
 catch (e) { ok('解碼後為合法 JavaScript', false, e.message); }
 ok('未殘留區塊註解（壓縮生效）', !decoded.includes('/*'));
+ok('確實經過壓縮（無多餘縮排）', !/\n\s{4,}/.test(decoded));
 
 console.log('\n\x1b[1m安裝頁佔位符替換\x1b[0m');
 ok('已無 __BOOKMARKLET__ 殘留', !html.includes('__BOOKMARKLET__'));

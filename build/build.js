@@ -6,13 +6,28 @@ const root = path.join(__dirname, '..');
 
 let code = fs.readFileSync(path.join(root, 'src/lawhover.js'), 'utf8');
 
-// 保守壓縮：移除註解與行首縮排，保留字串內容
-code = code
-  .replace(/^\s*\/\*[\s\S]*?\*\//gm, '')
-  .split('\n')
-  .map(l => l.replace(/\s+\/\/[^'"`]*$/, '').trim())
-  .filter(Boolean)
-  .join('\n');
+/* 壓縮。書籤網址有長度上限（Chrome 約 64KB），必須確實壓到夠小，
+ * 否則新增功能時會無聲地被截斷。優先用 terser，失敗則退回保守做法。 */
+let minified = false;
+try {
+  const { minify_sync } = require('terser');
+  const r = minify_sync(code, {
+    compress: { passes: 3, unsafe: true, drop_console: true },
+    mangle: { toplevel: false },
+    format: { comments: false, ascii_only: false },
+  });
+  if (r && r.code) { code = r.code; minified = true; }
+} catch (e) {
+  console.warn('terser 不可用，改用保守壓縮：' + e.message);
+}
+if (!minified) {
+  code = code
+    .replace(/^\s*\/\*[\s\S]*?\*\//gm, '')
+    .split('\n')
+    .map(l => l.replace(/\s+\/\/[^'"`]*$/, '').trim())
+    .filter(Boolean)
+    .join('\n');
+}
 
 const url = 'javascript:' + encodeURIComponent(code).replace(/'/g, '%27');
 fs.writeFileSync(path.join(root, 'dist/lawhover.bookmarklet.txt'), url);
@@ -60,6 +75,13 @@ fs.writeFileSync(path.join(docs, '_headers'), [
   ''
 ].join('\n'));
 
-console.log('bookmarklet 長度：' + url.length + ' 字元');
-if (url.length > 65000) console.warn('警告：超過部分瀏覽器書籤長度上限');
+const LIMIT = 64000;   // Chrome 書籤網址實測上限約 64KB
+console.log('bookmarklet 長度：' + url.length + ' 字元' +
+            (minified ? '（terser 壓縮）' : '（保守壓縮）') +
+            '　餘裕 ' + (LIMIT - url.length) + ' 字元');
+if (url.length > LIMIT) {
+  console.error('錯誤：超過書籤長度上限 ' + LIMIT + '，瀏覽器會截斷導致完全失效');
+  process.exit(1);
+}
+if (url.length > LIMIT * 0.9) console.warn('警告：已用掉 90% 額度，新增功能前需先精簡');
 console.log('已產生 dist/ 與 docs/（GitHub Pages）');
