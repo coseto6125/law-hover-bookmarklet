@@ -258,7 +258,7 @@
     return name;
   }
 
-  var REPORT_TO = 'enor@e-life-ai.com';
+  var REPORT_TO = 'cosetoenor@gmail.com';
   /* 立法院法律系統：歷史條文全文與修法理由的來源。
    * 跨域（lis.ly.gov.tw），中央站 CSP 的 connect-src 'self' 禁止 fetch，
    * frame-src 'self' 也禁止 iframe，兩者實測皆被擋。

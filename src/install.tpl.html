@@ -72,6 +72,29 @@ a{color:#1a4fa0}
 .help-wrap{position:relative}
 .help-wrap:hover .help-tip{opacity:1}
 
+/* ---------- 致謝（置頂） ---------- */
+.thanks{margin:24px 0 0}
+.thanks-in{background:var(--accent-soft);border:1px solid #c9ded9;
+  border-radius:var(--radius-lg);padding:18px 22px}
+.thanks-h{display:flex;gap:13px;align-items:flex-start;margin-bottom:10px}
+.thanks-ico{font-size:21px;line-height:1.3;flex:0 0 26px}
+.thanks-h b{display:block;font-size:1rem;color:#12463f;margin-bottom:3px}
+.thanks-h span{display:block;font-size:.9rem;color:#1c5b52;line-height:1.7}
+.thanks-h a{color:#0f5f54;font-weight:700}
+.thanks-why{margin:0 0 13px;font-size:.9rem;color:#1c5b52;line-height:1.85;
+  padding-left:39px}
+.thanks-why a{color:#0f5f54;font-weight:500}
+.thanks-act{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-left:39px}
+.thanks-btn{display:inline-flex;align-items:center;gap:6px;background:#1b5e57;color:#fff;
+  text-decoration:none;font:600 13.5px/1 var(--sans);padding:9px 16px;border-radius:8px;
+  transition:background .18s,transform .18s}
+.thanks-btn:hover{background:#144a44;transform:translateY(-1px)}
+.thanks-link{font-size:13.5px;color:#0f5f54;font-weight:500}
+.thanks-note{font-size:12.5px;color:#2b6b61}
+@media (max-width:640px){
+  .thanks-why,.thanks-act{padding-left:0}
+}
+
 /* ---------- 英雄區 ---------- */
 .hero{padding:64px 0 20px;text-align:center}
 .eyebrow{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:500;
@@ -441,6 +464,29 @@ footer a{color:#1a4fa0}
 <main>
 <div class="wrap">
 
+  <!-- 致謝：概念源自引線，放在最前面 -->
+  <div class="thanks">
+    <div class="thanks-in">
+      <div class="thanks-h">
+        <span class="thanks-ico">🙏</span>
+        <div>
+          <b>概念源自「引線」，感謝 <a href="https://www.threads.net/@termcavetw" target="_blank" rel="noopener">@termcavetw</a></b>
+          <span>是他先想到「看到法條，滑過去就好」這件事，並做成了 Chrome 擴充功能。</span>
+        </div>
+      </div>
+      <p class="thanks-why">
+        會有這個書籤版，是因為我把<a href="https://yinxian.vercel.app/" target="_blank" rel="noopener">引線</a>分享給太太時，
+        雖然覺得應該很好用，但<b>她公司資安管控下無法安裝任何 Chrome 擴充功能</b>。
+        於是在相同的思路下改寫成書籤，不需安裝就能用；也因為是書籤，<b>順帶能在手機上使用</b>。
+      </p>
+      <div class="thanks-act">
+        <a class="thanks-btn" href="https://ko-fi.com/beastt1992" target="_blank" rel="noopener">☕ 支持引線作者</a>
+        <a class="thanks-link" href="https://yinxian.vercel.app/" target="_blank" rel="noopener">看看引線</a>
+        <span class="thanks-note">能安裝擴充功能的話，<b>請直接用引線</b>，功能完整得多。</span>
+      </div>
+    </div>
+  </div>
+
   <div class="hero">
     <span class="eyebrow">
       <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd"/></svg>
@@ -636,7 +682,7 @@ footer a{color:#1a4fa0}
         <summary>發現條文顯示錯誤，要怎麼回報</summary>
         <div class="qa-b">
           <p>裝好之後畫面<b>右下角</b>有「✉ 回報問題」，或直接在條文面板底部點<b>「這條顯示錯了」</b>，後者會自動預選問題類型並帶入該條的原文與顯示內容。</p>
-          <p>回報表單會自動附上網址、解析結果與錯誤記錄，<b>不必截圖也不必開開發者工具</b>。你只需要貼上出問題的法條文句。也可直接寄到 <a href="mailto:enor@e-life-ai.com">enor@e-life-ai.com</a>。</p>
+          <p>回報表單會自動附上網址、解析結果與錯誤記錄，<b>不必截圖也不必開開發者工具</b>。你只需要貼上出問題的法條文句。也可直接寄到 <a href="mailto:cosetoenor@gmail.com">cosetoenor@gmail.com</a>。</p>
         </div>
       </details>
 
@@ -753,7 +799,7 @@ footer a{color:#1a4fa0}
 
       <div class="rpt-mail">
         也可以直接寄信：
-        <a href="mailto:enor@e-life-ai.com?subject=%5B%E6%B3%95%E6%A2%9D%E6%87%B8%E5%81%9C%5D%20%E5%95%8F%E9%A1%8C%E5%9B%9E%E5%A0%B1">enor@e-life-ai.com</a>
+        <a href="mailto:cosetoenor@gmail.com?subject=%5B%E6%B3%95%E6%A2%9D%E6%87%B8%E5%81%9C%5D%20%E5%95%8F%E9%A1%8C%E5%9B%9E%E5%A0%B1">cosetoenor@gmail.com</a>
         <span class="rpt-or">或</span>
         <a href="https://github.com/coseto6125/law-hover-bookmarklet/issues/new" target="_blank" rel="noopener">開 GitHub Issue</a>
       </div>
@@ -846,22 +892,24 @@ footer a{color:#1a4fa0}
   </section>
 
   <!-- ---------- 緣起 ---------- -->
-  <section>
-    <div class="sec-head"><span class="sec-num">緣起</span><h2>概念源自「引線」</h2></div>
+  <section id="origin">
+    <div class="sec-head"><span class="sec-num">緣起</span><h2>與「引線」的關係</h2></div>
     <p class="sec-sub">先把話說清楚，免得誤會。</p>
     <div class="callout ok">
-      <p>概念源自 <a href="https://yinxian.vercel.app/" target="_blank" rel="noopener">引線</a> 這款 Chrome 擴充功能，它把「看到法條，滑過去就好」做得很好。</p>
-      <p>本工具<b>不是引線的移植或衍生</b>，與其開發者無關，也未參考其原始碼（引線並未開源）。之所以獨立重寫，是因為擴充功能在許多企業資安控管下裝不了，而書籤是該限制下唯一還能在原網頁上就地作用的途徑。</p>
+      <p>本工具<b>不是引線的移植或衍生</b>，與其開發者無關，也未參考其原始碼（引線並未開源）。
+         只是在相同的思路下，用書籤重新實作，以解決「什麼都不能安裝」這個處境。</p>
     </div>
     <table>
-      <tr><th style="width:26%"></th><th>引線（Chrome 擴充功能）</th><th>本工具（書籤）</th></tr>
+      <tr><th style="width:22%"></th><th><a href="https://yinxian.vercel.app/" target="_blank" rel="noopener">引線</a>（Chrome 擴充功能）</th><th>本工具（書籤）</th></tr>
       <tr><td><b>安裝</b></td><td>需安裝擴充功能</td><td><span class="yes">只加一則書籤</span></td></tr>
       <tr><td><b>生效方式</b></td><td><span class="yes">自動，永久</span></td><td>每頁點一次</td></tr>
-      <tr><td><b>適用範圍</b></td><td><span class="yes">任何網站、PDF</span></td><td>僅 law.moj.gov.tw</td></tr>
-      <tr><td><b>功能廣度</b></td><td><span class="yes">地方法規、函釋、歷史條文、PDF</span></td><td>僅條文懸停</td></tr>
+      <tr><td><b>手機</b></td><td>不支援</td><td><span class="yes">可用</span></td></tr>
+      <tr><td><b>適用範圍</b></td><td><span class="yes">任何網站、PDF</span></td><td>法規網站</td></tr>
+      <tr><td><b>功能廣度</b></td><td><span class="yes">函釋、PDF、常用條文等</span></td><td>條文、沿革、釋字</td></tr>
     </table>
     <div class="callout">
-      <p><b>若你的環境能安裝擴充功能，請直接用引線</b>，功能完整得多。本工具只解決「什麼都不能裝」這一個處境。</p>
+      <p><b>能安裝擴充功能的話，請直接用引線</b>，功能完整得多。本工具只解決「什麼都不能裝」這一個處境。
+         若覺得這個想法有幫助，請<a href="https://ko-fi.com/beastt1992" target="_blank" rel="noopener">支持引線作者</a>。</p>
     </div>
   </section>
 
@@ -875,7 +923,7 @@ footer a{color:#1a4fa0}
     <p style="margin-top:14px">
       <a href="https://github.com/coseto6125/law-hover-bookmarklet" target="_blank" rel="noopener">原始碼（MIT）</a>
       　·　<a href="https://github.com/coseto6125/law-hover-bookmarklet/issues/new" target="_blank" rel="noopener">回報問題</a>
-      　·　<a href="mailto:enor@e-life-ai.com?subject=%5B%E6%B3%95%E6%A2%9D%E6%87%B8%E5%81%9C%5D%20%E5%95%8F%E9%A1%8C%E5%9B%9E%E5%A0%B1">enor@e-life-ai.com</a>
+      　·　<a href="mailto:cosetoenor@gmail.com?subject=%5B%E6%B3%95%E6%A2%9D%E6%87%B8%E5%81%9C%5D%20%E5%95%8F%E9%A1%8C%E5%9B%9E%E5%A0%B1">cosetoenor@gmail.com</a>
       　·　<a href="https://law.moj.gov.tw/" target="_blank" rel="noopener">全國法規資料庫</a>
     </p>
   </div>

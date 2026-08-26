@@ -93,8 +93,15 @@ ok('標示資料來源與免責', text.includes('全國法規資料庫') && text
 ok("提示公司鎖書籤列的情況", text.includes("書籤列鎖住") || text.includes("公司把書籤列鎖住"));
 ok('標明概念源自引線且非衍生作品', text.includes('引線') && text.includes('不是引線的移植或衍生'));
 ok('指出能裝擴充功能者應直接用引線', text.includes('請直接用引線'));
+// 致謝置頂並附上原作者的支持連結
+ok('致謝區塊在頁面最前面',
+   html.indexOf('class="thanks"') > 0 &&
+   html.indexOf('class="thanks"') < html.indexOf('class="hero"'));
+ok('附上引線作者的 Ko-fi 連結', html.includes('ko-fi.com/beastt1992'));
+ok('說明復刻緣由（公司資安無法安裝）', text.includes('公司資安管控下無法安裝'));
+ok('說明書籤順帶支援手機', text.includes('順帶能在手機上使用'));
 ok('提供原始碼連結', html.includes('github.com/coseto6125/law-hover-bookmarklet'));
-ok('提供回報 email', html.includes('enor@e-life-ai.com'));
+ok('提供回報 email', html.includes('cosetoenor@gmail.com'));
 ok('說明兩階段回報類型',
    text.includes('沒有顯示資料') && text.includes('資料顯示錯誤'));
 ok('說明不需截圖', text.includes('不必截圖'));
