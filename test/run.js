@@ -43,6 +43,7 @@ const PAGE = `<!DOCTYPE html><html><body>
 <p>依第九十九條規定辦理，並準用本法第五條。</p>
 <p>另依建築技術規則建築設計施工編第167條之1辦理。</p>
 <p>本法依中華民國憲法第一百十八條及中華民國憲法增修條文第九條第一項制定之。</p>
+<p>參照司法院釋字第748號解釋及大法官釋字第603號意旨，並依115年憲判字第6號判決。另釋字第三十二號亦同。</p>
 <a href="#">建築法第5條</a>
 <script>var x = "建築法第9條";</script>
 </div></body></html>`;
@@ -60,9 +61,9 @@ async function run() {
   window.eval(code);
 
   console.log('\n\x1b[1m掃描與標記\x1b[0m');
-  const marks = [...window.document.querySelectorAll('[data-flno]')];
+  const marks = [...window.document.querySelectorAll('[data-flno],[data-ex]')];
   ok('有標記到引用', marks.length > 0, '標記數=' + marks.length);
-  ok('標記 11 處引用', marks.length === 11,
+  ok('標記 15 處引用', marks.length === 15,
      '實際 ' + marks.length + ' 處：' + marks.map(m => m.textContent).join(' / '));
 
   const byText = t => marks.find(m => m.textContent.includes(t));
@@ -120,6 +121,24 @@ async function run() {
   ok('增修條文取得項次', mAmd && mAmd.dataset.xiang === '1', mAmd && mAmd.dataset.xiang);
   ok('長字尾優先：不被切成「憲法」', mAmd && mAmd.dataset.name !== '中華民國憲法',
      mAmd && mAmd.dataset.name);
+
+  console.log('\n\x1b[1m司法院解釋（釋字／憲判字）\x1b[0m');
+  const ex748 = byText('釋字第748號');
+  ok('「司法院釋字第748號」→ C/748',
+     ex748 && ex748.dataset.ex === 'C' && ex748.dataset.exno === '748',
+     ex748 ? ex748.dataset.ex + '/' + ex748.dataset.exno : '未辨識');
+  const ex603 = byText('大法官釋字第603號');
+  ok('「大法官釋字第603號」也認得', ex603 && ex603.dataset.exno === '603',
+     ex603 && ex603.dataset.exno);
+  const exCN = byText('釋字第三十二號');
+  ok('中文數字釋字 → 32', exCN && exCN.dataset.exno === '32', exCN && exCN.dataset.exno);
+  const cj = byText('憲判字第6號');
+  ok('「115年憲判字第6號」→ CJ/6/115',
+     cj && cj.dataset.ex === 'CJ' && cj.dataset.exno === '6' && cj.dataset.exyear === '115',
+     cj ? cj.dataset.ex + '/' + cj.dataset.exno + '/' + cj.dataset.exyear : '未辨識');
+  ok('憲判字不被釋字規則誤切', cj && cj.textContent.indexOf('憲判字') >= 0,
+     cj && JSON.stringify(cj.textContent));
+  ok('解釋類標記不帶條號', ex748 && !ex748.dataset.flno);
 
   console.log('\n\x1b[1m排除規則\x1b[0m');
   ok('<script> 內不標記', !window.document.querySelector('script [data-flno]'));

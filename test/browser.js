@@ -151,6 +151,54 @@ async function main() {
     ok('再次點擊不會重複建立面板', after.panels === 1, '面板數 ' + after.panels);
   }
 
+  console.log('\n\x1b[1m司法院解釋（線上取文）\x1b[0m');
+  {
+    // 法規頁本身沒有釋字引用，注入一段模擬公文後重新掃描
+    await page.evaluate(() => {
+      const d = document.createElement('p');
+      d.id = 'ex-test';
+      d.textContent = '參照司法院釋字第748號解釋，並依115年憲判字第6號判決辦理。';
+      document.querySelector('.law-reg-content').prepend(d);
+    });
+    try { await cdp.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
+    await page.waitForTimeout(1200);
+
+    const exm = await page.evaluate(() => [...document.querySelectorAll('[data-ex]')]
+      .map(x => ({ t: x.textContent, ex: x.dataset.ex, no: x.dataset.exno, y: x.dataset.exyear })));
+    ok('辨識釋字與憲判字', exm.length === 2, JSON.stringify(exm));
+
+    async function hoverEx(kind, no) {
+      await page.evaluate(([k, n]) => {
+        const x = [...document.querySelectorAll('[data-ex]')]
+          .find(e => e.dataset.ex === k && e.dataset.exno === n);
+        x.scrollIntoView({ block: 'center' });
+        x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      }, [kind, no]);
+      await page.waitForTimeout(9000);
+      return page.evaluate(() => {
+        const q = [...document.body.children].find(n => {
+          const c = String(n.className || '').split(' ');
+          return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+        });
+        return q ? q.textContent.replace(/\s+/g, ' ').trim() : '';
+      });
+    }
+
+    const t748 = await hoverEx('C', '748');
+    ok('釋字 748 取回解釋文', /相同性別二人/.test(t748), t748.slice(0, 70));
+    ok('釋字面板含字號與日期', /釋字第 748 號/.test(t748) && /民國 106/.test(t748), t748.slice(0, 40));
+    ok('釋字面板有複製與回報入口',
+       /複製解釋文/.test(t748) && /這則顯示錯了/.test(t748));
+
+    const tcj = await hoverEx('CJ', '6');
+    ok('憲判字 6 取回內容（需先查 JC 流水號）',
+       /憲判字第 6 號/.test(tcj) && tcj.length > 60 && !/查不到/.test(tcj), tcj.slice(0, 70));
+
+    ok('取解釋過程無 CSP 違規',
+       (await page.evaluate(() => window.__csp.length)) === 0);
+    await page.evaluate(() => { const e = document.getElementById('ex-test'); if (e) e.remove(); });
+  }
+
   console.log('\n\x1b[1m問題回報（兩階段）\x1b[0m');
   {
     const fabInfo = await page.evaluate(() => {

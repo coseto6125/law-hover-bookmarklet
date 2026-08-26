@@ -50,6 +50,16 @@
     SELF_PREFIX + '\\s*第\\s*(' + NUM + ')\\s*條(?:\\s*之\\s*(' + NUM + '))?' + TAIL,
     'g');
 
+  /* 司法院解釋：釋字（舊制）與憲判字（憲訴法新制）。
+   * 兩者端點不同：
+   *   釋字   ExContent.aspx?ty=C&CC=D&CNO=748
+   *   憲判字 ExContent.aspx?ty=CJ&JNO=6&JYEAR=115（需年度）
+   * 「大法官釋字第 748 號」「司法院釋字第748號」等寫法都要涵蓋。 */
+  var RE_EX = new RegExp(
+    '(?:司法院|大法官)?\\s*釋字\\s*第\\s*(' + NUM + ')\\s*號', 'g');
+  var RE_CJ = new RegExp(
+    '(' + NUM + ')\\s*年度?\\s*憲判字\\s*第\\s*(' + NUM + ')\\s*號', 'g');
+
   // 常見黏在法規名前的公文用字，需剝除（「案建築法」→「建築法」）
   var PREFIX = ['前項', '前二項', '前三項', '前條', '前款', '本項', '各該', '上開',
                 '另依', '另按', '復依', '爰按', '茲按', '另', '復', '爰', '茲',
@@ -177,6 +187,77 @@
       }
       if (best) { pcodeCache[name] = best; return best; }
       throw new Error('找不到法規「' + name + '」');
+    });
+  }
+
+  var exCache = {};
+  var cjIndex = null;   // 憲判字：年+號 -> JC 流水號
+
+  /* 憲判字的內容頁需要內部流水號 JC，無法由年度與號碼推算，
+   * 必須先從清單頁建立對照表。清單一次 20 筆，逐頁往後找。 */
+  function findCJ(year, no) {
+    var key = year + '-' + no;
+    if (cjIndex && cjIndex[key]) return Promise.resolve(cjIndex[key]);
+    cjIndex = cjIndex || {};
+    var page = 1;
+    function scanPage() {
+      if (page > 6) throw new Error('清單中找不到此號憲判字');
+      var url = HOST + '/Law/LawSearchJudge.aspx?ty=B5&set=0&page=' + page + '&psize=20';
+      return fetchText(url).then(function (html) {
+        var re = /ExContent\.aspx\?ty=CJ&(?:amp;)?JC=([A-Z0-9]+)&(?:amp;)?JNO=(\d+)&(?:amp;)?JYEAR=(\d+)/g, m;
+        var found = null, any = false;
+        while ((m = re.exec(html)) !== null) {
+          any = true;
+          cjIndex[m[3] + '-' + m[2]] = m[1];
+          if (m[3] === String(year) && m[2] === String(no)) found = m[1];
+        }
+        if (found) return found;
+        if (!any) throw new Error('清單中找不到此號憲判字');
+        page++;
+        return scanPage();
+      });
+    }
+    return Promise.resolve().then(scanPage);
+  }
+  /* 取回司法院解釋。
+   * kind='C'：釋字，只需號碼；kind='CJ'：憲判字，需年度 + 號碼。
+   * 不存在的號碼原站回 302 轉址，內容區會缺，據此判定失敗。 */
+  function fetchExplain(kind, no, year) {
+    var key = kind + '|' + no + '|' + (year || '');
+    if (exCache[key]) return Promise.resolve(exCache[key]);
+    var pre = kind === 'CJ'
+      ? findCJ(year, no).then(function (jc) {
+          return HOST + '/LawClass/ExContent.aspx?ty=CJ&JC=' + jc +
+                 '&JNO=' + no + '&JYEAR=' + year + '&JCASE=' + encodeURIComponent('憲判');
+        })
+      : Promise.resolve(HOST + '/LawClass/ExContent.aspx?ty=C&CC=D&CNO=' + no);
+    var url;
+    return pre.then(function (u) { url = u; return fetchText(u); }).then(function (html) {
+      var doc = parseHTML(html);
+      var kv = {};
+      var rows = doc.querySelectorAll('tr, .row');
+      for (var i = 0; i < rows.length; i++) {
+        var t = rows[i].textContent.replace(/\s+/g, ' ').trim();
+        var m = /^(發文單位|解釋字號|解釋日期|解釋爭點|判決日期|裁判字號)：\s*([\s\S]*)$/.exec(t);
+        if (m && !kv[m[1]]) kv[m[1]] = m[2].trim();
+      }
+      var pres = doc.querySelectorAll('.text-pre');
+      if (!pres.length) throw new Error('查無此號解釋');
+      var main = pres[0].textContent.replace(/\n\s+/g, '\n').trim();
+      var title = kv['解釋字號'] || kv['裁判字號'] ||
+        (kind === 'CJ' ? year + ' 年憲判字第 ' + no + ' 號' : '釋字第 ' + no + ' 號');
+      // 驗證取回的確實是這一號，查不到比查錯安全
+      if (String(title).replace(/\s/g, '').indexOf(String(no) + '號') < 0) {
+        throw new Error('字號驗證失敗');
+      }
+      var res = {
+        title: title, date: kv['解釋日期'] || kv['判決日期'] || '',
+        issue: kv['解釋爭點'] || '', text: main,
+        reason: pres.length > 1 ? pres[1].textContent.replace(/\n\s+/g, '\n').trim() : '',
+        url: url
+      };
+      exCache[key] = res;
+      return res;
     });
   }
 
@@ -457,6 +538,53 @@
     box.appendChild(foot);
   }
 
+  function renderExplain(box, ex) {
+    var head = el('div', CLS.head, ex.title + (ex.date ? '　' + ex.date : ''));
+    box.appendChild(head);
+
+    var body = el('div', CLS.body);
+    if (ex.issue) {
+      var iw = el('div', CLS.line);
+      iw.appendChild(el('b', null, '爭點：'));
+      iw.appendChild(el('span', null, ex.issue));
+      body.appendChild(iw);
+    }
+    // 解釋文逐行呈現，保留原始斷行（原文是等寬排版）
+    ex.text.split('\n').forEach(function (ln) {
+      if (ln.trim()) body.appendChild(el('div', CLS.line, ln.trim()));
+    });
+    box.appendChild(body);
+
+    var foot = el('div', CLS.foot);
+    var a = el('a', CLS.link, '在全國法規資料庫開啟');
+    a.href = ex.url; a.target = '_blank'; a.rel = 'noopener';
+    foot.appendChild(a);
+    var cp = el('a', CLS.link, '複製解釋文');
+    cp.addEventListener('click', function (e) {
+      e.preventDefault();
+      try {
+        navigator.clipboard.writeText(ex.title + '\n' + (ex.issue ? '爭點：' + ex.issue + '\n' : '') + ex.text);
+        cp.textContent = '已複製';
+        setTimeout(function () { cp.textContent = '複製解釋文'; }, 1500);
+      } catch (err) { cp.textContent = '複製失敗'; }
+    });
+    foot.appendChild(cp);
+    // 理由書通常很長，另開原站閱讀而非塞進面板
+    if (ex.reason) {
+      var rl = el('a', CLS.link, '理由書（' + Math.round(ex.reason.length / 100) / 10 + ' 千字）');
+      rl.href = ex.url; rl.target = '_blank'; rl.rel = 'noopener';
+      foot.appendChild(rl);
+    }
+    var wrong = el('a', CLS.link, '這則顯示錯了');
+    wrong.addEventListener('click', function (e) {
+      e.preventDefault();
+      openReport({ kind: 'wrong', name: ex.title, url: ex.url,
+        shown: ex.text.slice(0, 300) });
+    });
+    foot.appendChild(wrong);
+    box.appendChild(foot);
+  }
+
   function renderMsg(box, msg, sub, report) {
     box.appendChild(el('div', CLS.err, msg));
     if (sub) {
@@ -477,12 +605,16 @@
    * 自動帶入網址、原文句子、標記結果與錯誤記錄，使用者不必截圖也不必開 console。
    */
   function pageDiag(extra) {
-    var marks = document.querySelectorAll('[data-flno]');
+    var marks = document.querySelectorAll('[data-flno],[data-ex]');
     var sample = [], seen = {};
     for (var i = 0; i < marks.length && sample.length < 12; i++) {
       var m = marks[i], k = m.dataset.name + '|' + m.dataset.flno;
       if (seen[k]) continue;
       seen[k] = 1;
+      if (m.dataset.ex) {
+        sample.push('  ' + JSON.stringify(m.textContent) + ' -> ' + m.dataset.name + ' [司法院解釋]');
+        continue;
+      }
       sample.push('  ' + JSON.stringify(m.textContent) + ' -> ' + m.dataset.name +
                   ' 第' + m.dataset.flno + '條' +
                   (m.dataset.xiang ? ' 第' + m.dataset.xiang + '項' : '') +
@@ -689,6 +821,26 @@
         });
       }
     }
+    // 司法院解釋：憲判字需先比對（含年度），避免被釋字規則誤切
+    var mm;
+    RE_CJ.lastIndex = 0;
+    while ((mm = RE_CJ.exec(text)) !== null) {
+      var yr = cn2num(mm[1]), cno = cn2num(mm[2]);
+      if (!yr || !cno) continue;
+      hits.push({ start: mm.index, end: mm.index + mm[0].length,
+        ex: 'CJ', exNo: cno, exYear: yr, name: yr + ' 年憲判字第 ' + cno + ' 號', flno: '' });
+    }
+    RE_EX.lastIndex = 0;
+    while ((mm = RE_EX.exec(text)) !== null) {
+      var s2 = mm.index, e2 = mm.index + mm[0].length;
+      var dup = hits.some(function (h) { return s2 < h.end && e2 > h.start; });
+      if (dup) continue;
+      var n2 = cn2num(mm[1]);
+      if (!n2) continue;
+      hits.push({ start: s2, end: e2, ex: 'C', exNo: n2,
+        name: '釋字第 ' + n2 + ' 號', flno: '' });
+    }
+
     hits.sort(function (a, b) { return a.start - b.start; });
     // 去除重疊
     var out = [];
@@ -700,7 +852,8 @@
 
   function markTextNode(node) {
     var text = node.nodeValue;
-    if (text.indexOf('條') < 0) return;
+    // 快速過濾：不含這些關鍵字的文字節點一律略過，省下正則成本
+    if (text.indexOf('條') < 0 && text.indexOf('釋字') < 0 && text.indexOf('憲判字') < 0) return;
     var hits = collect(text);
     if (!hits.length) return;
     var frag = document.createDocumentFragment(), last = 0;
@@ -711,6 +864,11 @@
       span.textContent = text.slice(h.start, h.end);
       span.dataset.name = h.name;
       span.dataset.flno = h.flno;
+      if (h.ex) {
+        span.dataset.ex = h.ex;
+        span.dataset.exno = h.exNo;
+        if (h.exYear) span.dataset.exyear = h.exYear;
+      }
       if (h.pcode) span.dataset.pcode = h.pcode;
       if (h.xiang) span.dataset.xiang = h.xiang;
       if (h.kuan) span.dataset.kuan = h.kuan;
@@ -730,7 +888,7 @@
         if (!p) return NodeFilter.FILTER_REJECT;
         var tag = p.nodeName;
         if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'TEXTAREA' || tag === 'A') return NodeFilter.FILTER_REJECT;
-        if (p.dataset && p.dataset.flno) return NodeFilter.FILTER_REJECT;
+        if (p.dataset && (p.dataset.flno || p.dataset.ex)) return NodeFilter.FILTER_REJECT;
         if (panel.contains(p)) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       }
@@ -743,12 +901,27 @@
   /* ---------- 事件 ---------- */
   document.addEventListener('mouseover', function (e) {
     var t = e.target;
-    if (!t.dataset || !t.dataset.flno) return;
+    if (!t.dataset || (!t.dataset.flno && !t.dataset.ex)) return;
     var hit = {
       xiang: t.dataset.xiang ? +t.dataset.xiang : null,
       kuan: t.dataset.kuan ? +t.dataset.kuan : null,
       flno: t.dataset.flno, raw: t.textContent
     };
+    // 司法院解釋走另一條取文路徑
+    if (t.dataset.ex) {
+      showPanel(t, function (box) { renderMsg(box, '查詢中…', t.dataset.name); });
+      fetchExplain(t.dataset.ex, t.dataset.exno, t.dataset.exyear)
+        .then(function (ex) { showPanel(t, function (box) { renderExplain(box, ex); }); })
+        .catch(function (err) {
+          logErr('查不到解釋', t.dataset.name + '：' + err.message);
+          showPanel(t, function (box) {
+            renderMsg(box, '查不到這則解釋', err.message + '　（查不到比查錯安全）', {
+              kind: 'missing', name: t.dataset.name, raw: t.textContent, err: err.message
+            });
+          });
+        });
+      return;
+    }
     showPanel(t, function (box) { renderMsg(box, '查詢中…', t.dataset.name + ' 第 ' + t.dataset.flno + ' 條'); });
     (t.dataset.pcode ? Promise.resolve(t.dataset.pcode) : findPcode(t.dataset.name))
       .then(function (pc) { return fetchArticle(pc, t.dataset.flno); })
@@ -765,7 +938,7 @@
   }, true);
 
   document.addEventListener('mouseout', function (e) {
-    if (e.target.dataset && e.target.dataset.flno) scheduleHide();
+    if (e.target.dataset && (e.target.dataset.flno || e.target.dataset.ex)) scheduleHide();
   }, true);
 
   /* ---------- 啟動提示 ---------- */
@@ -792,7 +965,7 @@
 
   // 讓標記閃兩下，明確指出「被標起來的是這些字」
   if (count) {
-    var flashed = document.querySelectorAll('[data-flno]');
+    var flashed = document.querySelectorAll('[data-flno],[data-ex]');
     for (var fi = 0; fi < flashed.length && fi < 400; fi++) {
       flashed[fi].classList.add(PFX + 'fl');
     }
