@@ -162,8 +162,9 @@ async function run() {
        self1 ? self1.dataset.name : '未辨識');
     ok('自指詞完整標記（含「本」字）',
        self1 && self1.textContent === '本辦法第1條', self1 && JSON.stringify(self1.textContent));
+    // 「憲法」「民法」「刑法」既是字尾也是真實法規名，不算泛稱
     ok('沒有任何標記的法規名是泛稱字尾',
-       !ms.some(m => /^(法|辦法|條例|規則|標準|細則|準則|通則|憲法|編)$/.test(m.dataset.name)),
+       !ms.some(m => /^(法|辦法|條例|規則|標準|細則|準則|通則|編)$/.test(m.dataset.name)),
        ms.map(m => m.dataset.name).join(', '));
     ok('真實法規仍正確辨識',
        byT('建築法') && byT('建築法').dataset.name === '建築法' &&
@@ -262,6 +263,39 @@ async function run() {
     const txt = p ? p.textContent.replace(/\s+/g, ' ') : '';
     ok('舊請求不覆蓋最新懸停的面板',
        /第 5 條/.test(txt) && !/第 3 條/.test(txt), txt.slice(0, 45));
+  }
+
+  console.log('\n\x1b[1m兩字法規名（fable 以 8574 個真實段落找到的高危）\x1b[0m');
+  {
+    /* SUFFIX 含單字元的「法」，若要求名稱前段至少 2 字，
+     * 「民法」「刑法」「憲法」這類 2 字法規名會完全比對不到，
+     * 接著被裸條號規則綁成本頁法規，顯示完全不相干的條文且無提示。 */
+    const mk = (txt, law, pc) => {
+      const d = new JSDOM('<body><h2 id="hlLawName">' + law + '</h2><p>' + txt + '</p></body>',
+        { url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=' + pc,
+          runScripts: 'outside-only', pretendToBeVisual: true });
+      d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+      d.window.eval(code);
+      return [...d.window.document.querySelectorAll('[data-flno]')];
+    };
+
+    // 公司法第 192 條的真實原句
+    let ms = mk('民法第十五條之二及第八十五條之規定，對於第一項行為能力，不適用之。',
+                '公司法', 'J0080001');
+    ok('「民法第十五條之二」不被綁成本頁法規',
+       ms.length >= 1 && ms[0].dataset.name === '民法' && !ms[0].dataset.pcode,
+       ms.map(m => m.dataset.name + ' 第' + m.dataset.flno + '條').join(' | '));
+    ok('後接的「第八十五條」沿用民法',
+       ms.length === 2 && ms[1].dataset.name === '民法',
+       ms.map(m => m.dataset.name).join(' | '));
+
+    for (const [txt, want] of [['民法第五條', '民法'], ['刑法第十條', '刑法'],
+                               ['憲法第七條', '憲法'], ['公司法第八條', '公司法']]) {
+      const r = mk(txt + '規定辦理。', '建築法', 'D0070109');
+      ok('「' + txt + '」→ ' + want,
+         r.length >= 1 && r[0].dataset.name === want && !r[0].dataset.pcode,
+         r.map(m => m.dataset.name + (m.dataset.pcode ? '[本頁]' : '')).join(' | ') || '未標記');
+    }
   }
 
   console.log('\n\x1b[1m自指詞與前指詞（第二輪 review 的 critical）\x1b[0m');

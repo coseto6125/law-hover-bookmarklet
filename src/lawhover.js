@@ -183,13 +183,19 @@
      * 「營造業承攬工程造價限額工程規模範圍申報淨值及一定期間承攬總額認定辦法」（34 字）。
      * 原本 20/30 字上限會讓具名比對失敗，接著裸條號規則把內部的「第3條」
      * 綁成本頁法規，顯示出條號正確但法規完全錯誤的條文（codex review 實測）。 */
-    '(?:「([^」]{2,60}?' + SUFFIX + ')」|([\\u4e00-\\u9fa5]{2,45}?' + SUFFIX + '))' +
+    /* 下限必須是 1 不是 2：SUFFIX 含單字元的「法」，若要求名稱前段至少 2 字，
+     * 「民法」「刑法」「憲法」這類 2 字法規名就完全比對不到，接著被裸條號規則
+     * 綁成本頁法規，顯示完全不相干的條文且無任何提示
+     * （fable review 以 8574 個真實條文段落實測，公司法第192條即為實例）。 */
+    '(?:「([^」]{2,60}?' + SUFFIX + ')」|([\\u4e00-\\u9fa5]{1,45}?' + SUFFIX + '))' +
     '\\s*第\\s*(' + NUM + ')\\s*條' +
     '(?:\\s*之\\s*(' + NUM + '))?' + TAIL,
     'g');
   // 裸條號：本法／同法／前法規名皆省略，指向當前頁面的法規
   // （法規內文最常見的形式，如「依第九十九條規定」「本法第五條」）
   var SUFFIX_ONLY = new RegExp('^' + SUFFIX + '$');
+  // 這些字既是法規名字尾，本身也是真實存在的法規
+  var REAL_LAW_NAMES = ['憲法', '民法', '刑法'];
   /* 自指詞（指本頁法規）與前指詞（指前文最近提到的法規）語意不同，必須分開。
    * 「同法」「該法」在條文中一律是前指，綁成本頁法規會顯示另一部法的條文
    * （codex review 實測：行政程序法頁面上「建築法第五條及同法第七條」，
@@ -1426,6 +1432,8 @@
   // 收集一段文字中的所有引用（具名優先，其餘位置再找裸條號）
   function collect(text) {
     var hits = [], m;
+    // 具名規則放棄的範圍：裸條號規則也不可接手，否則會綁成本頁法規
+    var skipRanges = [];
     RE.lastIndex = 0;
     while ((m = RE.exec(text)) !== null) {
       var rawName = m[1] || m[2];
@@ -1455,7 +1463,12 @@
       if (isSelf && !SELF) continue;
       /* 剝除前綴後只剩泛稱字尾（如「辦法」「法」）不是有效的法規名，
        * 拿去搜尋會得到隨機的某部法規。查不到比查錯安全，直接放棄。 */
-      if (!isSelf && !isAna && SUFFIX_ONLY.test(name)) continue;
+      /* 剝除前綴後只剩泛稱字尾（如「辦法」「法」）不是有效的法規名。
+       * 但「憲法」既是字尾也是真實法規名，此時應標記為該法規而非放棄，
+       * 更不可讓裸條號規則接手綁成本頁法規（會顯示不相干的條文）。 */
+      if (!isSelf && !isAna && SUFFIX_ONLY.test(name)) {
+        if (REAL_LAW_NAMES.indexOf(name) < 0) { skipRanges.push([m.index, m.index + m[0].length]); continue; }
+      }
       // 自指詞要完整標記（「本辦法第1條」而非「辦法第1條」），故不剝除前綴
       /* 標記範圍：
        *   引號法規名、前指詞 → 完整保留
@@ -1486,7 +1499,8 @@
       RE_SELF.lastIndex = 0;
       while ((m = RE_SELF.exec(text)) !== null) {
         var s0 = m.index, e0 = m.index + m[0].length;
-        var covered = hits.some(function (h) { return s0 < h.end && e0 > h.start; });
+        var covered = hits.some(function (h) { return s0 < h.end && e0 > h.start; }) ||
+          skipRanges.some(function (rg) { return s0 < rg[1] && e0 > rg[0]; });
         if (covered) continue;
         var t2 = cn2num(m[1]);
         if (!t2) continue;
@@ -1644,12 +1658,16 @@
   function scan(root) {
     var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: function (n) {
-        if (!n.nodeValue || n.nodeValue.length < 6) return NodeFilter.FILTER_REJECT;
+        // 最短的有效引用是「民法第5條」共 5 字，門檻不可高於 5
+        if (!n.nodeValue || n.nodeValue.length < 5) return NodeFilter.FILTER_REJECT;
         var p = n.parentNode;
         if (!p) return NodeFilter.FILTER_REJECT;
         var tag = p.nodeName;
         if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'TEXTAREA' || tag === 'A') return NodeFilter.FILTER_REJECT;
         if (p.dataset && (p.dataset.flno || p.dataset.ex)) return NodeFilter.FILTER_REJECT;
+        // 條號標題由 markArticleHeads 負責顯示沿革，不可再當成條文引用
+        if (p.dataset && p.dataset.lhHead) return NodeFilter.FILTER_REJECT;
+        if (SITE.headSel && p.closest && p.closest(SITE.headSel)) return NodeFilter.FILTER_REJECT;
         if (panel.contains(p)) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       }
@@ -1790,8 +1808,9 @@
     return;
   }
 
-  scan(document.body);
+  // 先標條號標題，掃描時才能正確排除，避免標題被當成引用
   var headCount = markArticleHeads();
+  scan(document.body);
   /* 啟用提示：置頂置中，並讓標記閃兩下。
    * 使用者剛從書籤列點下來，視線在畫面上緣；提示若在右下角常被忽略，
    * 會誤以為書籤沒生效。找到 0 處時也要講清楚，不能靜默。 */
@@ -1844,7 +1863,7 @@
 
   window.__lawhover__ = {
     hist: fetchHistory, histFor: historyFor,
-    toggle: function () { scan(document.body); markArticleHeads(); },
+    toggle: function () { markArticleHeads(); scan(document.body); },
     count: function () { return count; }
   };
 })();
