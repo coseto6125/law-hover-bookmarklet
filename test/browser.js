@@ -155,6 +155,24 @@ async function main() {
   {
     const hn = await page.evaluate(() => document.querySelectorAll('[data-lh-head]').length);
     ok('標記所有條號標題', hn >= 100, '標記 ' + hn + ' 個');
+
+    // 依沿革上色：修正過的標黃，讓使用者不必逐條滑過去
+    await page.waitForTimeout(5000);
+    const paint = await page.evaluate(() => {
+      const hs = [...document.querySelectorAll('[data-lh-head]')];
+      const on = hs.filter(e => e.dataset.lhMod);
+      const cs = on[0] ? getComputedStyle(on[0]) : null;
+      return { total: hs.length, mod: on.length,
+               bg: cs ? cs.backgroundColor : '', weight: cs ? cs.fontWeight : '',
+               title: on[0] ? on[0].getAttribute('title') : '' };
+    });
+    ok('修正過的條號已標黃', paint.mod > 0 && /224,\s*168,\s*0/.test(paint.bg),
+       paint.mod + ' 條，bg=' + paint.bg);
+    ok('未修正的條號不標黃（區分有效）',
+       paint.mod < paint.total && paint.mod > 0,
+       paint.mod + '/' + paint.total);
+    ok('標黃條號加粗以利辨識', paint.weight === '700', paint.weight);
+    ok('滑鼠提示標明修正次數', /本條修正 \d+ 次/.test(paint.title), paint.title);
     const noInline = await page.evaluate(() =>
       ![...document.querySelectorAll('[data-lh-head]')].some(e => e.getAttribute('style')));
     ok('條號標記未使用 inline style', noInline);
@@ -177,14 +195,26 @@ async function main() {
 
     const h3 = await hoverHead('3');
     ok('滑條號顯示沿革而非條文', /修正沿革/.test(h3) && !/本法適用地區如左/.test(h3), h3.slice(0, 70));
-    ok('列出修正次數與年份', /本條共修正 \d+ 次/.test(h3) && /年/.test(h3), h3.slice(0, 60));
-    ok('沿革面板有「當時條文」彈窗入口', /當時條文/.test(h3));
+    ok('列出個別修正次數與年份', /本條個別修正 \d+ 次/.test(h3) && /年/.test(h3), h3.slice(0, 60));
+    ok('沿革面板有立法院版本入口', /立法院查此版/.test(h3));
+    ok('條號沿革完整列出不摺疊', !/展開其餘/.test(h3), h3.slice(0, 60));
+    const lyTitles = await page.evaluate(() => {
+      const q = [...document.body.children].find(n => {
+        const c = String(n.className || '').split(' ');
+        return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+      });
+      return [...q.querySelectorAll('a')].filter(a => /立法院查此版/.test(a.textContent))
+        .map(a => a.title);
+    });
+    // 無法直達該版本（CSP 擋住取得識別碼），故在提示標明日期供對照
+    ok('連結提示標明對應日期', lyTitles.length > 0 && /版本清單中選「.+年.+日」/.test(lyTitles[0]),
+       lyTitles[0] || '無');
     ok('沿革面板有立法院入口', /立法院法律系統/.test(h3));
 
-    // 建築法第 1 條曾於八十四年修正，先前誤以為未修正
-    const h1 = await hoverHead('1');
-    ok('條號沿革內容正確（第 1 條確有修正）',
-       /本條共修正 \d+ 次/.test(h1) && /八十四年/.test(h1), h1.slice(0, 70));
+    // 全文修正每條都有，不具區辨力，須與個別修正分開陳述
+    const h78 = await hoverHead('78');
+    ok('僅隨全文修正者明確區分',
+       /未被個別修正過/.test(h78) && /全文修正/.test(h78), h78.slice(0, 80));
     ok('條號沿革過程無 CSP 違規', (await page.evaluate(() => window.__csp.length)) === 0);
   }
 
@@ -207,17 +237,65 @@ async function main() {
       });
     }
     // 建築法第 3 條曾於 92 年修正，第 78 條自公布後未修正
+    // 條文面板的沿革預設只顯示最新一筆，其餘摺疊（面板還要放條文，不能太長）
+    {
+      await page.evaluate(() => {
+        if (!document.getElementById('fold-test')) {
+          const d = document.createElement('p');
+          d.id = 'fold-test';
+          d.textContent = '依建築法第77條之1規定辦理。';
+          document.querySelector('.law-reg-content').prepend(d);
+        }
+      });
+      try { await cdp.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
+      await page.waitForTimeout(5500);
+      await page.evaluate(() => {
+        const x = [...document.querySelectorAll('[data-flno]')].find(e => e.dataset.flno === '77-1');
+        x.scrollIntoView({ block: 'center' });
+        x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      });
+      await page.waitForTimeout(7000);
+      const vis = () => page.evaluate(() => {
+        const q = [...document.body.children].find(n => {
+          const c = String(n.className || '').split(' ');
+          return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+        });
+        return {
+          rows: [...q.querySelectorAll('[class*="-hi"]')].filter(e => e.offsetParent !== null).length,
+          toggle: !!(q.textContent.match(/展開其餘 \d+ 筆/)),
+          collapse: /收合/.test(q.textContent),
+        };
+      });
+      const before = await vis();
+      ok('條文面板預設只顯示最新一筆', before.rows === 1, '可見 ' + before.rows + ' 行');
+      ok('提供展開提示', before.toggle, JSON.stringify(before));
+      await page.evaluate(() => {
+        const q = [...document.body.children].find(n => {
+          const c = String(n.className || '').split(' ');
+          return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+        });
+        [...q.querySelectorAll('a')].find(a => /展開其餘/.test(a.textContent)).click();
+      });
+      await page.waitForTimeout(400);
+      const after = await vis();
+      ok('展開後顯示全部', after.rows > before.rows, before.rows + ' → ' + after.rows);
+      ok('展開後可收合', after.collapse);
+      await page.evaluate(() => { const e = document.getElementById('fold-test'); if (e) e.remove(); });
+    }
+
     const t3 = await hoverArt('3');
     ok('條文面板同時顯示條文與沿革',
-       /本法適用地區如左/.test(t3) && /本條修正 \d+ 次/.test(t3), t3.slice(0, 70));
-    ok('修正過的條文顯示修正次數', /本條修正 \d+ 次/.test(t3),
+       /本法適用地區如左/.test(t3) && /本條個別修正 \d+ 次/.test(t3), t3.slice(0, 70));
+    ok('修正過的條文顯示修正次數', /本條個別修正 \d+ 次/.test(t3),
        t3.slice(Math.max(0, t3.search(/本條修正|未見/) - 10), 90));
     ok('列出修正年份', /九十二年|\d+年/.test(t3));
     ok('提供完整沿革連結', /查看完整沿革/.test(t3));
 
+    // 建築法第 78 條未被個別修正，只隨全文修正異動
     const t78 = await hoverArt('78');
-    ok('未修正的條文明確說明', /未見此條的修正紀錄/.test(t78),
-       t78.slice(Math.max(0, t78.search(/未見|本條修正/) - 10), 80));
+    ok('未個別修正的條文明確說明',
+       /未見此條的修正紀錄|未被個別修正過/.test(t78),
+       t78.slice(Math.max(0, t78.search(/未見|未被個別/) - 10), 80));
     ok('查沿革過程無 CSP 違規', (await page.evaluate(() => window.__csp.length)) === 0);
 
     // 立法院有歷史條文全文，但跨網域無法內嵌，改以彈窗開啟。
@@ -228,10 +306,10 @@ async function main() {
         const c = String(n.className || '').split(' ');
         return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
       });
-      const a = q && [...q.querySelectorAll('a')].find(x => x.textContent === '當時條文');
+      const a = q && [...q.querySelectorAll('a')].find(x => /立法院查此版/.test(x.textContent));
       return a ? a.href : null;
     });
-    ok('提供「當時條文」入口', !!lyHref, lyHref || '未找到');
+    ok('提供立法院版本入口', !!lyHref, lyHref || '未找到');
     ok('連向立法院公開轉址（不需 session）',
        !!lyHref && /ly\.gov\.tw\/Pages\/ashx\/LawRedirect\.ashx\?CODE=\d+/.test(lyHref),
        lyHref);
@@ -244,7 +322,7 @@ async function main() {
           const c = String(n.className || '').split(' ');
           return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
         });
-        [...q.querySelectorAll('a')].find(x => x.textContent === '當時條文').click();
+        [...q.querySelectorAll('a')].find(x => /立法院查此版/.test(x.textContent)).click();
       }),
     ]);
     ok('點擊後開啟彈窗', !!popup, '未開啟');

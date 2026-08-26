@@ -68,8 +68,12 @@ ok('說明兩階段回報類型',
    text.includes('沒有顯示資料') && text.includes('資料顯示錯誤'));
 ok('說明不需截圖', text.includes('不必截圖'));
 ok('說明回報不含公文內容', text.includes('不含你正在瀏覽的公文'));
-ok('宣告 favicon（拖曳書籤時帶圖示）',
+ok('宣告 favicon（供瀏覽器分頁與書籤頁使用）',
    /<link[^>]+rel="icon"[^>]+icon\.svg/.test(html) && html.includes('favicon.ico'));
+// 先前誤稱書籤會帶圖示，實測 Chrome 以頁面 URL 對應 favicon，
+// javascript: 書籤沒有 URL 故永遠無圖示，說明必須誠實
+ok('未誤稱書籤會帶圖示', !text.includes('會帶著這個圖示一起過去'));
+ok('說明書籤無圖示是瀏覽器設計', text.includes('這是瀏覽器的設計'));
 ok('疑難排解改為折疊式', (html.match(/<details class="qa"/g) || []).length >= 6,
    '折疊項數 ' + (html.match(/<details class="qa"/g) || []).length);
 
@@ -112,7 +116,8 @@ const marks = [...d2.window.document.querySelectorAll('[data-flno]')];
 ok('打包版在真實建築法全文頁標記大量引用', marks.length >= 70, '標記 ' + marks.length + ' 處');
 ok('裸條號自動綁定當前頁 pcode', marks.filter(m => m.dataset.pcode === 'D0070109').length >= 70,
    '自指 ' + marks.filter(m => m.dataset.pcode).length + ' 處');
-ok('載入時不發出任何請求（僅 hover 才取文）', netCalls === 0, '請求數 ' + netCalls);
+// 條號上色需要沿革，故啟動時會取一次沿革（僅此一次，不逐條查詢）
+ok('載入時最多只取一次沿革', netCalls <= 1, '請求數 ' + netCalls);
 ok('未破壞原頁條文連結', d2.window.document.querySelectorAll('a[href*="LawSingle"]').length > 0);
 
 console.log('\n' + (fail === 0

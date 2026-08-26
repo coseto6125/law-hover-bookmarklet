@@ -383,8 +383,7 @@ footer a{color:#1a4fa0}
           用滑鼠<b>拖曳</b>這顆按鈕到書籤列
         </div>
         <div class="drag-icon-note">
-          <img src="icon-16.png" alt="" width="16" height="16">
-          會帶著這個圖示一起過去
+          放開後書籤列上會出現「法條懸停」（<b>書籤名稱可自行改短</b>）
         </div>
       </div>
 
@@ -473,7 +472,7 @@ footer a{color:#1a4fa0}
       <div class="card">
         <div class="ico"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .28.16.54.4.67l3 1.5a.75.75 0 10.7-1.34L10.75 9.5V5z" clip-rule="evenodd"/></svg></div>
         <h3>這條改過沒有</h3>
-        <p>滑過每條開頭的<b>「第 N 條」</b>即顯示本條修正沿革；條文中的引用也會一併附上。可一鍵彈窗開啟立法院法律系統，查看<b>當年的條文全文與修法理由</b>。讀舊函釋時，拿今天的條文對照當年的見解是會誤讀的。</p>
+        <p>條號<b>標黃色的代表修正過</b>，一眼就看得出來，不必逐條滑。滑過去顯示修正次數與年份，並可彈窗開啟立法院法律系統查看<b>當年的條文全文與修法理由</b>。讀舊函釋時，拿今天的條文對照當年的見解是會誤讀的。</p>
       </div>
     </div>
   </section>
@@ -568,8 +567,9 @@ footer a{color:#1a4fa0}
       <details class="qa">
         <summary>書籤上為什麼沒有圖示</summary>
         <div class="qa-b">
-          <p>書籤圖示取自<b>拖曳當下所在頁面的圖示</b>。從本頁拖曳的話會帶上紅色方形圖示。</p>
-          <p>若圖示是空白的，多半是瀏覽器還沒抓到本頁圖示，<b>重新整理本頁後再拖一次</b>即可。用手動貼上方式新增的書籤則沒有圖示，這不影響功能。</p>
+          <p><b>這是瀏覽器的設計，無解，但不影響功能。</b>Chrome 是以「網頁網址」去對應圖示的，而 bookmarklet 的內容是 <code>javascript:</code> 開頭的一段程式碼，不是一個可以載入的網頁，沒有網址可供對應，所以拿不到任何圖示。</p>
+          <p>實測確認：本站的圖示 Chrome 確實有抓取並存下，但它不會套用到 <code>javascript:</code> 書籤上。一般網址書籤才有圖示。</p>
+          <p>建議把書籤<b>命名短一點</b>（例如「法條」），書籤列上就不會佔太多空間。</p>
         </div>
       </details>
     </div>
@@ -697,7 +697,7 @@ footer a{color:#1a4fa0}
         <span class="bm">常用</span>
         <span class="bm">內部系統</span>
         <span class="bm-drop" id="bmDrop"></span>
-        <span class="bm-slot" id="bmSlot"><span class="bm-new" id="bmNew"><img src="icon-16.png" alt="" width="12" height="12">法條懸停</span></span>
+        <span class="bm-slot" id="bmSlot"><span class="bm-new" id="bmNew">法條懸停</span></span>
       </div>
       <div class="stage-body" id="stageBody">
         <div id="stageInstall">
@@ -721,7 +721,7 @@ footer a{color:#1a4fa0}
         <svg class="ghost" id="ghost" viewBox="0 0 24 24" fill="#fff" stroke="#16233a" stroke-width="1.5" stroke-linejoin="round">
           <path d="M5 2l14 9-6.5 1.2L9.8 19 5 2z"/>
         </svg>
-        <span class="ghost-chip" id="ghostChip"><img src="icon-16.png" alt="" width="12" height="12">法條懸停</span>
+        <span class="ghost-chip" id="ghostChip">法條懸停</span>
       </div>
     </div>
 
