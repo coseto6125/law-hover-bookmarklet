@@ -221,30 +221,45 @@
             if (x && arts.indexOf(x) < 0) arts.push(x);
           });
         }
-        var dm = /中華民國([^總令]{2,24}?)(?:總統|行政院|令)/.exec(t);
-        list.push({ text: t, arts: arts, when: dm ? dm[1].trim() : '' });
+        var dm = /中華民國([^總令國]{2,24}?)(?:總統|行政院|國民政府|令|國民大會)/.exec(t);
+        // 全文修正／制定公布時沒有列出個別條號，視為「動到所有條文」
+        var whole = /全文修正|制定公布|全文.{0,4}條|訂定發布|制定/.test(t) && !arts.length;
+        list.push({ text: t, arts: arts, when: dm ? dm[1].trim() : '', whole: whole });
       }
       /* 立法院法律系統有歷史條文全文與修法理由，但位於 lis.ly.gov.tw，
        * 中央站的 CSP（connect-src 'self'、frame-src 'self'）禁止跨域取文與內嵌，
        * 實測 fetch 與 iframe 皆被擋。因此只能提供連結讓使用者另開分頁。
        * 沿革頁本身就有「立法歷程」連結，可取出法律編號 CODE。 */
-      var lyCode = null;
+      /* 立法院入口有兩種格式（實測 18 部法規歸納）：
+       *   多數：ly.gov.tw/Pages/ashx/LawRedirect.ashx?CODE=01158
+       *   分編立法者（如民法）：LawRedirectLY.aspx?pcode=B0000001
+       *     民法分為總則、債、物權等 5 編，各有自己的 CODE，
+       *     故導向中央站的選擇頁，由使用者挑要看哪一編。 */
+      var lyCode = null, lyUrl = null;
       var lyA = doc.querySelector('a[href*="LawRedirect.ashx"]');
       if (lyA) {
         var cm = /CODE=(\d+)/.exec(lyA.getAttribute('href') || '');
-        if (cm) lyCode = cm[1];
+        if (cm) { lyCode = cm[1]; lyUrl = LY_REDIRECT + cm[1]; }
       }
-      histCache[pcode] = { url: url, list: list, lyCode: lyCode };
+      if (!lyUrl && doc.querySelector('a[href*="LawRedirectLY.aspx"]')) {
+        lyUrl = HOST + '/LawClass/LawRedirectLY.aspx?pcode=' + pcode;
+      }
+      histCache[pcode] = { url: url, list: list, lyCode: lyCode, lyUrl: lyUrl };
       return histCache[pcode];
     });
   }
 
   // 挑出動到指定條號的修法紀錄
+  /* 挑出動到指定條號的修法紀錄。
+   * 「全文修正」「制定公布」不會列出個別條號，但確實動到每一條，
+   * 必須納入，否則像憲法這種只有一次制定公布的法規會顯示「未修正」。 */
   function historyFor(hist, flno) {
     var out = [];
     var want = String(flno);
     for (var i = 0; i < hist.list.length; i++) {
-      if (hist.list[i].arts.indexOf(want) >= 0) out.push(hist.list[i]);
+      var r = hist.list[i];
+      if (r.arts.indexOf(want) >= 0) out.push(r);
+      else if (r.whole) out.push(r);
     }
     return out;
   }
@@ -367,7 +382,8 @@
     fab: PFX + 'fab', dlg: PFX + 'dlg', dlgIn: PFX + 'dgi', dlgH: PFX + 'dgh',
     row: PFX + 'row', opt: PFX + 'opt', ta: PFX + 'ta', btn: PFX + 'btn',
     btnP: PFX + 'btnp', dgf: PFX + 'dgf', lbl: PFX + 'lbl', diag: PFX + 'dg2',
-    rptLink: PFX + 'rl', hist: PFX + 'hs', histI: PFX + 'hi'
+    rptLink: PFX + 'rl', hist: PFX + 'hs', histI: PFX + 'hi',
+    headMark: PFX + 'hm'
   };
 
   var RULES = [
@@ -447,6 +463,9 @@
     '.' + CLS.hist + '{margin-top:9px;padding:8px 11px;background:#fdf6e3;' +
       'border-left:3px solid #c99a2e;border-radius:0 5px 5px 0;font-size:12px;line-height:1.7}',
     '.' + CLS.histI + '{color:#6b5a2e;margin:1px 0}',
+    /* 條號標題：低調的可互動提示，不干擾原本版面 */
+    '.' + CLS.headMark + '{cursor:help;border-bottom:1.5px dotted #1b5e57;' +
+      'background:rgba(27,94,87,.07);border-radius:3px}',
     /* 標記閃現：讓使用者一眼看到「哪些字被標起來了」 */
     '@keyframes ' + PFX + 'flash{0%,100%{background:rgba(192,57,43,.06)}' +
       '35%{background:rgba(224,168,0,.5)}}',
@@ -572,8 +591,9 @@
     });
     box.appendChild(body);
 
-    /* 修法紀錄：原站沒有歷史條文全文，但沿革載明每次修法動到哪幾條。
-     * 讀舊函釋時，這是判斷條文是否已異動的關鍵線索。 */
+    /* 修法紀錄：條號標題與條文引用兩邊都要有。
+     * 讀到某條引用時同樣需要知道「這條後來改過沒有」，
+     * 拿今天的條文對照當年的函釋是會誤讀的。 */
     if (art.pcode && hit.flno) {
       var hbox = el('div', CLS.hist);
       hbox.appendChild(el('div', CLS.histI, '查詢修法紀錄…'));
@@ -586,30 +606,14 @@
         } else {
           hbox.appendChild(el('b', null, '本條修正 ' + rec.length + ' 次：'));
           rec.slice(0, 4).forEach(function (r) {
-            var line = el('div', CLS.histI, '· ' + (r.when || r.text.slice(0, 40)));
-            /* 立法院有當次的條文全文與修法理由。
-             * 跨網域無法內嵌顯示（CSP frame-src 與 connect-src 皆為 'self'），
-             * 改開獨立小視窗：比新分頁更貼近「彈窗查閱」，看完關掉即可，
-             * 也不會把使用者原本在讀的頁面擠掉。 */
-            if (h.lyCode) {
+            var line = el('div', CLS.histI, '· ' + (r.when || r.text.slice(0, 40)) +
+              (r.whole ? '（全文修正）' : ''));
+            if (h.lyUrl) {
               var la = el('a', CLS.link, '當時條文');
-              la.href = LY_REDIRECT + h.lyCode;
-              la.target = 'lawhover_ly';
-              la.rel = 'noopener';
-              la.setAttribute('title',
-                '在立法院法律系統查看各版本條文與修法理由（另開視窗）');
-              la.addEventListener('click', function (e) {
-                e.preventDefault();
-                var w = Math.min(1000, screen.availWidth - 80);
-                var ht = Math.min(780, screen.availHeight - 80);
-                var win = window.open(this.href, 'lawhover_ly',
-                  'width=' + w + ',height=' + ht +
-                  ',left=' + Math.round((screen.availWidth - w) / 2) +
-                  ',top=' + Math.round((screen.availHeight - ht) / 2) +
-                  ',scrollbars=yes,resizable=yes');
-                // 彈窗被攔截時退回一般開啟，不能讓使用者按了沒反應
-                if (!win) window.open(this.href, '_blank', 'noopener');
-              });
+              la.href = h.lyUrl;
+              la.target = 'lawhover_ly'; la.rel = 'noopener';
+              la.setAttribute('title', '在立法院法律系統查看當年條文與修法理由（另開視窗）');
+              la.addEventListener('click', openLyWindow);
               line.appendChild(la);
             }
             hbox.appendChild(line);
@@ -699,6 +703,59 @@
     });
     foot.appendChild(wrong);
     box.appendChild(foot);
+  }
+
+  /* 條號標題（第 N 條）的沿革面板。
+   * 這是使用者最自然會滑過去的位置：想知道「這條改過沒有」時，
+   * 視線本來就在條號上，不必先找到某個引用。 */
+  function renderHistory(box, lawName, flno, h, rec) {
+    box.appendChild(el('div', CLS.head, (lawName ? lawName + ' ' : '') + '第 ' + flno + ' 條　修正沿革'));
+    var body = el('div', CLS.body);
+    if (!rec.length) {
+      body.appendChild(el('div', CLS.line, '沿革中未見此條的修正紀錄，可能自公布後未修正。'));
+    } else {
+      body.appendChild(el('div', CLS.line, '本條共修正 ' + rec.length + ' 次：'));
+      rec.forEach(function (r) {
+        var line = el('div', CLS.sub, '· ' + (r.when || r.text.slice(0, 46)) +
+          (r.whole ? '（全文修正）' : ''));
+        if (h.lyUrl) {
+          var la = el('a', CLS.link, '當時條文');
+          la.href = h.lyUrl;
+          la.target = 'lawhover_ly'; la.rel = 'noopener';
+          la.setAttribute('title', '在立法院法律系統查看當年條文與修法理由（另開視窗）');
+          la.addEventListener('click', openLyWindow);
+          line.appendChild(la);
+        }
+        body.appendChild(line);
+      });
+    }
+    box.appendChild(body);
+
+    var foot = el('div', CLS.foot);
+    var a = el('a', CLS.link, '查看完整沿革');
+    a.href = h.url; a.target = '_blank'; a.rel = 'noopener';
+    foot.appendChild(a);
+    if (h.lyUrl) {
+      var l2 = el('a', CLS.link, '立法院法律系統');
+      l2.href = h.lyUrl;
+      l2.target = 'lawhover_ly'; l2.rel = 'noopener';
+      l2.addEventListener('click', openLyWindow);
+      foot.appendChild(l2);
+    }
+    box.appendChild(foot);
+  }
+
+  // 立法院跨網域無法內嵌，改開獨立視窗；被攔截時退回一般開啟
+  function openLyWindow(e) {
+    e.preventDefault();
+    var w = Math.min(1000, screen.availWidth - 80);
+    var ht = Math.min(780, screen.availHeight - 80);
+    var win = window.open(this.href, 'lawhover_ly',
+      'width=' + w + ',height=' + ht +
+      ',left=' + Math.round((screen.availWidth - w) / 2) +
+      ',top=' + Math.round((screen.availHeight - ht) / 2) +
+      ',scrollbars=yes,resizable=yes');
+    if (!win) window.open(this.href, '_blank', 'noopener');
   }
 
   function renderMsg(box, msg, sub, report) {
@@ -996,6 +1053,38 @@
     node.parentNode.replaceChild(frag, node);
   }
 
+  /* 標記條號標題（每條開頭的「第 N 條」）。
+   * 這是使用者想知道「這條改過沒有」時，視線本來就在的位置。
+   * 條號標題顯示沿革；條文內的引用照舊顯示條文，職責分開。 */
+  function markArticleHeads() {
+    if (!SELF) return 0;
+    var heads = document.querySelectorAll('.col-no');
+    var n = 0;
+    for (var i = 0; i < heads.length; i++) {
+      var el0 = heads[i];
+      if (el0.dataset.lhHead) continue;
+      var txt = el0.textContent.replace(/\s+/g, '').trim();
+      var m = /^第([0-9\-]+)條$/.exec(txt);
+      var flno = null;
+      if (m) {
+        flno = m[1];
+      } else {
+        // 全文頁的條號是連結，可直接從 href 取得最精確的條號
+        var a = el0.querySelector('a[href*="flno="]');
+        if (a) {
+          var fm = /flno=([0-9\-]+)/i.exec(a.getAttribute('href') || '');
+          if (fm) flno = fm[1];
+        }
+      }
+      if (!flno) continue;
+      el0.dataset.lhHead = flno;
+      sty(el0, CLS.headMark);
+      el0.setAttribute('title', '滑鼠移入查看本條的修正沿革');
+      n++;
+    }
+    return n;
+  }
+
   function scan(root) {
     var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: function (n) {
@@ -1017,6 +1106,31 @@
   /* ---------- 事件 ---------- */
   document.addEventListener('mouseover', function (e) {
     var t = e.target;
+    // 條號標題：顯示沿革（可能滑到內部的 <a>，需往上找）
+    var head = t;
+    for (var d = 0; d < 3 && head; d++) {
+      if (head.dataset && head.dataset.lhHead) break;
+      head = head.parentElement;
+    }
+    if (head && head.dataset && head.dataset.lhHead) {
+      var fl = head.dataset.lhHead;
+      showPanel(head, function (box) { renderMsg(box, '查詢沿革…', '第 ' + fl + ' 條'); });
+      fetchHistory(SELF.pcode)
+        .then(function (h) {
+          showPanel(head, function (box) {
+            renderHistory(box, SELF.name, fl, h, historyFor(h, fl));
+          });
+        })
+        .catch(function (err) {
+          logErr('查不到沿革', '第' + fl + '條：' + err.message);
+          showPanel(head, function (box) {
+            renderMsg(box, '查不到沿革', err.message, {
+              kind: 'missing', name: SELF.name, flno: fl, err: err.message
+            });
+          });
+        });
+      return;
+    }
     if (!t.dataset || (!t.dataset.flno && !t.dataset.ex)) return;
     var hit = {
       xiang: t.dataset.xiang ? +t.dataset.xiang : null,
@@ -1054,23 +1168,32 @@
   }, true);
 
   document.addEventListener('mouseout', function (e) {
-    if (e.target.dataset && (e.target.dataset.flno || e.target.dataset.ex)) scheduleHide();
+    var tt = e.target;
+    if (tt.dataset && (tt.dataset.flno || tt.dataset.ex || tt.dataset.lhHead)) { scheduleHide(); return; }
+    if (tt.parentElement && tt.parentElement.dataset && tt.parentElement.dataset.lhHead) scheduleHide();
   }, true);
 
   /* ---------- 啟動提示 ---------- */
   scan(document.body);
+  var headCount = markArticleHeads();
   /* 啟用提示：置頂置中，並讓標記閃兩下。
    * 使用者剛從書籤列點下來，視線在畫面上緣；提示若在右下角常被忽略，
    * 會誤以為書籤沒生效。找到 0 處時也要講清楚，不能靜默。 */
   var toast = el('div', CLS.toast);
   var box = el('div', CLS.toastIn);
-  box.appendChild(el('span', CLS.toastDot, count ? '\u2713' : '!'));
+  box.appendChild(el('span', CLS.toastDot, (count || headCount) ? '\u2713' : '!'));
   var msg = el('span');
   if (count) {
     msg.appendChild(el('span', null, '已啟用，標記 '));
     msg.appendChild(el('span', CLS.toastNum, String(count)));
     msg.appendChild(el('span', null, ' 處法條引用'));
-    msg.appendChild(el('span', CLS.toastSub, '\u00a0\u00b7\u00a0滑過紅色虛線看條文'));
+    msg.appendChild(el('span', CLS.toastSub, '\u00a0\u00b7\u00a0滑過紅色虛線看條文' +
+      (headCount ? '，滑過條號看沿革' : '')));
+  } else if (headCount) {
+    msg.appendChild(el('span', null, '已啟用，標記 '));
+    msg.appendChild(el('span', CLS.toastNum, String(headCount)));
+    msg.appendChild(el('span', null, ' 個條號'));
+    msg.appendChild(el('span', CLS.toastSub, '\u00a0\u00b7\u00a0滑過條號看修正沿革'));
   } else {
     msg.appendChild(el('span', null, '已啟用，但這一頁沒有找到法條引用'));
     msg.appendChild(el('span', CLS.toastSub, '\u00a0\u00b7\u00a0換一頁再點一次'));
@@ -1104,7 +1227,7 @@
 
   window.__lawhover__ = {
     hist: fetchHistory, histFor: historyFor,
-    toggle: function () { scan(document.body); },
+    toggle: function () { scan(document.body); markArticleHeads(); },
     count: function () { return count; }
   };
 })();

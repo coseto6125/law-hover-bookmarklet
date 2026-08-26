@@ -151,6 +151,43 @@ async function main() {
     ok('再次點擊不會重複建立面板', after.panels === 1, '面板數 ' + after.panels);
   }
 
+  console.log('\n\x1b[1m條號標題的沿革（滑「第 N 條」）\x1b[0m');
+  {
+    const hn = await page.evaluate(() => document.querySelectorAll('[data-lh-head]').length);
+    ok('標記所有條號標題', hn >= 100, '標記 ' + hn + ' 個');
+    const noInline = await page.evaluate(() =>
+      ![...document.querySelectorAll('[data-lh-head]')].some(e => e.getAttribute('style')));
+    ok('條號標記未使用 inline style', noInline);
+
+    async function hoverHead(flno) {
+      await page.evaluate(n => {
+        const x = [...document.querySelectorAll('[data-lh-head]')].find(e => e.dataset.lhHead === n);
+        x.scrollIntoView({ block: 'center' });
+        x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+      }, flno);
+      await page.waitForTimeout(9000);
+      return page.evaluate(() => {
+        const q = [...document.body.children].find(n => {
+          const c = String(n.className || '').split(' ');
+          return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+        });
+        return q ? q.textContent.replace(/\s+/g, ' ') : '';
+      });
+    }
+
+    const h3 = await hoverHead('3');
+    ok('滑條號顯示沿革而非條文', /修正沿革/.test(h3) && !/本法適用地區如左/.test(h3), h3.slice(0, 70));
+    ok('列出修正次數與年份', /本條共修正 \d+ 次/.test(h3) && /年/.test(h3), h3.slice(0, 60));
+    ok('沿革面板有「當時條文」彈窗入口', /當時條文/.test(h3));
+    ok('沿革面板有立法院入口', /立法院法律系統/.test(h3));
+
+    // 建築法第 1 條曾於八十四年修正，先前誤以為未修正
+    const h1 = await hoverHead('1');
+    ok('條號沿革內容正確（第 1 條確有修正）',
+       /本條共修正 \d+ 次/.test(h1) && /八十四年/.test(h1), h1.slice(0, 70));
+    ok('條號沿革過程無 CSP 違規', (await page.evaluate(() => window.__csp.length)) === 0);
+  }
+
   console.log('\n\x1b[1m修法紀錄（由沿革反查）\x1b[0m');
   {
     async function hoverArt(flno) {
@@ -171,6 +208,8 @@ async function main() {
     }
     // 建築法第 3 條曾於 92 年修正，第 78 條自公布後未修正
     const t3 = await hoverArt('3');
+    ok('條文面板同時顯示條文與沿革',
+       /本法適用地區如左/.test(t3) && /本條修正 \d+ 次/.test(t3), t3.slice(0, 70));
     ok('修正過的條文顯示修正次數', /本條修正 \d+ 次/.test(t3),
        t3.slice(Math.max(0, t3.search(/本條修正|未見/) - 10), 90));
     ok('列出修正年份', /九十二年|\d+年/.test(t3));
