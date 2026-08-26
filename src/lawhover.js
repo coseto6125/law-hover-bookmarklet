@@ -93,6 +93,13 @@
   }
 
   var REPORT_TO = 'enor@e-life-ai.com';
+  /* 立法院法律系統：歷史條文全文與修法理由的來源。
+   * 跨域（lis.ly.gov.tw），中央站 CSP 的 connect-src 'self' 禁止 fetch，
+   * frame-src 'self' 也禁止 iframe，兩者實測皆被擋。
+   * 但 www.ly.gov.tw/Pages/ashx/LawRedirect.ashx?CODE=xxxxx 是公開網址，
+   * 會列出該法律所有版本的連結，使用者可另開分頁查看，不需登入或 session。 */
+  var HOST_LY = 'https://lis.ly.gov.tw';
+  var LY_REDIRECT = 'https://www.ly.gov.tw/Pages/ashx/LawRedirect.ashx?CODE=';
   var errLog = [];       // 供回報使用的錯誤記錄（僅記錄本工具自身的失敗）
   function logErr(kind, detail) {
     errLog.push({ t: new Date().toISOString().slice(11, 19), kind: kind, detail: String(detail).slice(0, 200) });
@@ -217,7 +224,17 @@
         var dm = /中華民國([^總令]{2,24}?)(?:總統|行政院|令)/.exec(t);
         list.push({ text: t, arts: arts, when: dm ? dm[1].trim() : '' });
       }
-      histCache[pcode] = { url: url, list: list };
+      /* 立法院法律系統有歷史條文全文與修法理由，但位於 lis.ly.gov.tw，
+       * 中央站的 CSP（connect-src 'self'、frame-src 'self'）禁止跨域取文與內嵌，
+       * 實測 fetch 與 iframe 皆被擋。因此只能提供連結讓使用者另開分頁。
+       * 沿革頁本身就有「立法歷程」連結，可取出法律編號 CODE。 */
+      var lyCode = null;
+      var lyA = doc.querySelector('a[href*="LawRedirect.ashx"]');
+      if (lyA) {
+        var cm = /CODE=(\d+)/.exec(lyA.getAttribute('href') || '');
+        if (cm) lyCode = cm[1];
+      }
+      histCache[pcode] = { url: url, list: list, lyCode: lyCode };
       return histCache[pcode];
     });
   }
@@ -569,7 +586,33 @@
         } else {
           hbox.appendChild(el('b', null, '本條修正 ' + rec.length + ' 次：'));
           rec.slice(0, 4).forEach(function (r) {
-            hbox.appendChild(el('div', CLS.histI, '· ' + (r.when || r.text.slice(0, 40))));
+            var line = el('div', CLS.histI, '· ' + (r.when || r.text.slice(0, 40)));
+            /* 立法院有當次的條文全文與修法理由。
+             * 跨網域無法內嵌顯示（CSP frame-src 與 connect-src 皆為 'self'），
+             * 改開獨立小視窗：比新分頁更貼近「彈窗查閱」，看完關掉即可，
+             * 也不會把使用者原本在讀的頁面擠掉。 */
+            if (h.lyCode) {
+              var la = el('a', CLS.link, '當時條文');
+              la.href = LY_REDIRECT + h.lyCode;
+              la.target = 'lawhover_ly';
+              la.rel = 'noopener';
+              la.setAttribute('title',
+                '在立法院法律系統查看各版本條文與修法理由（另開視窗）');
+              la.addEventListener('click', function (e) {
+                e.preventDefault();
+                var w = Math.min(1000, screen.availWidth - 80);
+                var ht = Math.min(780, screen.availHeight - 80);
+                var win = window.open(this.href, 'lawhover_ly',
+                  'width=' + w + ',height=' + ht +
+                  ',left=' + Math.round((screen.availWidth - w) / 2) +
+                  ',top=' + Math.round((screen.availHeight - ht) / 2) +
+                  ',scrollbars=yes,resizable=yes');
+                // 彈窗被攔截時退回一般開啟，不能讓使用者按了沒反應
+                if (!win) window.open(this.href, '_blank', 'noopener');
+              });
+              line.appendChild(la);
+            }
+            hbox.appendChild(line);
           });
           if (rec.length > 4) hbox.appendChild(el('div', CLS.histI, '…另有 ' + (rec.length - 4) + ' 次'));
         }

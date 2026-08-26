@@ -180,6 +180,43 @@ async function main() {
     ok('未修正的條文明確說明', /未見此條的修正紀錄/.test(t78),
        t78.slice(Math.max(0, t78.search(/未見|本條修正/) - 10), 80));
     ok('查沿革過程無 CSP 違規', (await page.evaluate(() => window.__csp.length)) === 0);
+
+    // 立法院有歷史條文全文，但跨網域無法內嵌，改以彈窗開啟。
+    // 此入口僅在「有修正紀錄」的條文才出現，故回到第 3 條測試。
+    await hoverArt('3');
+    const lyHref = await page.evaluate(() => {
+      const q = [...document.body.children].find(n => {
+        const c = String(n.className || '').split(' ');
+        return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+      });
+      const a = q && [...q.querySelectorAll('a')].find(x => x.textContent === '當時條文');
+      return a ? a.href : null;
+    });
+    ok('提供「當時條文」入口', !!lyHref, lyHref || '未找到');
+    ok('連向立法院公開轉址（不需 session）',
+       !!lyHref && /ly\.gov\.tw\/Pages\/ashx\/LawRedirect\.ashx\?CODE=\d+/.test(lyHref),
+       lyHref);
+
+    const ctx2 = page.context();
+    const [popup] = await Promise.all([
+      ctx2.waitForEvent('page', { timeout: 15000 }).catch(() => null),
+      page.evaluate(() => {
+        const q = [...document.body.children].find(n => {
+          const c = String(n.className || '').split(' ');
+          return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+        });
+        [...q.querySelectorAll('a')].find(x => x.textContent === '當時條文').click();
+      }),
+    ]);
+    ok('點擊後開啟彈窗', !!popup, '未開啟');
+    if (popup) {
+      await popup.waitForLoadState('domcontentloaded').catch(() => {});
+      ok('彈窗落在立法院法律系統', /lis\.ly\.gov\.tw\/lglawc\/lawsingle/.test(popup.url()),
+         popup.url().slice(0, 60));
+      const ptxt = await popup.evaluate(() => document.body.innerText.replace(/\s+/g, ' ')).catch(() => '');
+      ok('彈窗含歷次版本清單', /中華民國\d+年\d+月\d+日/.test(ptxt), ptxt.slice(0, 60));
+      await popup.close();
+    }
   }
 
   console.log('\n\x1b[1m司法院解釋（線上取文）\x1b[0m');
