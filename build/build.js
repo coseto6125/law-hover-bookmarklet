@@ -30,6 +30,8 @@ const docs = path.join(root, 'docs');
 if (!fs.existsSync(docs)) fs.mkdirSync(docs);
 fs.writeFileSync(path.join(docs, 'index.html'), out);
 fs.writeFileSync(path.join(docs, 'lawhover.bookmarklet.txt'), url);
+// 停用 Jekyll 處理，安裝頁是靜態 HTML，不需要也不應被處理
+fs.writeFileSync(path.join(docs, '.nojekyll'), '');
 
 console.log('bookmarklet 長度：' + url.length + ' 字元');
 if (url.length > 65000) console.warn('警告：超過部分瀏覽器書籤長度上限');
