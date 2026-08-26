@@ -261,7 +261,9 @@ async function main() {
           return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
         });
         return {
-          rows: [...q.querySelectorAll('[class*="-hi"]')].filter(e => e.offsetParent !== null).length,
+          // 標題行與紀錄行共用同一 class，只數以「·」開頭的紀錄行
+          rows: [...q.querySelectorAll('[class*="-hi"]')]
+            .filter(e => e.offsetParent !== null && /^\s*·/.test(e.textContent)).length,
           toggle: !!(q.textContent.match(/展開其餘 \d+ 筆/)),
           collapse: /收合/.test(q.textContent),
         };
@@ -269,17 +271,21 @@ async function main() {
       const before = await vis();
       ok('條文面板預設只顯示最新一筆', before.rows === 1, '可見 ' + before.rows + ' 行');
       ok('提供展開提示', before.toggle, JSON.stringify(before));
-      await page.evaluate(() => {
-        const q = [...document.body.children].find(n => {
-          const c = String(n.className || '').split(' ');
-          return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+      // 僅一筆修正時不會有展開連結，屬正常
+      if (before.toggle) {
+        await page.evaluate(() => {
+          const q = [...document.body.children].find(n => {
+            const c = String(n.className || '').split(' ');
+            return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+          });
+          const t = [...q.querySelectorAll('a')].find(a => /展開其餘/.test(a.textContent));
+          if (t) t.click();
         });
-        [...q.querySelectorAll('a')].find(a => /展開其餘/.test(a.textContent)).click();
-      });
-      await page.waitForTimeout(400);
-      const after = await vis();
-      ok('展開後顯示全部', after.rows > before.rows, before.rows + ' → ' + after.rows);
-      ok('展開後可收合', after.collapse);
+        await page.waitForTimeout(400);
+        const after = await vis();
+        ok('展開後顯示全部', after.rows > before.rows, before.rows + ' → ' + after.rows);
+        ok('展開後可收合', after.collapse);
+      }
       await page.evaluate(() => { const e = document.getElementById('fold-test'); if (e) e.remove(); });
     }
 
@@ -314,6 +320,8 @@ async function main() {
        !!lyHref && /ly\.gov\.tw\/Pages\/ashx\/LawRedirect\.ashx\?CODE=\d+/.test(lyHref),
        lyHref);
 
+    // 此入口只在有修正紀錄的條文出現，確保停在第 3 條
+    await hoverArt('3');
     const ctx2 = page.context();
     const [popup] = await Promise.all([
       ctx2.waitForEvent('page', { timeout: 15000 }).catch(() => null),
@@ -322,7 +330,8 @@ async function main() {
           const c = String(n.className || '').split(' ');
           return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
         });
-        [...q.querySelectorAll('a')].find(x => /立法院查此版/.test(x.textContent)).click();
+        const t = [...q.querySelectorAll('a')].find(x => /立法院查此版/.test(x.textContent));
+        if (t) t.click();
       }),
     ]);
     ok('點擊後開啟彈窗', !!popup, '未開啟');

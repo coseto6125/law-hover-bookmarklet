@@ -16,6 +16,7 @@ const ok = (name, cond, extra) => {
 
 const raw = D('lawhover.bookmarklet.txt');
 const html = D('install.html');
+const zlib = require('zlib');
 const unescape = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<');
 
 console.log('\n\x1b[1mbookmarklet 產物\x1b[0m');
@@ -26,13 +27,37 @@ ok('不含裸單引號（避免破壞 href 屬性）', !raw.includes("'"));
 ok('長度在瀏覽器書籤上限內', raw.length < 64000, raw.length + ' 字元');
 ok('保有新增功能的餘裕（<90% 額度）', raw.length < 57600,
    raw.length + ' 字元，已用 ' + Math.round(raw.length / 640) + '%');
-let decoded;
-try { decoded = decodeURIComponent(raw.slice('javascript:'.length)); ok('可正確 URL 解碼', true); }
+let loader, decoded;
+try { loader = decodeURIComponent(raw.slice('javascript:'.length)); ok('可正確 URL 解碼', true); }
 catch (e) { ok('可正確 URL 解碼', false, e.message); }
-try { new (require('vm').Script)(decoded); ok('解碼後為合法 JavaScript', true); }
-catch (e) { ok('解碼後為合法 JavaScript', false, e.message); }
-ok('未殘留區塊註解（壓縮生效）', !decoded.includes('/*'));
-ok('確實經過壓縮（無多餘縮排）', !/\n\s{4,}/.test(decoded));
+try { new (require('vm').Script)(loader); ok('載入器為合法 JavaScript', true); }
+catch (e) { ok('載入器為合法 JavaScript', false, e.message); }
+
+// 內容以 gzip + base64 內嵌，需解出來才能驗證
+// base64url：'+'→'-'、'/'→'_'，避開網址轉義
+const b64u = (loader.match(/atob\("([A-Za-z0-9\-_=]+)"/) || [])[1];
+const b64 = b64u && b64u.replace(/-/g, '+').replace(/_/g, '/');
+ok('內嵌 gzip base64url 內容', !!b64, b64 ? b64.length + ' 字元' : '未找到');
+ok('使用 base64url（網址中免轉義）',
+   !!b64u && !/[+/]/.test(b64u) && !raw.includes('%2B'), '仍有 %2B 轉義');
+if (b64) {
+  try {
+    decoded = zlib.gunzipSync(Buffer.from(b64, 'base64')).toString('utf8');
+    ok('gzip 內容可解壓', decoded.length > 10000, decoded.length + ' 字元');
+    new (require('vm').Script)(decoded);
+    ok('解壓後為合法 JavaScript', true);
+  } catch (e) { ok('gzip 內容可解壓', false, e.message); decoded = ''; }
+  ok('未殘留區塊註解（壓縮生效）', !decoded.includes('/*'));
+  ok('確實經過壓縮（無多餘縮排）', !/\n\s{4,}/.test(decoded));
+  // 壓縮率不如預期代表壓縮沒生效，會悄悄逼近長度上限
+  // 與「未壓縮時的 URL 編碼長度」相比才是實際省下的量
+  const plainLen = encodeURIComponent(decoded).replace(/'/g, '%27').length;
+  ok('gzip 顯著縮短網址（<40%）', raw.length < plainLen * 0.4,
+     raw.length + ' vs 未壓縮 ' + plainLen + ' = ' + Math.round(raw.length / plainLen * 100) + '%');
+}
+ok('用 blob script 而非 eval 執行', /createObjectURL/.test(loader) && !/\beval\(/.test(loader));
+ok('舊瀏覽器有明確提示', /DecompressionStream/.test(loader) && /瀏覽器版本過舊/.test(loader));
+ok('用完釋放 blob 網址（避免記憶體洩漏）', /revokeObjectURL/.test(loader));
 
 console.log('\n\x1b[1m安裝頁佔位符替換\x1b[0m');
 ok('已無 __BOOKMARKLET__ 殘留', !html.includes('__BOOKMARKLET__'));

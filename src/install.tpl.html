@@ -208,7 +208,7 @@ td b{font-weight:700}
 .rpt-n{width:23px;height:23px;flex:0 0 23px;border-radius:50%;background:var(--seal);color:#fff;
   font:700 12px/23px var(--sans);text-align:center;margin-left:-28px;box-shadow:0 0 0 4px var(--surface)}
 .rpt-step b{display:block;font-size:.94rem;margin-bottom:2px}
-.rpt-step span{display:block;font-size:.87rem;color:var(--ink-2);line-height:1.75}
+.rpt-step>div span{display:block;font-size:.87rem;color:var(--ink-2);line-height:1.75}
 .rpt-mail{font-size:.92rem;color:var(--ink-2);padding:13px 16px;background:#faf9f6;
   border:1px solid var(--line);border-radius:var(--radius)}
 .rpt-mail a{font-weight:500}
@@ -234,6 +234,49 @@ td b{font-weight:700}
 .qa-b p + p{margin-top:9px}
 .qa-b code{background:#f2f0ea;border-radius:4px;padding:1px 5px;
   font:12.5px ui-monospace,Consolas,monospace;color:var(--ink)}
+
+/* ---------- 手機模擬 ---------- */
+.phone{margin:18px auto;width:268px;border:9px solid #1f2430;border-radius:26px;
+  overflow:hidden;background:#fff;box-shadow:0 10px 30px rgba(0,0,0,.22);position:relative}
+.phone-bar{background:#eceae4;padding:7px 9px;border-bottom:1px solid #dcd8d0}
+.phone-url{background:#fff;border:1px solid #d8d4cb;border-radius:14px;padding:5px 11px;
+  font:11.5px/1.5 ui-monospace,monospace;color:var(--ink-3);min-height:25px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.phone-url.typing{color:var(--ink);border-color:var(--seal)}
+.caret{display:inline-block;width:1.5px;height:12px;background:var(--seal);
+  vertical-align:-2px;margin-left:1px;animation:blink 1s steps(2,end) infinite}
+/* 網址列建議清單：手機執行書籤的唯一入口 */
+.sugg{max-height:0;overflow:hidden;background:#fff;border-bottom:1px solid var(--line);
+  transition:max-height .3s ease}
+.sugg.on{max-height:96px}
+.sugg-item{display:flex;align-items:center;gap:9px;padding:9px 12px;font-size:12.5px;
+  border-bottom:1px solid #f2f0ea;transition:background .18s}
+.sugg-item.hit{background:rgba(156,43,43,.1)}
+.sugg-item.dim{opacity:.45}
+.sugg-ico{width:19px;text-align:center;color:var(--seal);font-size:12px}
+.sugg-sub{color:var(--ink-3);font-size:11px;margin-left:6px}
+.phone-body{padding:14px 13px;min-height:172px;position:relative;background:#fff}
+.ph-line{height:7px;background:#eeece6;border-radius:4px;margin:8px 0}
+.ph-line.w80{width:80%}.ph-line.w60{width:60%}
+.ph-text{font-size:12px;line-height:1.9;color:var(--ink-2);margin:10px 0}
+.ph-cite{border-bottom:1.5px dotted var(--seal);background:var(--seal-soft);
+  padding:1px 3px;border-radius:2px;opacity:0;transition:opacity .3s}
+.ph-cite.on{opacity:1}
+.ph-cite.hit{background:rgba(224,168,0,.5)}
+.ph-panel{position:absolute;left:12px;right:12px;top:78px;background:#fff;
+  border:1px solid #c8ccd4;border-radius:8px;box-shadow:var(--shadow-2);
+  padding:10px 12px;font-size:11.5px;line-height:1.75;color:var(--ink-2);
+  opacity:0;transform:translateY(6px);transition:opacity .3s,transform .3s;z-index:5}
+.ph-panel.on{opacity:1;transform:none}
+.ph-panel b{display:block;color:var(--seal);margin-bottom:4px}
+/* 觸控點擊漣漪 */
+.tap{position:absolute;width:30px;height:30px;border-radius:50%;
+  border:2.5px solid var(--seal);background:rgba(156,43,43,.16);
+  pointer-events:none;opacity:0;transform:translate(-50%,-50%) scale(.4);z-index:9}
+.tap.go{animation:tapping .65s ease-out}
+@keyframes tapping{0%{opacity:0;transform:translate(-50%,-50%) scale(.4)}
+  35%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.5)}}
 
 /* ---------- 動態引導 ---------- */
 .guide{position:fixed;inset:0;z-index:200;background:rgba(16,24,40,.62);
@@ -349,6 +392,7 @@ footer a{color:#1a4fa0}
     <a class="top-link hide-s" href="#demo">看範例</a>
     <a class="top-link hide-s" href="#safe">安全性</a>
     <a class="top-link hide-s" href="#faq">問題</a>
+    <a class="top-link hide-s" href="#mobile">手機</a>
     <a class="top-link hide-s" href="#report">回報</a>
     <a class="top-link" href="https://github.com/coseto6125/law-hover-bookmarklet" target="_blank" rel="noopener">原始碼</a>
     <div class="help-wrap">
@@ -383,8 +427,14 @@ footer a{color:#1a4fa0}
           用滑鼠<b>拖曳</b>這顆按鈕到書籤列
         </div>
         <div class="drag-icon-note">
-          放開後書籤列上會出現「法條懸停」（<b>書籤名稱可自行改短</b>）
+          放開後書籤列會出現「法條懸停」。<b>建議改名為「法條」</b>，手機上才好叫出來。
         </div>
+      </div>
+
+      <div class="or">用手機？</div>
+      <div class="copy-row" style="margin-bottom:14px">
+        <button class="btn-s" id="mobBtn">📱 手機怎麼用</button>
+        <span class="note-inline">手機沒有書籤列，用法不同</span>
       </div>
 
       <div class="or">拖不動或看不到書籤列？</div>
@@ -575,6 +625,66 @@ footer a{color:#1a4fa0}
     </div>
   </section>
 
+  <!-- ---------- 手機 ---------- -->
+  <section id="mobile">
+    <div class="sec-head"><span class="sec-num">手機</span><h2>在手機上使用</h2></div>
+    <p class="sec-sub">程式在手機完全可用，<b>同一個書籤不必分版本</b>。差別只在怎麼叫出它。</p>
+
+    <div class="callout">
+      <p><b>先在電腦上把書籤加好，再同步到手機。</b>手機瀏覽器沒有書籤列，也無法拖曳，
+         直接在手機上建立這種書籤非常麻煩。電腦與手機登入同一個 Google 帳號即會自動同步。</p>
+    </div>
+
+    <div class="rpt">
+      <div class="rpt-steps">
+        <div class="rpt-step">
+          <span class="rpt-n">1</span>
+          <div>
+            <b>在電腦上把書籤改名為「法條」</b>
+            <span>書籤上按右鍵 → 編輯。名稱要<b>短且好打</b>，因為手機上要靠打字叫出它。</span>
+          </div>
+        </div>
+        <div class="rpt-step">
+          <span class="rpt-n">2</span>
+          <div>
+            <b>確認電腦與手機的 Chrome 登入同一個帳號</b>
+            <span>書籤會自動同步，通常一分鐘內完成。</span>
+          </div>
+        </div>
+        <div class="rpt-step">
+          <span class="rpt-n">3</span>
+          <div>
+            <b>手機開啟全國法規資料庫的任一頁</b>
+            <span>用 Chrome 開啟，例如搜尋「建築法 全國法規資料庫」點進去。</span>
+          </div>
+        </div>
+        <div class="rpt-step">
+          <span class="rpt-n">4</span>
+          <div>
+            <b>在網址列輸入「法條」，從建議清單點選那則書籤</b>
+            <span>注意：<b>不要按 Enter 送出</b>，要點下方出現的書籤項目。這就是手機執行書籤的方式。</span>
+          </div>
+        </div>
+        <div class="rpt-step">
+          <span class="rpt-n">5</span>
+          <div>
+            <b>改用「點一下」代替滑鼠移入</b>
+            <span>手機沒有滑鼠，所以<b>點紅色虛線</b>就會顯示條文，點面板外面關閉。程式會自動偵測，不需設定。</span>
+          </div>
+        </div>
+      </div>
+      <div class="copy-row">
+        <button class="btn-s" id="mobBtn2">▶ 播放手機操作動畫</button>
+        <span class="note-inline">約 15 秒</span>
+      </div>
+    </div>
+
+    <div class="callout ok">
+      <p><b>iPhone（Safari）也可以</b>，但 Safari 的書籤同步走 iCloud。
+         在 Mac 上加好書籤後即會同步到 iPhone，操作方式相同：在網址列打書籤名稱後點選。</p>
+    </div>
+  </section>
+
   <!-- ---------- 回報 ---------- -->
   <section id="report">
     <div class="sec-head"><span class="sec-num">回報</span><h2>發現問題請告訴我</h2></div>
@@ -669,6 +779,59 @@ footer a{color:#1a4fa0}
   <div class="panel-h" id="panelH"></div>
   <div class="panel-b" id="panelB"></div>
   <div class="panel-f">在全國法規資料庫開啟　·　複製條文</div>
+</div>
+
+<!-- ---------- 手機操作動畫 ---------- -->
+<div class="guide" id="mguide" role="dialog" aria-modal="true" aria-labelledby="mgTitle">
+  <div class="guide-box" style="max-width:420px">
+    <div class="guide-top">
+      <h3 id="mgTitle">手機上怎麼叫出書籤</h3>
+      <button class="x" id="mgClose" aria-label="關閉">✕</button>
+    </div>
+
+    <div class="steps">
+      <div class="step" id="ms0"><i></i></div>
+      <div class="step" id="ms1"><i></i></div>
+      <div class="step" id="ms2"><i></i></div>
+    </div>
+
+    <!-- 手機外框 -->
+    <div class="phone" id="phone">
+      <div class="phone-bar">
+        <div class="phone-url" id="mgUrl">law.moj.gov.tw</div>
+      </div>
+      <!-- 網址列建議清單：手機執行書籤的唯一入口 -->
+      <div class="sugg" id="mgSugg">
+        <div class="sugg-item" id="mgSuggItem">
+          <span class="sugg-ico">★</span>
+          <span><b>法條</b><span class="sugg-sub">書籤</span></span>
+        </div>
+        <div class="sugg-item dim"><span class="sugg-ico">🔍</span><span>法條 - 搜尋</span></div>
+      </div>
+      <div class="phone-body" id="mgBody">
+        <div class="ph-line w80"></div>
+        <div class="ph-text">建築物非經申請主管建築機關審查許可，不得擅自建造。但合於<span class="ph-cite" id="mgCite">第七十八條</span>規定者不在此限。</div>
+        <div class="ph-line w60"></div>
+        <div class="ph-panel" id="mgPanel">
+          <b>建築法 第 78 條</b>
+          建築物之施工管理，除本法另有規定外，由中央主管建築機關定之……
+        </div>
+        <span class="tap" id="mgTap"></span>
+      </div>
+    </div>
+
+    <div class="guide-cap">
+      <h4 id="mgCapT">手機沒有書籤列</h4>
+      <p id="mgCapD">按「開始播放」看怎麼在手機上叫出書籤，約 15 秒。</p>
+    </div>
+
+    <div class="guide-foot">
+      <button class="btn" id="mgAgain">重播</button>
+      <span class="sp"></span>
+      <button class="btn" id="mgSkip">關閉</button>
+      <button class="btn primary" id="mgPlay">開始播放</button>
+    </div>
+  </div>
 </div>
 
 <!-- ---------- 動態安裝引導 ---------- -->
@@ -939,6 +1102,99 @@ function play(){
 function openGuide(){guide.classList.add('on');document.body.style.overflow='hidden';reset();at(260,play);}
 function closeGuide(){guide.classList.remove('on');document.body.style.overflow='';clearAll();}
 
+/* ---------- 手機操作動畫 ----------
+ * 手機沒有書籤列，執行書籤的唯一方式是在網址列輸入書籤名稱後，
+ * 從建議清單點選。這一步最難用文字說明，故做成動畫。
+ */
+var mg=document.getElementById('mguide'),mgUrl=document.getElementById('mgUrl'),
+    mgSugg=document.getElementById('mgSugg'),mgSuggItem=document.getElementById('mgSuggItem'),
+    mgCite=document.getElementById('mgCite'),mgPanel=document.getElementById('mgPanel'),
+    mgTap=document.getElementById('mgTap'),mgCapT=document.getElementById('mgCapT'),
+    mgCapD=document.getElementById('mgCapD'),mgPlayB=document.getElementById('mgPlay');
+var mgT=[];
+function mAt(ms,fn){mgT.push(setTimeout(fn,reduce?Math.min(ms,120):ms));}
+function mClear(){mgT.forEach(clearTimeout);mgT=[];}
+function mStep(i){for(var k=0;k<3;k++){
+  var e=document.getElementById('ms'+k);e.className='step'+(k<i?' done':k===i?' now':'');}}
+function mCap(t,d){mgCapT.textContent=t;mgCapD.innerHTML=d;}
+/* 點擊漣漪：座標依實際元素計算，與桌面版同樣不寫死 */
+function tapAt(el){
+  if(!el)return;
+  var pr=document.getElementById('mgBody').getBoundingClientRect(),
+      er=el.getBoundingClientRect();
+  mgTap.style.left=Math.round(er.left-pr.left+er.width/2)+'px';
+  mgTap.style.top=Math.round(er.top-pr.top+er.height/2)+'px';
+  mgTap.classList.remove('go');void mgTap.offsetWidth;mgTap.classList.add('go');
+}
+function mReset(){
+  mClear();
+  mgUrl.textContent='law.moj.gov.tw';mgUrl.className='phone-url';
+  mgSugg.classList.remove('on');mgSuggItem.classList.remove('hit');
+  mgCite.classList.remove('on','hit');mgPanel.classList.remove('on');
+  mgTap.classList.remove('go');mStep(-1);
+  mCap('手機沒有書籤列','按「開始播放」看怎麼在手機上叫出書籤，約 15 秒。');
+  mgPlayB.disabled=false;mgPlayB.textContent='開始播放';
+}
+function mPlay(){
+  mReset();
+  mgPlayB.disabled=true;mgPlayB.textContent='播放中…';
+
+  mAt(300,function(){
+    mStep(0);
+    mCap('1 · 點一下網址列','先用手機瀏覽器開啟全國法規資料庫的任一頁。');
+    tapAt(mgUrl);
+  });
+  /* 逐字輸入書籤名稱，示範「名稱要短好打」 */
+  mAt(1400,function(){
+    mgUrl.className='phone-url typing';mgUrl.textContent='';
+    var name='法條',i=0;
+    (function type(){
+      if(i<name.length){
+        mgUrl.innerHTML=name.slice(0,++i)+'<span class="caret"></span>';
+        mAt(320,type);
+      }else{
+        mCap('2 · 輸入書籤名稱','打上你為書籤取的名字。<b>這就是名稱要取短的原因。</b>');
+        mStep(1);
+        mgSugg.classList.add('on');
+      }
+    })();
+  });
+  /* 關鍵一步：點建議清單裡的書籤，不是按 Enter */
+  mAt(3600,function(){
+    mCap('2 · 點清單中的書籤','<b>不要按 Enter 送出</b>，要點下方出現的「法條 · 書籤」那一列。');
+    tapAt(mgSuggItem);
+  });
+  mAt(4300,function(){ mgSuggItem.classList.add('hit'); });
+  mAt(5100,function(){
+    mgSugg.classList.remove('on');
+    mgUrl.className='phone-url';mgUrl.textContent='law.moj.gov.tw';
+    mgCite.classList.add('on');
+    mCap('3 · 條號被標起來了','書籤執行完成，法條引用出現紅色虛線。');
+    mStep(2);
+  });
+  /* 手機沒有 hover，改用點擊 */
+  mAt(7000,function(){
+    mCap('3 · 用「點」代替「滑過去」','手機沒有滑鼠，<b>點一下</b>紅色虛線就會顯示條文。');
+    tapAt(mgCite);
+  });
+  mAt(7700,function(){ mgCite.classList.add('hit'); });
+  mAt(8200,function(){ mgPanel.classList.add('on'); });
+  mAt(9600,function(){
+    mStep(3);
+    mCap('就這樣','點面板外面即可關閉。<b>書籤請先在電腦上加好再同步到手機</b>，手機上很難直接建立。');
+    mgPlayB.disabled=false;mgPlayB.textContent='再看一次';
+  });
+}
+function openMobile(){mg.classList.add('on');document.body.style.overflow='hidden';mReset();mAt(260,mPlay);}
+function closeMobile(){mg.classList.remove('on');document.body.style.overflow='';mClear();}
+document.getElementById('mobBtn').addEventListener('click',openMobile);
+document.getElementById('mobBtn2').addEventListener('click',openMobile);
+document.getElementById('mgClose').addEventListener('click',closeMobile);
+document.getElementById('mgSkip').addEventListener('click',closeMobile);
+document.getElementById('mgAgain').addEventListener('click',mPlay);
+mgPlayB.addEventListener('click',mPlay);
+mg.addEventListener('click',function(e){if(e.target===mg)closeMobile();});
+
 document.getElementById('helpBtn').addEventListener('click',openGuide);
 document.getElementById('playBtn').addEventListener('click',openGuide);
 document.getElementById('guideClose').addEventListener('click',closeGuide);
@@ -946,7 +1202,11 @@ document.getElementById('guideSkip').addEventListener('click',closeGuide);
 document.getElementById('guideAgain').addEventListener('click',play);
 playBtnG.addEventListener('click',play);
 guide.addEventListener('click',function(e){if(e.target===guide)closeGuide();});
-document.addEventListener('keydown',function(e){if(e.key==='Escape'&&guide.classList.contains('on'))closeGuide();});
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  if(guide.classList.contains('on'))closeGuide();
+  if(mg.classList.contains('on'))closeMobile();
+});
 
 })();
 </script>

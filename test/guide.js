@@ -84,6 +84,69 @@ async function main() {
   ok('Esc 可關閉引導', await page.evaluate(() =>
     !document.getElementById('guide').className.includes('on')));
 
+  console.log('\n\x1b[1m手機操作動畫\x1b[0m');
+  {
+    ok('手機說明入口存在', await page.evaluate(() => !!document.getElementById('mobBtn')));
+    await page.click('#mobBtn');
+    await page.waitForTimeout(500);
+    ok('手機動畫可開啟', await page.evaluate(() =>
+      document.getElementById('mguide').className.includes('on')));
+
+    const stages = [];
+    let last = 500;
+    for (const ms of [2600, 4400, 5600, 8500, 9900]) {
+      await page.waitForTimeout(ms - last); last = ms;
+      stages.push(await page.evaluate(() => ({
+        url: document.getElementById('mgUrl').textContent,
+        sugg: document.getElementById('mgSugg').classList.contains('on'),
+        cite: document.getElementById('mgCite').classList.contains('on'),
+        panel: document.getElementById('mgPanel').classList.contains('on'),
+        cap: document.getElementById('mgCapT').textContent,
+      })));
+    }
+    ok('示範在網址列輸入書籤名稱', stages[0].url === '法條', stages[0].url);
+    ok('示範建議清單（手機執行書籤的唯一入口）', stages[1].sugg);
+    ok('點選後書籤執行、條號被標記', stages[2].cite && !stages[2].sugg);
+    ok('示範用點擊代替 hover', stages[3].panel, stages[3].cap);
+    ok('動畫完成', /就這樣/.test(stages[4].cap), stages[4].cap);
+    ok('提醒先在電腦加好書籤再同步', await page.evaluate(() =>
+      /電腦上加好/.test(document.getElementById('mgCapD').textContent)));
+
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(300);
+    ok('Esc 可關閉手機動畫', await page.evaluate(() =>
+      !document.getElementById('mguide').className.includes('on')));
+  }
+
+  console.log('\n\x1b[1m全頁對比符合 WCAG AA\x1b[0m');
+  {
+    // 使用者回報回報區的步驟序號對比不足（實測 1.37:1）
+    const bad = await page.evaluate(() => {
+      const lum = c => { const [r, g, b] = c.map(v => { v /= 255;
+        return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+      const rgb = s => { const m = s.match(/[\d.]+/g); return m ? m.slice(0, 3).map(Number) : null; };
+      const opaque = e => { let n = e; while (n) {
+        const c = getComputedStyle(n).backgroundColor, m = c.match(/[\d.]+/g);
+        if (m && (m.length < 4 || parseFloat(m[3]) > 0.5)) return rgb(c);
+        n = n.parentElement; } return [255, 255, 255]; };
+      const out = [];
+      document.querySelectorAll('body *').forEach(e => {
+        if (!e.textContent.trim() || e.children.length) return;
+        const cs = getComputedStyle(e);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || !e.offsetParent) return;
+        const fg = rgb(cs.color); if (!fg) return;
+        const bg = opaque(e), l1 = lum(fg), l2 = lum(bg);
+        const r = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+        const size = parseFloat(cs.fontSize), bold = parseInt(cs.fontWeight) >= 700;
+        const need = (size >= 24 || (size >= 18.66 && bold)) ? 3 : 4.5;
+        if (r < need) out.push(e.textContent.trim().slice(0, 20) + ' = ' + r.toFixed(2) + ':1');
+      });
+      return out;
+    });
+    ok('無對比不足的文字', bad.length === 0, bad.slice(0, 4).join(' | '));
+  }
+
   console.log('\n\x1b[1m範例區可實際操作\x1b[0m');
   await page.hover('.cite');
   await page.waitForTimeout(600);
