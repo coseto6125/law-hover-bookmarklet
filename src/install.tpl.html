@@ -283,13 +283,13 @@ td b{font-weight:700}
 .stage-cite{display:inline-block;border-bottom:1.5px dotted var(--seal);background:var(--seal-soft);
   font-size:12.5px;padding:1px 4px;border-radius:2px;opacity:0;transition:opacity .3s}
 .stage-cite.on{opacity:1}
-.mini-panel{position:absolute;left:26px;top:74px;background:#fff;border:1px solid #c8ccd4;
+.mini-panel{position:absolute;left:26px;top:74px;background:#fff;border:1px solid #c8ccd4;z-index:8;
   border-radius:8px;box-shadow:var(--shadow-2);padding:10px 13px;font-size:11.5px;line-height:1.7;
   max-width:270px;opacity:0;transform:translateY(5px);transition:opacity .3s,transform .3s}
 .mini-panel.on{opacity:1;transform:none}
 .mini-panel b{color:var(--seal);display:block;margin-bottom:3px;font-size:11.5px}
 /* 幽靈游標：引導動畫的主角 */
-.ghost{position:absolute;width:22px;height:22px;pointer-events:none;z-index:9;
+.ghost{position:absolute;left:0;top:0;width:22px;height:22px;pointer-events:none;z-index:9;
   filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));opacity:0;
   transition:transform .85s cubic-bezier(.4,.05,.25,1),opacity .3s}
 .ghost.on{opacity:1}
@@ -822,6 +822,7 @@ var guide=document.getElementById('guide'),ghost=document.getElementById('ghost'
     stageLaw=document.getElementById('stageLaw'),sc1=document.getElementById('sc1'),
     mini=document.getElementById('miniPanel'),stageUrl=document.getElementById('stageUrl'),
     capT=document.getElementById('capT'),capD=document.getElementById('capD'),
+    stageBody=document.getElementById('stageBody'),bmBar=document.getElementById('bmBar'),
     playBtnG=document.getElementById('guidePlay');
 var timers=[],reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -834,12 +835,28 @@ function setStep(i){
   }
 }
 function cap(t,d){capT.textContent=t;capD.innerHTML=d;}
+/* 依實際元素座標移動幽靈游標。
+ * 先前用寫死的數值，元素位置一改就對不上（使用者回報位置錯誤）。
+ * 座標以 stageBody 為基準，游標尖端對準目標中心。 */
 function moveGhost(x,y){ghost.style.transform='translate('+x+'px,'+y+'px)';}
+/* 游標圖形的尖端在左上角附近，需扣掉才能對準目標中心 */
+var GHOST_TIP_X=3,GHOST_TIP_Y=2;
+function ghostTo(el,dx,dy){
+  if(!el){return;}
+  var sr=stageBody.getBoundingClientRect(),er=el.getBoundingClientRect();
+  if(!er.width&&!er.height){return;}          // 元素隱藏時不移動
+  moveGhost(
+    Math.round(er.left-sr.left+er.width/2-GHOST_TIP_X+(dx||0)),
+    Math.round(er.top-sr.top+er.height/2-GHOST_TIP_Y+(dy||0)));
+}
+// 書籤列在 stageBody 之外（上方），y 會是負值，屬正常
+var ghostToBar=ghostTo;
 
 function reset(){
   clearAll();
   ghost.classList.remove('on');chip.classList.remove('on');
-  ghost.style.transition='none';moveGhost(20,52);
+  ghost.style.transition='none';
+  ghostTo(stageBtn,-60,40);
   void ghost.offsetWidth;ghost.style.transition='';
   slot.classList.remove('open');bmNew.classList.remove('on');bmDrop.classList.remove('on');
   stageBtn.classList.remove('faded');
@@ -860,19 +877,23 @@ function play(){
     setStep(0);
     cap('1 · 先叫出書籤列','按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>。書籤列就是網址列下面那一條。');
     ghost.classList.add('on');
+    ghostToBar(bmBar,-40);            /* 游標指向書籤列 */
   });
 
   /* 步驟 2：拖曳按鈕到書籤列 */
   at(2500,function(){
     setStep(1);
     cap('2 · 把按鈕拖上去','用滑鼠<b>按住</b>紅色按鈕，拖到書籤列上放開。不是點擊，是拖曳。');
-    moveGhost(26,60);
+    ghostTo(stageBtn);                /* 移到紅色按鈕上 */
   });
   at(3400,function(){
-    chip.classList.add('on');       /* 抓起按鈕 */
+    chip.classList.add('on');         /* 抓起按鈕 */
     stageBtn.classList.add('faded');
   });
-  at(4000,function(){ moveGhost(70,-6); bmDrop.classList.add('on'); });   /* 拖到書籤列 */
+  at(4000,function(){                 /* 拖到書籤列的插入點 */
+    ghostToBar(bmDrop,6);
+    bmDrop.classList.add('on');
+  });
   at(5000,function(){
     chip.classList.remove('on');    /* 放開 */
     bmDrop.classList.remove('on');
@@ -881,6 +902,7 @@ function play(){
   });
   at(5900,function(){
     cap('2 · 完成','書籤列上多了一則「法條懸停」。<b>它只是一則書籤，不是安裝程式。</b>');
+    ghostTo(bmNew);                   /* 游標跟到新增的書籤上 */
   });
 
   /* 步驟 3：到法規網點一下 */
@@ -890,7 +912,7 @@ function play(){
     stageInstall.style.display='none';stageLaw.style.display='';
     stageUrl.textContent='law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109';
     stageBtn.classList.remove('faded');
-    moveGhost(88,-8);
+    ghostToBar(bmNew);                /* 移到書籤列上新增的書籤 */
   });
   at(9000,function(){
     bmNew.style.transform='scale(.9)';
@@ -903,7 +925,7 @@ function play(){
   at(11200,function(){
     setStep(3);
     cap('4 · 滑過去就好','把滑鼠移到虛線上，條文出現在原地，視線不用離開。');
-    moveGhost(52,60);
+    ghostTo(sc1);                     /* 移到被標記的條號上 */
   });
   at(12400,function(){ mini.classList.add('on'); });
   at(13600,function(){

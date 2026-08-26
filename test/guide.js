@@ -1,0 +1,104 @@
+/* 安裝頁引導動畫的驗證
+ *
+ * 背景：游標位置原本寫死座標，元素位置一改就對不上（使用者回報位置錯誤）。
+ * 改為依實際元素座標計算後，用這支測試確保游標全程對準目標。
+ */
+const fs = require('fs');
+const path = require('path');
+
+const root = path.join(__dirname, '..');
+let pass = 0, fail = 0;
+const ok = (n, c, e) => {
+  if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); }
+  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '\n      → ' + e : '')); }
+};
+
+async function main() {
+  let chromium;
+  try { ({ chromium } = require('playwright')); }
+  catch (e) { console.log('\x1b[33m略過：未安裝 playwright\x1b[0m'); process.exit(0); }
+  let browser;
+  try { browser = await chromium.launch(); }
+  catch (e) { console.log('\x1b[33m略過：無法啟動 Chromium\x1b[0m'); process.exit(0); }
+
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  const errs = [];
+  page.on('pageerror', e => errs.push(e.message));
+  await page.goto('file://' + path.join(root, 'docs/index.html'), { waitUntil: 'domcontentloaded' });
+
+  console.log('\n\x1b[1m引導動畫可開啟\x1b[0m');
+  ok('「?」求助鈕存在', await page.evaluate(() => !!document.getElementById('helpBtn')));
+  await page.click('#helpBtn');
+  await page.waitForTimeout(400);
+  ok('點擊後開啟引導', await page.evaluate(() =>
+    document.getElementById('guide').className.includes('on')));
+  ok('自動開始播放', await page.evaluate(() =>
+    document.getElementById('guidePlay').disabled === true));
+
+  console.log('\n\x1b[1m幽靈游標全程對準目標\x1b[0m');
+  // 每個階段：等動畫完成後，量游標尖端與目標中心的距離
+  const STEPS = [
+    [3500, '移到紅色按鈕', 'stageBtn'],
+    [5000, '拖到書籤列插入點', 'bmDrop'],
+    [7200, '跟到新增的書籤', 'bmNew'],
+    [10000, '點擊書籤', 'bmNew'],
+    [12600, '滑到被標記的條號', 'sc1'],
+  ];
+  let last = 400;
+  for (const [ms, label, target] of STEPS) {
+    await page.waitForTimeout(ms - last);
+    last = ms;
+    const r = await page.evaluate(t => {
+      const g = document.getElementById('ghost'), el = document.getElementById(t);
+      const gr = g.getBoundingClientRect(), er = el.getBoundingClientRect();
+      if (!er.width && !er.height) return { hidden: true };
+      // 游標圖形尖端在左上角附近
+      return { d: Math.round(Math.hypot((gr.x + 3) - (er.x + er.width / 2),
+                                        (gr.y + 2) - (er.y + er.height / 2))),
+               visible: g.classList.contains('on') };
+    }, target);
+    if (r.hidden) { ok(label + '（目標此時隱藏）', true); continue; }
+    ok(label, r.d < 30, '距離目標中心 ' + r.d + 'px');
+  }
+
+  console.log('\n\x1b[1m動畫階段依序推進\x1b[0m');
+  const cap = await page.evaluate(() => document.getElementById('capT').textContent);
+  ok('已進入最後階段', /滑過去就好|就這樣/.test(cap), cap);
+  await page.waitForTimeout(2000);
+  const done = await page.evaluate(() => ({
+    cap: document.getElementById('capT').textContent,
+    bm: document.getElementById('bmNew').classList.contains('on'),
+    cite: document.getElementById('sc1').classList.contains('on'),
+    mini: document.getElementById('miniPanel').classList.contains('on'),
+    btn: document.getElementById('guidePlay').textContent,
+  }));
+  ok('書籤已加入書籤列', done.bm);
+  ok('條號已被標記', done.cite);
+  ok('條文面板已顯示', done.mini);
+  ok('播放結束可重看', /再看一次/.test(done.btn), done.btn);
+
+  console.log('\n\x1b[1m操作與收尾\x1b[0m');
+  ok('全程無 JS 錯誤', errs.length === 0, errs.slice(0, 2).join(' | '));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  ok('Esc 可關閉引導', await page.evaluate(() =>
+    !document.getElementById('guide').className.includes('on')));
+
+  console.log('\n\x1b[1m範例區可實際操作\x1b[0m');
+  await page.hover('.cite');
+  await page.waitForTimeout(600);
+  const demo = await page.evaluate(() => {
+    const q = document.getElementById('panel');
+    return q.className.includes('on') ? q.textContent.replace(/\s+/g, ' ') : '';
+  });
+  ok('滑過範例引用顯示條文', /建築物之施工管理/.test(demo), demo.slice(0, 50));
+  const cites = await page.evaluate(() => document.querySelectorAll('.cite').length);
+  ok('範例含多處引用（含釋字）', cites >= 5, '共 ' + cites + ' 處');
+
+  await browser.close();
+  console.log('\n' + (fail === 0
+    ? `\x1b[32m引導動畫驗證全部通過：${pass} 項\x1b[0m`
+    : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
+  process.exit(fail === 0 ? 0 : 1);
+}
+main().catch(e => { console.error(e); process.exit(1); });
