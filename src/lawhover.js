@@ -744,14 +744,25 @@
   function fetchArticle_(pcode, flno) {
     var key = pcode + '|' + flno;
     var url = SITE.articleUrl(pcode, flno);
-    // 取全文的站台以法規為快取單位，避免同一部法規重複下載
+    /* 取全文的站台以法規為快取單位，避免同一部法規重複下載。
+     *
+     * 去重的 key 必須是「法規」而不是「條號」：外層 once() 用的是
+     * art|pcode|flno，同一部法規的兩個條號同時滑過時是兩個不同的 key，
+     * 在第一份全文下載完成、寫入 artCache 之前，兩者都會看到快取為空而
+     * 各下載一次完全相同的全文（codex review 第 8 項實測 2 次）。
+     * 因此把下載本身再包一層 once('page|pcode')，讓並發的請求共用同一個
+     * Promise，完成後各自從同一份 document 挑自己的條號。 */
     var pageKey = SITE.wholePage ? 'page|' + pcode : null;
-    var get = pageKey && artCache[pageKey]
-      ? Promise.resolve(artCache[pageKey])
-      : fetchDoc(url).then(function (doc) {
-          if (pageKey) artCache[pageKey] = doc;
-          return doc;
-        });
+    var get = !pageKey
+      ? fetchDoc(url)
+      : artCache[pageKey]
+        ? Promise.resolve(artCache[pageKey])
+        : once(pageKey, function () {
+            return fetchDoc(url).then(function (doc) {
+              artCache[pageKey] = doc;
+              return doc;
+            });
+          });
 
     return get.then(function (doc) {
       var lawName = (doc.querySelector('#hlLawName, #ctl00_cp_content_lbLawName') || {}).textContent || '';

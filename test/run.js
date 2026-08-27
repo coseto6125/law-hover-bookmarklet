@@ -5,6 +5,7 @@ const { JSDOM } = require('jsdom');
 
 const root = path.join(__dirname, '..');
 const F = f => fs.readFileSync(path.join(root, 'test/fixtures', f), 'utf8');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
 // 用建置時同一份注入邏輯，確保測到的就是實際出貨的程式碼。
 const code = require('../build/source').loadSource().code;
 
@@ -561,6 +562,50 @@ async function run() {
    * 也窮舉不完「承租人違反」這類動詞前綴，故改以已知法規名字典做最長後綴匹配。 */
   /* 不支援的網站上，書籤必須只顯示提示就結束：不掃描、不標記、不連線。
    * 掃描非法規網站沒有意義（取不到條文），還會平白改動別人的頁面。 */
+  /* 取全文的站台（臺北市、新北市）同一部法規只該下載一次。
+   * 去重的 key 必須是法規而非條號：外層 once() 用 art|pcode|flno，
+   * 同一法規的不同條號是不同 key，在第一份全文完成前會各下載一次
+   * 完全相同的全文（codex review 第 8 項）。 */
+  console.log('\n\x1b[1m全文站台的並發請求合併\x1b[0m');
+  {
+    const mk = () => {
+      const d = new JSDOM(
+        '<body><h3>臺北市建築管理自治條例</h3>' +
+        '<div class="col-article"><p>依第 3 條與第 5 條、第 7 條規定辦理。</p></div></body>',
+        { url: 'https://laws.gov.taipei/Law/LawSearch/LawArticleContent/FL039973',
+          runScripts: 'outside-only', pretendToBeVisual: true });
+      return d;
+    };
+
+    // 三個條號同時滑過，全文只該下載一次
+    const d1 = mk();
+    const calls = [];
+    d1.window.fetch = u => { calls.push(String(u)); return new Promise(() => {}); };
+    d1.window.eval(code);
+    const marks = [...d1.window.document.querySelectorAll('[data-flno]')];
+    ok('標記到三個條號', marks.length === 3, '標記 ' + marks.length + ' 處');
+    marks.forEach(m => m.dispatchEvent(
+      new d1.window.MouseEvent('mouseover', { bubbles: true })));
+    await sleep(600);
+    ok('三個條號共用一次全文下載',
+       calls.length === 1, '請求 ' + calls.length + ' 次：' + calls.join(', '));
+
+    // 失敗後不能被去重機制卡住，必須能重試
+    const d2 = mk();
+    let n = 0;
+    d2.window.fetch = () => { n++; return Promise.reject(new Error('網路失敗')); };
+    d2.window.eval(code);
+    const m2 = d2.window.document.querySelector('[data-flno]');
+    m2.dispatchEvent(new d2.window.MouseEvent('mouseover', { bubbles: true }));
+    await sleep(500);
+    const first = n;
+    m2.dispatchEvent(new d2.window.MouseEvent('mouseout', { bubbles: true }));
+    m2.dispatchEvent(new d2.window.MouseEvent('mouseover', { bubbles: true }));
+    await sleep(500);
+    ok('下載失敗後仍可重試（未被去重卡住）', n > first,
+       '首次 ' + first + ' 次，重試後 ' + n + ' 次');
+  }
+
   console.log('\n\x1b[1m不支援的網站只提示、不掃描\x1b[0m');
   for (const site of ['https://www.google.com/search?q=%E5%BB%BA%E7%AF%89%E6%B3%95',
                       'https://zh.wikipedia.org/wiki/建築法',
