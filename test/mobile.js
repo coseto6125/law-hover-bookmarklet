@@ -6,6 +6,7 @@
  *   因此不需要分手機版/桌面版書籤。
  */
 const fs = require('fs');
+const { panelReady, injected } = require('./wait');
 const path = require('path');
 const root = path.join(__dirname, '..');
 const url = fs.readFileSync(path.join(root, 'dist/lawhover.bookmarklet.txt'), 'utf8');
@@ -48,7 +49,7 @@ async function main() {
     await p.goto('https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109', { waitUntil: 'domcontentloaded' });
     const cdp = await ctx.newCDPSession(p);
     try { await cdp.send('Page.navigate', { url }); } catch (e) {}
-    await p.waitForTimeout(5000);
+    await injected(p, { timeout: 20000 });
     const r = await p.evaluate(() => ({
       marks: document.querySelectorAll('[data-flno],[data-ex]').length,
       heads: document.querySelectorAll('[data-lh-head]').length,
@@ -65,7 +66,7 @@ async function main() {
     if (!isTouch) { await ctx.close(); continue; }
     ok(name + ' 被正確識別為觸控裝置', r.touch);
     await p.tap('[data-flno]').catch(() => {});
-    await p.waitForTimeout(6000);
+    await panelReady(p, { timeout: 15000 });
     const shown = await p.evaluate(() => {
       const q = [...document.body.children].find(n => {
         const c = String(n.className || '').split(' ');
@@ -131,14 +132,14 @@ async function main() {
           { waitUntil: 'domcontentloaded', timeout: 35000 });
         const cdp = await ctx.newCDPSession(p);
         try { await cdp.send('Page.navigate', { url }); } catch (e) {}
-        await p.waitForTimeout(4500);
+        await injected(p, { timeout: 20000 });
         if (touch) await p.tap('[data-flno]').catch(() => {});
         else await p.evaluate(() => {
           const x = document.querySelector('[data-flno]');
           x.scrollIntoView({ block: 'center' });
           x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
         });
-        await p.waitForTimeout(6500);
+        await panelReady(p, { timeout: 15000 });
         // 塞入大量內容模擬超長條文（真實法規如所得稅法確有數十款）
         const r = await p.evaluate(() => {
           const q = [...document.body.children].find(n => {

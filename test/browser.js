@@ -5,6 +5,7 @@
  * 由瀏覽器實際強制 CSP，並監聽 securitypolicyviolation 事件。
  */
 const fs = require('fs');
+const { until, panelReady, injected } = require('./wait');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
@@ -107,7 +108,7 @@ async function main() {
     m.scrollIntoView();
     m.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
   });
-  await page.waitForTimeout(6000);
+  await panelReady(page, { timeout: 15000 });
 
   const panel = await page.evaluate(() => {
     const p = [...document.body.children].find(n => {
@@ -143,7 +144,7 @@ async function main() {
   {
     const before = await page.evaluate(() => document.querySelectorAll('[data-flno]').length);
     try { await cdp.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
-    await page.waitForTimeout(1200);
+    await injected(page, { timeout: 20000 });
     const after = await page.evaluate(() => ({
       marks: document.querySelectorAll('[data-flno]').length,
       panels: [...document.body.children]
@@ -159,7 +160,11 @@ async function main() {
     ok('標記所有條號標題', hn >= 100, '標記 ' + hn + ' 個');
 
     // 依沿革上色：修正過的標黃，讓使用者不必逐條滑過去
-    await page.waitForTimeout(5000);
+    /* 等第一個黃底條號出現即可，不必固定等 5 秒。 */
+    await until(page, () => [...document.querySelectorAll('[data-lh-head]')]
+      .some(e => /-hit$/.test(String(e.className || '').split(' ').pop() || '')
+        || getComputedStyle(e).backgroundColor !== 'rgba(0, 0, 0, 0)'),
+      null, { timeout: 15000 });
     const paint = await page.evaluate(() => {
       const hs = [...document.querySelectorAll('[data-lh-head]')];
       const on = hs.filter(e => e.dataset.lhMod);
@@ -185,7 +190,7 @@ async function main() {
         x.scrollIntoView({ block: 'center' });
         x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
       }, flno);
-      await page.waitForTimeout(9000);
+      await panelReady(page, { timeout: 15000 });
       return page.evaluate(() => {
         const q = [...document.body.children].find(n => {
           const c = String(n.className || '').split(' ');
@@ -229,7 +234,7 @@ async function main() {
         x.scrollIntoView({ block: 'center' });
         x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
       }, flno);
-      await page.waitForTimeout(9000);
+      await panelReady(page, { timeout: 15000 });
       return page.evaluate(() => {
         const q = [...document.body.children].find(n => {
           const c = String(n.className || '').split(' ');
@@ -250,13 +255,13 @@ async function main() {
         }
       });
       try { await cdp.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
-      await page.waitForTimeout(5500);
+      await injected(page, { timeout: 20000 });
       await page.evaluate(() => {
         const x = [...document.querySelectorAll('[data-flno]')].find(e => e.dataset.flno === '77-1');
         x.scrollIntoView({ block: 'center' });
         x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
       });
-      await page.waitForTimeout(7000);
+      await panelReady(page, { timeout: 15000 });
       const vis = () => page.evaluate(() => {
         const q = [...document.body.children].find(n => {
           const c = String(n.className || '').split(' ');
@@ -357,7 +362,10 @@ async function main() {
       document.querySelector('.law-reg-content').prepend(d);
     });
     try { await cdp.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
-    await page.waitForTimeout(1200);
+    /* 這裡頁面上早就有標記，用 injected() 會立刻返回而測到重新掃描前的狀態。
+     * 要等的是新注入那段公文裡的釋字被標記出來。 */
+    await until(page, () => document.querySelectorAll('[data-ex]').length >= 2,
+                null, { timeout: 20000 });
 
     const exm = await page.evaluate(() => [...document.querySelectorAll('[data-ex]')]
       .map(x => ({ t: x.textContent, ex: x.dataset.ex, no: x.dataset.exno, y: x.dataset.exyear })));
@@ -370,7 +378,7 @@ async function main() {
         x.scrollIntoView({ block: 'center' });
         x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
       }, [kind, no]);
-      await page.waitForTimeout(9000);
+      await panelReady(page, { timeout: 15000 });
       return page.evaluate(() => {
         const q = [...document.body.children].find(n => {
           const c = String(n.className || '').split(' ');
@@ -447,7 +455,7 @@ async function main() {
       x.scrollIntoView({ block: 'center' });
       x.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
     });
-    await page.waitForTimeout(6500);
+    await panelReady(page, { timeout: 15000 });
     const links = await page.evaluate(() => {
       const q = [...document.body.children].find(n => {
         const c = String(n.className || '').split(' ');
@@ -509,7 +517,7 @@ async function main() {
       await pg.goto(t.u, { waitUntil: 'domcontentloaded', timeout: 30000 });
       const c2 = await pg.context().newCDPSession(pg);
       try { await c2.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
-      await pg.waitForTimeout(1500);
+      await injected(pg, { timeout: 20000 });
       const r = await pg.evaluate(() => ({
         marks: document.querySelectorAll('[data-flno]').length,
         csp: window.__csp.length, err: window.__err.length,
