@@ -101,6 +101,31 @@ ok('建議能裝擴充功能者也試試引線',
  * 「全台 22 縣市的法規系統都接了」，那會是不實比較。 */
 ok('未謊稱引線不支援地方法規',
    !text.includes('引線沒有的手機支援與地方法規'));
+/* 中文排版：襯線體只用於大標題。
+ * 中文襯線體在 17px 以下，細襯線與筆鋒在一般解析度螢幕上會糊；
+ * -webkit-font-smoothing:antialiased 也會讓中文筆畫變細而發虛
+ *（那是為西文設計的）。這兩點使用者實際回報過「字體有點糊」。 */
+// 註解裡會提到這個屬性名（說明為何不用），比對前要先剝除註解。
+const cssNoComment = html.replace(/\/\*[\s\S]*?\*\//g, '');
+ok('不對中文啟用 antialiased 平滑',
+   !/-webkit-font-smoothing\s*:\s*antialiased/.test(cssNoComment));
+{
+  const serifRules = (cssNoComment.match(/[^{}]*\{[^{}]*font-family:var\(--serif\)[^{}]*\}/g) || []);
+  const smallSerif = serifRules.filter(r => {
+    const m = /font-size:\s*([\d.]+)(px|rem)/.exec(r);
+    if (!m) return false;
+    const px = m[2] === 'rem' ? parseFloat(m[1]) * 16 : parseFloat(m[1]);
+    return px < 17;
+  });
+  ok('小於 17px 的文字不使用襯線體', smallSerif.length === 0,
+     smallSerif.join(' | ').slice(0, 160));
+}
+
+/* 回報的語氣：說明重要性即可，不用命令句要求使用者。 */
+ok('回報段落不使用命令語氣', !text.includes('請務必回報'));
+ok('回報段落改為邀請語氣',
+   text.includes('順手回報') && text.includes('幫助更多人'));
+
 // 致謝置頂並附上原作者的支持連結
 ok('致謝區塊在頁面最前面',
    html.indexOf('class="thanks"') > 0 &&
