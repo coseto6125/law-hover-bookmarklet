@@ -5,7 +5,8 @@ const { JSDOM } = require('jsdom');
 
 const root = path.join(__dirname, '..');
 const F = f => fs.readFileSync(path.join(root, 'test/fixtures', f), 'utf8');
-const code = fs.readFileSync(path.join(root, 'src/lawhover.js'), 'utf8');
+// 用建置時同一份注入邏輯，確保測到的就是實際出貨的程式碼。
+const code = require('../build/source').loadSource().code;
 
 let pass = 0, fail = 0;
 const ok = (name, cond, extra) => {
@@ -558,6 +559,39 @@ async function run() {
   /* codex 第三輪 review：法規名的左邊界被前文吃掉。
    * 純字元規則會把「兒童及少年性剝削防制條例」的「兒童及」誤判為句子連接詞而切掉，
    * 也窮舉不完「承租人違反」這類動詞前綴，故改以已知法規名字典做最長後綴匹配。 */
+  /* 不支援的網站上，書籤必須只顯示提示就結束：不掃描、不標記、不連線。
+   * 掃描非法規網站沒有意義（取不到條文），還會平白改動別人的頁面。 */
+  console.log('\n\x1b[1m不支援的網站只提示、不掃描\x1b[0m');
+  for (const site of ['https://www.google.com/search?q=%E5%BB%BA%E7%AF%89%E6%B3%95',
+                      'https://zh.wikipedia.org/wiki/建築法',
+                      'https://example.com/doc.html']) {
+    const d = new JSDOM(
+      '<body><p>依建築法第77條之2規定，及民法第184條、刑法第10條</p></body>',
+      { url: site, runScripts: 'outside-only', pretendToBeVisual: true });
+    let calls = 0;
+    d.window.fetch = () => { calls++; return Promise.resolve(
+      { ok: false, status: 404, text: () => Promise.resolve('') }); };
+    d.window.eval(code);
+    const host = new d.window.URL(site).hostname;
+    const marked = d.window.document.querySelectorAll('[data-flno],[data-ex],[data-lh-head]').length;
+    ok(host + ' 不標記任何引用', marked === 0, '標記 ' + marked + ' 處');
+    ok(host + ' 不發出任何連線', calls === 0, '連線 ' + calls + ' 次');
+    ok(host + ' 顯示不支援提示',
+       d.window.document.body.textContent.includes('本工具僅在法規網站上運作'));
+  }
+
+  /* 提示要如實列出支援範圍，否則其他縣市的使用者會誤以為自己的縣市不能用。 */
+  {
+    const d = new JSDOM('<body><p>建築法第7條</p></body>',
+      { url: 'https://example.com/', runScripts: 'outside-only', pretendToBeVisual: true });
+    d.window.fetch = () => Promise.resolve(
+      { ok: false, status: 404, text: () => Promise.resolve('') });
+    d.window.eval(code);
+    const t = d.window.document.body.textContent;
+    ok('提示涵蓋地方法規而非只講臺北市',
+       t.includes('22 縣市'), t.match(/目前支援：[^]{0,50}/) || '');
+  }
+
   console.log('\n\x1b[1m法規名左邊界（字典）\x1b[0m');
   {
     const cut = [

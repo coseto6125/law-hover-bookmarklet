@@ -1,6 +1,7 @@
 /* 隨機抽查：跨站台、跨法規，確認條文與沿革都顯示正確版本
  * 使用者要求：抽查法規、法條、沿革條目是否正常顯示、版本是否正確 */
 const fs = require('fs');
+const { panelReady, injected } = require('./wait');
 const path = require('path');
 const root = path.join(__dirname, '..');
 const url = fs.readFileSync(path.join(root, 'dist/lawhover.bookmarklet.txt'), 'utf8');
@@ -47,7 +48,8 @@ async function main() {
       await page.goto(sp.url, { waitUntil: 'domcontentloaded', timeout: 35000 });
       const cdp = await ctx.newCDPSession(page);
       try { await cdp.send('Page.navigate', { url }); } catch (e) {}
-      await page.waitForTimeout(5000);
+      // 等注入完成即可，不必固定等 5 秒
+      await injected(page, { timeout: 20000 });
 
       const base = await page.evaluate(() => ({
         marks: document.querySelectorAll('[data-flno],[data-ex]').length,
@@ -85,7 +87,7 @@ async function main() {
           h.scrollIntoView({ block: 'center' });
           h.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
         }, flno);
-        await page.waitForTimeout(7000);
+        await panelReady(page, { timeout: 15000 });
         const panel = await page.evaluate(() => {
           const q = [...document.body.children].find(n => {
             const c = String(n.className || '').split(' ');
@@ -117,7 +119,7 @@ async function main() {
             e.scrollIntoView({ block: 'center' });
             e.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
           }, cite);
-          await page.waitForTimeout(7000);
+          await panelReady(page, { timeout: 15000 });
           const p2 = await page.evaluate(() => {
             const q = [...document.body.children].find(n => {
               const c = String(n.className || '').split(' ');

@@ -9,7 +9,8 @@ const path = require('path');
 const { JSDOM } = require('jsdom');
 
 const root = path.join(__dirname, '..');
-const src = fs.readFileSync(path.join(root, 'src/lawhover.js'), 'utf8');
+// 用建置時同一份注入邏輯，確保測到的就是實際出貨的程式碼。
+const src = require('../build/source').loadSource().code;
 const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120' };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -78,6 +79,14 @@ function makeEnv() {
   return w;
 }
 
+// 目前顯示中的面板（未隱藏的那一個）
+function curPanel(w) {
+  return [...w.document.body.children].find(n => {
+    const c = String(n.className || '').split(' ');
+    return /^lh-[a-z0-9]+-p$/.test(c[0] || '') && !c.some(x => /-hide$/.test(x));
+  });
+}
+
 // 從腳本內部取出 findPcode：透過觸發 hover 走完整路徑
 async function resolve(w, name) {
   const p = w.document.createElement('p');
@@ -90,12 +99,31 @@ async function resolve(w, name) {
   const seen = [];
   const orig = w.fetch;
   w.fetch = u => { seen.push(String(u)); return orig(u); };
-  mark.dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
-  await sleep(9000);
-  const panel = [...w.document.body.children].find(n => {
-    const c = String(n.className || '').split(' ');
-    return /^lh-[a-z0-9]+-p$/.test(c[0] || '') && !c.some(x => /-hide$/.test(x));
-  });
+  /* 每輪都要還原 fetch，否則層層包裹會越疊越深，
+   * 而且舊 closure 仍會把請求推進上一輪的陣列。 */
+  try {
+    mark.dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
+    /* 等到這一輪真的送出取條文請求為止，而不是固定睡 9 秒。
+     * 原本固定等待，遇到官網較慢時這一輪還沒送出請求就先判定，
+     * 會撿到上一輪殘留的面板與 pcode（實測「都市計畫法臺灣省施行細則」
+     * 取到前一項「個人資料保護法」的代碼）。 */
+    const deadline = Date.now() + 15000;
+    while (Date.now() < deadline && !seen.some(u => /LawSingle/.test(u))) {
+      await sleep(200);
+    }
+    /* 等面板真的填入條文，而不是固定睡一段時間。
+     * 對外請求有 1.2 秒節流，取一條文要先搜尋再取文，
+     * 固定等待會停在「查詢中…」而誤判為失敗。 */
+    const render = Date.now() + 12000;
+    while (Date.now() < render) {
+      const p = curPanel(w);
+      if (p && !/查詢中/.test(p.textContent)) break;
+      await sleep(200);
+    }
+  } finally {
+    w.fetch = orig;
+  }
+  const panel = curPanel(w);
   const article = seen.find(u => /LawSingle/.test(u));
   const m = article && /pcode=([A-Z0-9]+)/i.exec(article);
   return {
@@ -110,26 +138,26 @@ async function main() {
   catch (e) { console.log('\x1b[33m略過：無法連線（' + e.message + '）\x1b[0m'); process.exit(0); }
 
   console.log('\n\x1b[1m法規名稱 → pcode（線上實測 ' + CASES.length + ' 部）\x1b[0m');
-  const w = makeEnv();
+  /* 每個案例都用全新環境：書籤內部有條文快取與請求去重（once），
+   * 共用同一個 window 時後續案例不會再發請求，測到的就不是真實路徑，
+   * 面板也會殘留上一輪的內容而讓結果整體錯位一格。 */
   for (const c of CASES) {
-    const r = await resolve(w, c.name);
+    const r = await resolve(makeEnv(), c.name);
     const good = r.pcode === c.pcode;
     ok(c.name.padEnd(16) + ' → ' + c.pcode + '  (' + c.note + ')', good,
        r.err || ('實得 ' + r.pcode + '；面板：' + String(r.text).slice(0, 50)));
   }
 
   console.log('\n\x1b[1m取回的條文確實屬於該法規\x1b[0m');
-  const w2 = makeEnv();
   for (const c of [CASES[4], CASES[12], CASES[3]]) {   // 刑法、細則、民法
-    const r = await resolve(w2, c.name);
+    const r = await resolve(makeEnv(), c.name);
     const hasContent = r.text && !r.text.includes('查不到') && r.text.length > 30;
     ok(c.name + ' 取回真實條文', hasContent, String(r.text).slice(0, 70));
   }
 
   console.log('\n\x1b[1m查不到時不得誤配（查不到比查錯安全）\x1b[0m');
-  const w3 = makeEnv();
   for (const c of MUST_FAIL) {
-    const r = await resolve(w3, c.name);
+    const r = await resolve(makeEnv(), c.name);
     ok('「' + c.name + '」不應解析出任何 pcode（' + c.why + '）',
        !r.pcode, '誤配到 ' + r.pcode);
   }

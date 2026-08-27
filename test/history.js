@@ -10,7 +10,8 @@
 const UA={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120'};
 const {JSDOM}=require('jsdom');
 const fs=require('fs');
-const code=fs.readFileSync('src/lawhover.js','utf8');
+// 用建置時同一份注入邏輯，確保測到的就是實際出貨的程式碼。
+const code = require('../build/source').loadSource().code;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 
 const LAWS=[

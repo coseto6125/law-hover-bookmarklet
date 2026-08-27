@@ -5,7 +5,10 @@ const path = require('path');
 const zlib = require('zlib');
 const root = path.join(__dirname, '..');
 
-let code = fs.readFileSync(path.join(root, 'src/lawhover.js'), 'utf8');
+const { loadSource } = require('./source');
+const loaded = loadSource();
+let code = loaded.code;
+console.log('內嵌法規名字典：' + loaded.names.length + ' 部');
 
 /* 壓縮。書籤網址有長度上限（Chrome 約 64KB），必須確實壓到夠小，
  * 否則新增功能時會無聲地被截斷。優先用 terser，失敗則退回保守做法。 */

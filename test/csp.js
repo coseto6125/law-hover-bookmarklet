@@ -9,7 +9,8 @@ const path = require('path');
 const { JSDOM } = require('jsdom');
 
 const root = path.join(__dirname, '..');
-const src = fs.readFileSync(path.join(root, 'src/lawhover.js'), 'utf8');
+// 用建置時同一份注入邏輯，確保測到的就是實際出貨的程式碼。
+const src = require('../build/source').loadSource().code;
 
 let pass = 0, fail = 0;
 const ok = (n, c, e) => {

@@ -5,12 +5,13 @@
   "private": false,
   "scripts": {
     "build": "node build/build.js",
-    "test": "npm run build && node test/static.js && node test/run.js && node test/csp.js && node test/dist.js",
+    "test": "npm run build && node test/static.js && node test/lawnames.js && node test/run.js && node test/csp.js && node test/dist.js",
     "test:live": "npm run build && node test/live.js",
     "test:browser": "npm run build && node test/browser.js",
     "test:all": "npm test && npm run test:guide && npm run test:mobile && npm run test:live && npm run test:pcode && npm run test:history && npm run test:browser",
     "test:pcode": "npm run build && node test/pcode.js",
     "deploy": "./deploy.sh",
+    "test:names": "node test/lawnames.js",
     "test:history": "node test/history.js",
     "test:guide": "npm run build && node test/guide.js",
     "test:mobile": "npm run build && node test/mobile.js"
