@@ -555,6 +555,34 @@ async function run() {
     ok('重試次數有上限（不無限重試）', n === 3, '請求數 ' + n);
   }
 
+  /* codex 第三輪 review：法規名的左邊界被前文吃掉。
+   * 純字元規則會把「兒童及少年性剝削防制條例」的「兒童及」誤判為句子連接詞而切掉，
+   * 也窮舉不完「承租人違反」這類動詞前綴，故改以已知法規名字典做最長後綴匹配。 */
+  console.log('\n\x1b[1m法規名左邊界（字典）\x1b[0m');
+  {
+    const cut = [
+      ['違反兒童及少年性剝削防制條例第三十一條之罪', '兒童及少年性剝削防制條例'],
+      ['但應受民事訴訟法第四百六十六條之限制', '民事訴訟法'],
+      ['承租人違反民法第四百四十三條之規定', '民法'],
+      ['不得行使民法第四百四十五條之權利', '民法'],
+      ['依家庭暴力防治法第十四條規定', '家庭暴力防治法'],
+      ['觸犯毒品危害防制條例第四條之罪', '毒品危害防制條例']
+    ];
+    for (const [text, want] of cut) {
+      const d = new JSDOM(
+        `<body><h2 id="hlLawName">刑事訴訟法</h2><p>${text}</p></body>`,
+        { url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=C0010001',
+          runScripts: 'outside-only', pretendToBeVisual: true });
+      d.window.fetch = () => Promise.resolve(
+        { ok: false, status: 404, text: () => Promise.resolve('') });
+      d.window.eval(code);
+      const got = [...d.window.document.querySelectorAll('[data-flno]')]
+        .map(x => x.dataset.name);
+      ok('「' + text.slice(0, 12) + '…」→ ' + want,
+         got.indexOf(want) >= 0, got.join('/') || '（無）');
+    }
+  }
+
   console.log('\n\x1b[1m快取\x1b[0m');
   const before = calls.length;
   m3.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));

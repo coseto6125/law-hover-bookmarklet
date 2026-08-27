@@ -1,6 +1,6 @@
 {
   "name": "law-hover-bookmarklet",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "零安裝的書籤工具：在全國法規資料庫頁面上滑過法條引用即顯示條文，不需擴充功能、不需伺服器",
   "private": false,
   "scripts": {

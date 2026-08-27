@@ -40,11 +40,58 @@ function panelText(window) {
 }
 
 async function loadPage(url) {
-  const html = await globalThis.fetch(url, { headers: UA }).then(r => r.text());
+  /* law.moj.gov.tw 偶發 ETIMEDOUT（IPv6 連線嘗試逾時），單次失敗會讓整支測試
+   * 誤報為程式錯誤。重試三次以區分「真的壞了」與「網路抖一下」。 */
+  let html = null, lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      html = await globalThis.fetch(url, { headers: UA }).then(r => r.text());
+      break;
+    } catch (e) {
+      lastErr = e;
+      await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+    }
+  }
+  if (html === null) throw lastErr;
+  /* 維持 outside-only：dangerously 會連站台自己的 jQuery 等腳本一起跑，
+   * 在 jsdom 下大量報錯而淹沒測試結果。 */
   const dom = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
+  /* jsdom 沒有 DecompressionStream，載入器會判定環境不支援而 alert 後中止，
+   * 整支測試因此測不到任何東西。補上 Node 內建的 zlib 版本讓解壓路徑照常運作。 */
+  if (!dom.window.DecompressionStream) {
+    const { DecompressionStream } = require('node:stream/web');
+    dom.window.DecompressionStream = DecompressionStream;
+  }
+  // 載入器同樣用到 Response 來串接解壓；jsdom 也沒有。
+  if (!dom.window.Response) dom.window.Response = globalThis.Response;
+  // jsdom 的 Blob 沒有 stream()，載入器靠它接上 DecompressionStream。
+  dom.window.Blob = globalThis.Blob;
+  /* 載入器解壓後是用 appendChild 插入 inline script 來執行本體，
+   * 而 outside-only 不會執行任何 script 元素。攔下這一次插入並自行 eval，
+   * 就能只跑我們的程式、不跑站台的腳本。 */
+  const head = dom.window.document.head;
+  const origAppend = head.appendChild.bind(head);
+  let ranBody = null;
+  const bodyRan = new Promise(resolve => { ranBody = resolve; });
+  head.appendChild = function (node) {
+    if (node && node.tagName === 'SCRIPT' && node.textContent) {
+      dom.window.eval(node.textContent);
+      ranBody();
+      return node;
+    }
+    return origAppend(node);
+  };
+  if (!dom.window.TextDecoder) dom.window.TextDecoder = globalThis.TextDecoder;
   const log = [];
   attachRealFetch(dom.window, log);
   dom.window.eval(decoded);
+  /* 解壓是非同步的，eval(decoded) 只是啟動它。要等本體真的執行完才能
+   * 檢查標記，否則永遠讀到 0 個。逾時就明講，不要假性通過。 */
+  await Promise.race([
+    bodyRan,
+    new Promise((_, rej) =>
+      setTimeout(() => rej(new Error('書籤本體 5 秒內未執行')), 5000))
+  ]);
   return { window: dom.window, log };
 }
 
@@ -57,7 +104,11 @@ async function main() {
   const a = await loadPage('https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109');
   const marksA = [...a.window.document.querySelectorAll('[data-flno]')];
   ok('標記大量交叉引用', marksA.length >= 70, '標記 ' + marksA.length + ' 處');
-  ok('注入後尚未發出任何請求', a.log.length === 0, '請求數 ' + a.log.length);
+  /* 啟動時唯一允許的請求是本頁法規的沿革：paintHeads() 用它替條號標題上色
+   * （修正過標黃）。條文一律等滑過才取，不預先抓。 */
+  ok('注入後只取本頁沿革，未預取任何條文',
+     a.log.every(u => u.includes('LawHistory.aspx?pcode=D0070109')),
+     '請求：' + (a.log.join(', ') || '（無）'));
 
   const m3 = marksA.find(m => m.dataset.flno === '3' && m.dataset.pcode);
   await hover(a.window, m3);
@@ -67,7 +118,9 @@ async function main() {
   // 允許重試造成的額外請求，但必須全部指向同一端點（未觸發搜尋）
   ok('免經搜尋（所有請求皆為取條文，無搜尋請求）',
      a.log.length >= 1 && !a.log.some(u => /LawSearchResult/.test(u)), a.log.join(' | '));
-  ok('請求確實指向該法規 pcode', a.log[0] && a.log[0].includes('pcode=D0070109&flno=3'), a.log[0]);
+  // 條文請求排在啟動的沿革請求之後，故以「有沒有」判斷而非取第一筆。
+  ok('請求確實指向該法規 pcode',
+     a.log.some(u => u.includes('pcode=D0070109&flno=3')), a.log.join(', '));
 
   /* --- 情境二：跨法規具名引用（需搜尋 pcode） --- */
   console.log('\n\x1b[1m情境二 · 跨法規具名引用（土地法）\x1b[0m');

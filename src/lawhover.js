@@ -137,10 +137,42 @@
       },
       articleUrl: function (id) { return glrsBase + '/LawContent.aspx?id=' + id; },
       searchUrl: function (name) { return glrsBase + '/SearchAllResultList.aspx?KW=' + ENC(name); },
-      historyUrl: function (id) { return glrsBase + '/LawContentHistoryList.aspx?id=' + id; },
+      /* 沿革要用 LawContentSource；LawContentHistoryList 是「歷史版本清單」，
+       * 沒有「N. 中華民國…修正第 X 條」的沿革條目，會誤判為「未修正」
+       * （codex review 實測臺東 FL023844）。 */
+      historyUrl: function (id) { return glrsBase + '/LawContentSource.aspx?id=' + id; },
       wholePage: true
     });
   }
+
+  /* 新北市自成一套系統（FLAWDAT 系列），不屬於 GLRS 共用系統。
+   * 其名稱搜尋需 POST + VIEWSTATE，無法用 GET 組出，
+   * 故只支援本頁條文與裸條號；外部法規引用會顯示「查不到」而非猜測
+   *（查不到比查錯安全）。 */
+  SITES.push({
+    id: 'ntpc',
+    name: '新北市電子法規查詢系統',
+    match: /(^|\.)web\.law\.ntpc\.gov\.tw$/,
+    headSel: 'td.col-th',
+    selfLaw: function () {
+      var m = /[?&]fcode=([A-Za-z0-9]+)/i.exec(location.search);
+      if (!m) return null;
+      var t = document.title.split(/[-|]/);
+      var nm = '';
+      // 條文頁的標題是「條文內容」，法規名要從頁面內文找
+      var el = document.querySelector('#ctl00_cph_content_lblFname, .law-name, h2, h3');
+      if (el) nm = el.textContent.trim();
+      if (!nm || nm === '條文內容') nm = t[t.length - 1].trim() || '本法規';
+      return { id: m[1], name: nm };
+    },
+    articleUrl: function (id) {
+      return HOST + '/Scripts/FLAWDAT0202.aspx?fcode=' + id;
+    },
+    // 搜尋需 POST，無法支援；回傳 null 讓外部法規明確查不到
+    searchUrl: function () { return null; },
+    historyUrl: function (id) { return HOST + '/Scripts/FLAWDAT01.aspx?lncode=1' + id; },
+    wholePage: true
+  });
 
   var SITE = (function () {
     for (var i = 0; i < SITES.length; i++) {
@@ -284,7 +316,46 @@
   var HARD_EDGE = new RegExp(
     '(?:第\\s*' + NUM + '\\s*[條項款目]|[、，,；;。．：:（）()「」『』《》〈〉\\s]|' +
     '及|或|與|暨|準用|適用|規定|所稱|依據|依照|按照|依|按)', 'g');
+  /* 常見法規的完整名稱。
+   * 字元邊界規則無法區分「及／與」是句子連接詞還是法規名的一部分
+   *（「兒童及少年性剝削防制條例」會被切成「少年性剝削防制條例」），
+   * 也無法窮舉所有動詞（「承租人違反民法」）。
+   * 以字典做最長後綴匹配可同時解決兩者，字典外的名稱再用字元規則。 */
+  var KNOWN = ('中華民國憲法增修條文|中華民國憲法|中華民國刑法|中華民國刑法施行法|' +
+    '兒童及少年性剝削防制條例|兒童及少年福利與權益保障法|兒童及少年性交易防制條例|' +
+    '家庭暴力防治法|性侵害犯罪防治法|人口販運防制法|毒品危害防制條例|' +
+    '民事訴訟法|刑事訴訟法|行政訴訟法|行政程序法|行政執行法|訴願法|' +
+    '民法總則施行法|民法親屬編施行法|民法繼承編施行法|民法債編施行法|民法物權編施行法|' +
+    '民法|刑法|憲法|商標法|專利法|漁業法|礦業法|水利法|森林法|農業發展條例|' +
+    '公司法|證券交易法|企業併購法|商業登記法|票據法|海商法|保險法|' +
+    '勞動基準法|勞工保險條例|職業安全衛生法|性別平等工作法|勞資爭議處理法|' +
+    '土地法|土地徵收條例|平均地權條例|都市計畫法|區域計畫法|國土計畫法|' +
+    '建築法|公寓大廈管理條例|都市更新條例|水土保持法|環境影響評估法|' +
+    '所得稅法|加值型及非加值型營業稅法|稅捐稽徵法|遺產及贈與稅法|房屋稅條例|' +
+    '政府採購法|預算法|決算法|會計法|審計法|公職人員利益衝突迴避法|' +
+    '個人資料保護法|消費者保護法|公平交易法|著作權法|專利法|商標法|' +
+    '地方制度法|公務人員任用法|公務人員考績法|公務員服務法|' +
+    '中央法規標準法|國家賠償法|政府資訊公開法|檔案法|' +
+    '道路交通管理處罰條例|消防法|警察職權行使法|社會秩序維護法|' +
+    '醫療法|藥事法|全民健康保險法|傳染病防治法|食品安全衛生管理法|' +
+    '教育基本法|大學法|高級中等教育法|國民教育法|私立學校法|' +
+    '陸海空軍刑法|軍事審判法|國家安全法|入出國及移民法|' +
+    '臺灣地區與大陸地區人民關係條例|香港澳門關係條例').split('|');
+
+  /* 先以已知法規名做最長後綴匹配；命中即為明確的左邊界。 */
+  function matchKnown(raw) {
+    var best = '';
+    for (var i = 0; i < KNOWN.length; i++) {
+      var k = KNOWN[i];
+      if (k.length > best.length && raw.length >= k.length &&
+          raw.slice(-k.length) === k) best = k;
+    }
+    return best;
+  }
+
   function cutLeft(raw) {
+    var known = matchKnown(raw);
+    if (known) return known;
     var last = 0, m;
     HARD_EDGE.lastIndex = 0;
     while ((m = HARD_EDGE.exec(raw)) !== null) {
@@ -409,6 +480,7 @@
       return Promise.resolve(self[1]);
     }
     var url = SITE.searchUrl(name);
+    if (!url) return Promise.reject(new Error('本站不支援跨法規查詢，請於該法規頁面使用'));
     return fetchDoc(url).then(function (doc) {
       var rows = doc.querySelectorAll(SITE.resultSel || 'a[href*="pcode="]');
       var best = null, bestScore = 0;
@@ -618,12 +690,12 @@
     var want = String(flno);
 
     // table 模式
-    var rows = doc.querySelectorAll('#ctl00_cp_content_tableLawArticleBasic tr, .row');
+    var rows = doc.querySelectorAll('#ctl00_cp_content_tableLawArticleBasic tr, .row, tr');
     for (var i = 0; i < rows.length; i++) {
-      var no = rows[i].querySelector('td.th[scope="row"], .col-no');
+      var no = rows[i].querySelector('td.th[scope="row"], .col-no, td.col-th');
       if (!no) continue;
       if (normFlno(no.textContent) !== want) continue;
-      var data = rows[i].querySelector('td:nth-child(2) .ClearCss, .col-data, td:nth-child(2)');
+      var data = rows[i].querySelector('td:nth-child(2) .ClearCss, .col-data, td.col-td pre, td.col-td, td:nth-child(2)');
       if (!data) continue;
       return { title: no.textContent.trim(), lines: splitLines(data) };
     }
@@ -758,7 +830,10 @@
     '.' + CLS.mark + '{border-bottom:1.5px dotted #c0392b;cursor:help;background:rgba(192,57,43,.06)}',
     /* 用 fixed 而非 absolute：absolute 需換算 scrollY，頁面一捲動座標就過時，
      * 導致面板跑出畫面上緣（實測小視窗會發生）。fixed 直接對應可視範圍。 */
+    /* box-sizing:border-box：max-height 限制的必須是含 padding 與 border 的總高，
+     * 否則面板實際高度會超出計算值而跑出畫面（codex review 實測超出 22px）。 */
     '.' + CLS.panel + '{position:fixed;top:0;left:0;z-index:2147483647;max-width:520px;' +
+      'box-sizing:border-box;' +
       'max-height:calc(100vh - 24px);overflow:auto;overscroll-behavior:contain;' +
       '-webkit-overflow-scrolling:touch;background:#fff;border:1px solid #c8ccd4;border-radius:8px;' +
       'box-shadow:0 8px 28px rgba(0,0,0,.18);padding:14px 16px;text-align:left;color:#1a1a1a;' +
@@ -981,7 +1056,8 @@
     /* 高度上限依定位後的可用空間決定。
      * 靜態的 max-height:100vh 在 top 有偏移時仍會超出下緣，
      * 使用者看不到面板底部的「複製條文」等連結（實測 80 款的長條文會發生）。 */
-    setPanelPos(top, left, Math.max(120, vh - top - EDGE));
+    // 高度上限不設下限，視窗再小也不能超出；至少留 40px 讓使用者看得到內容
+    setPanelPos(top, left, Math.max(40, vh - top - EDGE));
   }
 
   /* 連結建構器。原本 12 處都在重複 el + href + target + rel + click 這組樣板，
