@@ -265,6 +265,61 @@ async function run() {
        /第 5 條/.test(txt) && !/第 3 條/.test(txt), txt.slice(0, 45));
   }
 
+  console.log('\n\x1b[1m多組別名與跨段落前指（第三輪 review 的 critical）\x1b[0m');
+  {
+    const mk = (law, pc, html) => {
+      const d = new JSDOM('<body><h2 id="hlLawName">' + law + '</h2>' + html + '</body>',
+        { url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=' + pc,
+          runScripts: 'outside-only', pretendToBeVisual: true });
+      d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+      d.window.eval(code);
+      return [...d.window.document.querySelectorAll('[data-flno]')];
+    };
+
+    /* 同一部法規可定義多組別名，只記第一組會讓「本條例」也指向「本法」的法規。
+     * 各類所得扣繳率標準同時定義所得稅法與臺灣地區與大陸地區人民關係條例。 */
+    let ms = mk('各類所得扣繳率標準', 'G0340028',
+      '<p>本標準依所得稅法（以下簡稱本法）第八十八條規定訂定之。</p>' +
+      '<p>臺灣地區與大陸地區人民關係條例（以下簡稱本條例）另有規定。</p>' +
+      '<p>依本條例第二十五條規定辦理。</p>');
+    const be = ms.find(m => m.textContent.indexOf('本條例') >= 0);
+    ok('多組別名時「本條例」指向正確的法規',
+       be && be.dataset.name === '臺灣地區與大陸地區人民關係條例',
+       be ? be.dataset.name : '未辨識');
+    ok('法規名內部的「與」不被當成邊界切開',
+       be && be.dataset.name.indexOf('臺灣地區') === 0, be && be.dataset.name);
+
+    /* 定義了「本法」之後，其他自指詞（本辦法）仍應指本頁法規 */
+    ms = mk('國家安全情報工作統合辦法', 'A0010029',
+      '<p>本辦法依國家安全局組織法（以下簡稱本法）第二條規定訂定之。</p>' +
+      '<p>本辦法第二條所稱情報機關如下。</p>');
+    const bb = ms.find(m => m.textContent.indexOf('本辦法') >= 0);
+    ok('未定義別名的自指詞仍指本頁法規',
+       bb && bb.dataset.name === '國家安全情報工作統合辦法' && !!bb.dataset.pcode,
+       bb ? bb.dataset.name : '未辨識');
+
+    /* 前指詞的先行詞在前一個段落（不同文字節點）時，
+     * 原本會回退成本頁法規，顯示錯誤條文 */
+    ms = mk('公務人員任用法', 'S0020001',
+      '<div class="line-0000">技術人員任用條例（以下簡稱該條例）於中華民國七十五年廢止。</div>' +
+      '<div class="line-0004">原依該條例第五條第一項規定進用之人員。</div>');
+    const ce = ms.find(m => m.textContent.indexOf('該條例') >= 0);
+    ok('跨段落的前指詞不被誤綁本頁法規',
+       ce && ce.dataset.name === '技術人員任用條例' && !ce.dataset.pcode,
+       ce ? ce.dataset.name + (ce.dataset.pcode ? '[本頁]' : '') : '未辨識');
+
+    /* 子法定義「以下簡稱本法」時，本法指母法 */
+    ms = mk('公教人員保險法施行細則', 'S0070002',
+      '<p>本細則依公教人員保險法（以下簡稱本法）第五條規定訂定之。</p>' +
+      '<p>承保機關每年應依照本法第五條第二項辦理。</p>');
+    const bf = ms.find(m => m.textContent.indexOf('本法') >= 0);
+    ok('「以下簡稱本法」時本法指母法',
+       bf && bf.dataset.name === '公教人員保險法' && !bf.dataset.pcode,
+       bf ? bf.dataset.name : '未辨識');
+    ok('別名不被公文前綴污染', bf && bf.dataset.name.indexOf('本細則') < 0,
+       bf && bf.dataset.name);
+  }
+
   console.log('\n\x1b[1m兩字法規名（fable 以 8574 個真實段落找到的高危）\x1b[0m');
   {
     /* SUFFIX 含單字元的「法」，若要求名稱前段至少 2 字，

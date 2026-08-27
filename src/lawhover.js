@@ -204,29 +204,46 @@
                     '本準則', '本通則'];
   var ANAPHORA = ['同法', '同條例', '同規則', '同辦法', '該法', '該條例', '該規則', '該辦法'];
 
-  /* 施行細則等子法會寫「○○法（以下簡稱本法）」，此時「本法」指母法而非本頁。
-   * 從頁面文字找出這個定義，找不到才視為指向本頁。 */
-  /* 「本法」的實際指向：子法若定義了「○○法（以下簡稱本法）」就指母法，
-   * 否則指本頁法規。母法需另行搜尋，故不帶 pcode。 */
-  function selfTarget() {
-    var a = selfAlias();
-    return a ? { name: a.name, pcode: null } : { name: SELF.name, pcode: SELF.pcode };
-  }
-
+  /* 自指詞的實際指向。
+   * 子法常定義「○○法（以下簡稱本法）」，此時「本法」指母法而非本頁。
+   * 同一部法規可能定義多組別名（如所得稅法與臺灣地區與大陸地區人民關係條例），
+   * 因此必須建立「自指詞 → 法規」對照，不能只記第一組
+   * （codex review 實測：只記第一組會讓「本條例」也指向所得稅法）。 */
   var aliasCache;
-  function selfAlias() {
+  function aliasMap() {
     if (aliasCache !== undefined) return aliasCache;
-    aliasCache = null;
-    var txt = (document.body ? document.body.textContent : '').slice(0, 4000);
-    var m = new RegExp('([\\u4e00-\\u9fa5]{2,40}' + SUFFIX + ')\\s*[（(]\\s*以下簡稱\\s*(本[\\u4e00-\\u9fa5]{1,3})\\s*[）)]').exec(txt);
-    if (m) {
-      // 貪婪比對會把前一句吃進來，用與法規名相同的左邊界規則切乾淨
-      var nm = trimName(cutLeft(m[1]));
-      if (nm && nm.length >= 2 && nm !== (SELF && SELF.name) && !SUFFIX_ONLY.test(nm)) {
-        aliasCache = { name: nm, word: m[2] };
+    aliasCache = {};
+    var txt = (document.body ? document.body.textContent : '').slice(0, 8000);
+    // 非貪婪：只取最靠近括號的法規名，避免把前文（含本頁法規名）吃進來
+    var re = new RegExp('([\\u4e00-\\u9fa5]{2,45}?' + SUFFIX +
+      ')\\s*[（(]\\s*(?:以下)?\\s*簡稱\\s*(本[\\u4e00-\\u9fa5]{1,3}|該[\\u4e00-\\u9fa5]{1,3})\\s*[）)]', 'g');
+    var m;
+    while ((m = re.exec(txt)) !== null) {
+      /* 別名定義本身有「（以下簡稱X）」這個明確的右邊界，
+       * 左邊界只需切到句讀，不可用 cutLeft：法規名內部常含「與」「及」
+       * （如「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
+      /* 左邊界：先切句讀，再剝除公文前綴（「本細則依」這類）。
+       * 不可用 cutLeft，法規名內部常含「與」「及」
+       *（「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
+      var nm = trimName(String(m[1]).replace(/^[\s\S]*?[。；;，,：:）)]/, ''));
+      // 頁面標題與內文相連時，法規名前面可能黏著本頁法規名，需剝除
+      if (SELF && SELF.name && nm.indexOf(SELF.name) === 0 && nm.length > SELF.name.length) {
+        nm = nm.slice(SELF.name.length);
       }
+      // 剝除殘留的「本X依」「依」等公文用語
+      nm = nm.replace(/^本[\u4e00-\u9fa5]{1,3}(?:係)?依/, '').replace(/^(?:係)?依(?:據|照)?/, '');
+      if (!nm || nm.length < 2 || SUFFIX_ONLY.test(nm)) continue;
+      if (nm === (SELF && SELF.name)) continue;
+      if (!aliasCache[m[2]]) aliasCache[m[2]] = nm;   // 同一詞以第一個定義為準
     }
     return aliasCache;
+  }
+
+  /* 依實際命中的自指詞決定指向；該詞沒有專屬定義時才回退本頁法規。 */
+  function selfTarget(word) {
+    var a = aliasMap();
+    if (word && a[word]) return { name: a[word], pcode: null };
+    return { name: SELF.name, pcode: SELF.pcode };
   }
   var SELF_PREFIX = '(?:本法|本條例|本規則|本辦法|本標準|本細則|本準則|本通則|同法|同條例|該法)?';
   var RE_SELF = new RegExp(
@@ -1458,8 +1475,20 @@
         }
         return false;
       };
-      var isSelf = endsWith(SELF_WORDS);
-      var isAna = !isSelf && endsWith(ANAPHORA);
+      // 取出實際命中的自指詞，不同的詞可能指向不同法規
+      var hitWord = null;
+      var pickWord = function (list) {
+        for (var i3 = 0; i3 < list.length; i3++) {
+          if (name === list[i3] || rawName === list[i3] ||
+              rawName.slice(-list[i3].length) === list[i3]) return list[i3];
+        }
+        return null;
+      };
+      var selfWord = pickWord(SELF_WORDS);
+      var anaWord = selfWord ? null : pickWord(ANAPHORA);
+      var isSelf = !!selfWord;
+      var isAna = !!anaWord;
+      hitWord = selfWord || anaWord;
       if (isSelf && !SELF) continue;
       /* 剝除前綴後只剩泛稱字尾（如「辦法」「法」）不是有效的法規名，
        * 拿去搜尋會得到隨機的某部法規。查不到比查錯安全，直接放棄。 */
@@ -1488,8 +1517,9 @@
       hits.push({
         start: m.index + drop, end: m.index + m[0].length,
         // 前指詞（同法/該法）指向前文最近的具名引用，於下方 sort 後統一解析
-        name: isAna ? null : (isSelf ? selfTarget().name : name),
-        pcode: isAna ? null : (isSelf ? selfTarget().pcode : null),
+        name: isAna ? null : (isSelf ? selfTarget(selfWord).name : name),
+        pcode: isAna ? null : (isSelf ? selfTarget(selfWord).pcode : null),
+        word: hitWord,
         ana: isAna || false,
         flno: m[4] ? tiao + '-' + cn2num(m[4]) : String(tiao),
         xiang: m[5] ? cn2num(m[5]) : null, kuan: m[6] ? cn2num(m[6]) : null
@@ -1555,8 +1585,14 @@
         if (!hits[aj].ana && !hits[aj].ex) { ref = hits[aj]; break; }
       }
       if (ref) { hits[ai].name = ref.name; hits[ai].pcode = ref.pcode; }
-      else if (SELF) { hits[ai].name = SELF.name; hits[ai].pcode = SELF.pcode; }
-      else { hits[ai].drop = true; }
+      else {
+        // 同段落找不到先行詞時，看該詞是否有別名定義（如「該條例」）
+        var am = aliasMap();
+        if (hits[ai].word && am[hits[ai].word]) {
+          hits[ai].name = am[hits[ai].word]; hits[ai].pcode = null;
+        } else if (SELF) { hits[ai].name = SELF.name; hits[ai].pcode = SELF.pcode; }
+        else { hits[ai].drop = true; }
+      }
     }
     hits = hits.filter(function (h) { return !h.drop && h.name; });
     // 去除重疊
