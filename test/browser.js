@@ -213,8 +213,10 @@ async function main() {
       return [...q.querySelectorAll('a')].filter(a => /立法院查此版/.test(a.textContent))
         .map(a => a.title);
     });
-    // 無法直達該版本（CSP 擋住取得識別碼），故在提示標明日期供對照
-    ok('連結提示標明對應日期', lyTitles.length > 0 && /版本清單中選「.+年.+日」/.test(lyTitles[0]),
+    /* 無法直達該版本：立法院用修正日索引，沿革只有公布日，兩者不能推導
+     * （詳見 test/lylink.js）。因此提示要指出清單裡該找哪一列——
+     * 清單每版是「修正日／公布日」並列，講明公布日使用者就找得到。 */
+    ok('連結提示指出該找哪一列', lyTitles.length > 0 && /找標示「.+年.+日公布」的那一列/.test(lyTitles[0]),
        lyTitles[0] || '無');
     ok('沿革面板有立法院入口', /立法院法律系統/.test(h3));
 

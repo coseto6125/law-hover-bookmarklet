@@ -123,22 +123,27 @@ async function main() {
     const v = await page.evaluate(() => {
       const sec = document.getElementById('changelog');
       if (!sec) return null;
-      const t = sec.textContent;
+      /* 只看最新的那一塊版本紀錄。整個 section 會累積所有歷史版本，
+       * 拿它算條列數會隨版本增加而膨脹，測到的不是單一版的可讀性。 */
+      const latest = sec.querySelector('.ver');
+      if (!latest) return null;
       return {
-        tag: (sec.querySelector('.ver-tag') || {}).textContent,
-        tldr: (sec.querySelector('.ver-tldr') || {}).textContent || '',
-        items: sec.querySelectorAll('.ver-item').length,
+        tag: (latest.querySelector('.ver-tag') || {}).textContent,
+        tldr: (latest.querySelector('.ver-tldr') || {}).textContent || '',
+        items: latest.querySelectorAll('.ver-item').length,
         hasDetails: !!sec.querySelector('details'),
         detailsOpen: sec.querySelector('details') ? sec.querySelector('details').open : null,
         jargon: /Promise|regex|CSP|DOM|API|refactor/i.test(
-          sec.querySelector('.ver-tldr').textContent +
-          [...sec.querySelectorAll('.ver-item')].map(e => e.textContent).join('')),
+          latest.querySelector('.ver-tldr').textContent +
+          [...latest.querySelectorAll('.ver-item')].map(e => e.textContent).join('')),
         remind: /重新拉一次書籤/.test(document.body.textContent),
       };
     });
     ok('版本紀錄存在', !!v);
     if (v) {
-      ok('標明版本 1.0.0', v.tag === '1.0.0', v.tag);
+      /* 對照 package.json，避免每次發版都要改測試。 */
+      const want = require('../package.json').version;
+      ok('標明版本 ' + want, v.tag === want, v.tag);
       // ADHD：先給一句話結論，不必讀完
       ok('開頭有一句話結論', /一句話/.test(v.tldr) && v.tldr.length < 90, v.tldr.slice(0, 50));
       ok('條列可掃視（' + v.items + ' 項）', v.items >= 4 && v.items <= 8, String(v.items));

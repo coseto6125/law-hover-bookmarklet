@@ -1,6 +1,6 @@
 {
   "name": "law-hover-bookmarklet",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "零安裝的書籤工具：在全國法規資料庫頁面上滑過法條引用即顯示條文，不需擴充功能、不需伺服器",
   "private": false,
   "scripts": {
@@ -12,6 +12,7 @@
     "test:pcode": "npm run build && node test/pcode.js",
     "deploy": "./deploy.sh",
     "test:names": "node test/lawnames.js",
+    "test:ly": "node test/lylink.js",
     "test:history": "node test/history.js",
     "test:guide": "npm run build && node test/guide.js",
     "test:mobile": "npm run build && node test/mobile.js"
