@@ -259,15 +259,11 @@
   // 「其施行細則」「同法施行細則」「本法施行細則」：前半是前指詞或自指詞
   var RE_XIZE = /^(.*(?:其|本法|本條例|同法|同條例|該法|該條例))施行細則$/;
 
-  /* 清理別名定義括號前的法規名；不是有效的外部法規名時回傳空字串。
-   * 別名定義本身有「（以下簡稱X）」這個明確的右邊界，
-   * 左邊界：先切句讀，再剝除公文前綴（「本細則依」這類）。
-   * 不可用 cutLeft，法規名內部常含「與」「及」
-   *（「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
-  /* 清理別名定義括號前的文字，取出法規名。
-   * 先切句讀，再剝除公文前綴（「本細則依」這類）；
+  /* 清理別名括號前的文字，取出法規名。括號是明確的右邊界；
+   * 左邊界：先切句讀，再剝除公文前綴（「本細則依」這類）；
    * 句中殘留的「依」（「發電業依電業法」「所屬機關為依電腦處理個人資料保護法」）
-   * 之後才是法規名。官方 11803 部法規名只有 11 部含「依」，且都不會被定義別名。 */
+   * 之後才是法規名。名稱本身含「依」的法規（官方只有十來部）全收在字典裡，
+   * 字典名稱跨過該「依」時取字典名稱。 */
   function cleanLead(raw) {
     /* 「本X依」在 trimName 前後各剝一次。
      * 之前：前綴清單含單字「本」，先跑 trimName 只會剝掉「本」，
@@ -277,7 +273,8 @@
     var nm = String(raw).replace(/^[\s\S]*?[。；;，,：:）)]/, '');
     // 字典裡的完整名稱跨過這個「依」時不切（原住民族依生活慣俗採取森林產物規則）
     var cut = nm.replace(/^[\s\S]*依(?:據|照)?(?=[\u4e00-\u9fa5]{2})/, '');
-    if (matchKnown(nm).length <= cut.length) nm = cut;
+    var known = matchKnown(nm);
+    nm = known.length > cut.length ? known : cut;
     nm = trimName(dropBasis(nm));
     // 頁面標題與內文相連時，法規名前面可能黏著本頁法規名，需剝除
     if (SELF && SELF.name && nm.indexOf(SELF.name) === 0 && nm.length > SELF.name.length) {
@@ -386,7 +383,8 @@
   /* 「刑法」「憲法」是通稱，不在官方名單裡（官方名為中華民國刑法），
    * 但條文最常這樣引用；不放進字典，「曾犯刑法」就切不出左邊界。 */
   var KNOWN = '@@LAWNAMES@@'.split('|').concat(REAL_LAW_NAMES);
-  var RE_FOREIGN = /(?:國|日本|大陸|香港|澳門)$/;
+  // 「我國」「本國」「中華民國」是我國，不算外國
+  var RE_FOREIGN = /(?:^|[^我本民])國$|日本國?$|大陸$|香港$|澳門$/;
   var IS_KNOWN = {};
   for (var ki0 = 0; ki0 < KNOWN.length; ki0++) IS_KNOWN[KNOWN[ki0]] = true;
 
@@ -531,7 +529,10 @@
     // 本頁若就是該法規，直接用網址上的 pcode，免一次搜尋
     var self = /pcode=([A-Z0-9]+)/i.exec(location.search);
     var h1 = document.querySelector('#hlLawName, .table-list .h3, h2');
-    if (self && h1 && h1.textContent.trim().indexOf(name) >= 0) {
+    /* 名稱要與本頁標題相符，不可只是包含：施行細則頁的標題含有母法名稱，
+     * 用「包含」會把母法的引用抓成本頁條文（sonnet review 實測
+     * 勞工保險條例施行細則頁上的「勞工保險條例第三條」顯示細則第三條）。 */
+    if (self && h1 && scoreCandidate(h1.textContent.trim(), name) > 0) {
       pcodeCache[name] = self[1];
       return Promise.resolve(self[1]);
     }
@@ -1649,9 +1650,16 @@
       var lawPre = null;
       if (anaWord === '其') {
         var pre = base.slice(0, base.lastIndexOf('其')).replace(/[及與或暨、]\s*$/, '');
-        var preLead = !pre && RE_PAREN_TAIL.exec(text.slice(Math.max(0, m.index - 80), m.index));
-        lawPre = pre ? trimName(cutLeft(pre)) : (preLead ? cleanLead(preLead[1]) : '');
-        if (!RE_ENDS_LAW.test(lawPre) || SUFFIX_ONLY.test(lawPre)) lawPre = null;
+        var before = text.slice(Math.max(0, m.index - 80), m.index);
+        // 「「勞工保險條例」及其施行細則」：引號名稱在比對範圍外
+        var preQuote = !pre && /「([^」]{2,60})」\s*$/.exec(before);
+        var preLead = !pre && !preQuote && RE_PAREN_TAIL.exec(before);
+        lawPre = pre ? trimName(cutLeft(pre)) :
+          (preQuote ? preQuote[1] : (preLead ? cleanLead(preLead[1]) : ''));
+        // 「本法及其施行細則」「同法及其施行細則」：交給自指詞、前指詞的規則
+        if (SELF_WORDS.indexOf(lawPre) >= 0) { selfWord = lawPre; anaWord = null; lawPre = null; }
+        else if (ANAPHORA.indexOf(lawPre) >= 0) { anaWord = lawPre; lawPre = null; }
+        else if (!RE_ENDS_LAW.test(lawPre) || SUFFIX_ONLY.test(lawPre)) lawPre = null;
         if (lawPre) { anaWord = null; name = lawPre + '施行細則'; }
       }
       var isSelf = !!selfWord;
@@ -1677,7 +1685,7 @@
       var tgt = isSelf ? selfTarget(selfWord) : null;
       var tgtName = tgt ? tgt.name + tail : name;
       // 母法名稱：「同法施行細則」接在「本法施行細則」後面時，要用母法名稱接字尾
-      var parent = tgt ? tgt.name : (lawPre || (leadName ? '' : name));
+      var parent = tgt ? tgt.name : (lawPre || (leadName && rawName === '施行細則' ? leadName : name));
       hits.push({
         start: m.index + drop, end: m.index + m[0].length,
         // 前指詞（同法/該法）指向前文最近的具名引用，於下方 sort 後統一解析
