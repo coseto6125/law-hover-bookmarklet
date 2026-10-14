@@ -232,8 +232,9 @@
    * 「同法」「該法」在條文中一律是前指，綁成本頁法規會顯示另一部法的條文
    * （codex review 實測：行政程序法頁面上「建築法第五條及同法第七條」，
    *   後者被綁成行政程序法）。 */
+  // 「本編」見於分編發布的法規（建築技術規則各編），指本頁
   var SELF_WORDS = ['本法', '本條例', '本規則', '本辦法', '本標準', '本細則',
-                    '本準則', '本通則'];
+                    '本準則', '本通則', '本編'];
   var ANAPHORA = ['同法', '同條例', '同規則', '同辦法', '該法', '該條例', '該規則', '該辦法'];
 
   /* 自指詞的實際指向。
@@ -242,33 +243,51 @@
    * 因此必須建立「自指詞 → 法規」對照，不能只記第一組
    * （codex review 實測：只記第一組會讓「本條例」也指向所得稅法）。 */
   var aliasCache;
-  // 剝除「本細則依」「特依」「依據」這類說明立法依據的公文用語
+  // 剝除「本細則依」「本規則依照」「特依」「依據」這類說明立法依據的公文用語
   function dropBasis(s) {
-    return s.replace(/^本[\u4e00-\u9fa5]{1,3}(?:係)?依/, '').replace(/^(?:係|特)?依(?:據|照)?/, '');
+    return s.replace(/^本[\u4e00-\u9fa5]{1,3}?(?=(?:係)?依)/, '').replace(/^(?:係|特)?依(?:據|照)?/, '');
   }
   // 別名定義「○○法（以下簡稱本法）」：第 1 組是法規名，第 2 組是自指詞
   var ALIAS_DEF = '([\\u4e00-\\u9fa5]{2,45}?' + SUFFIX +
     ')\\s*[（(]\\s*(?:以下)?\\s*簡稱\\s*(本[\\u4e00-\\u9fa5]{1,3}|該[\\u4e00-\\u9fa5]{1,3})\\s*[）)]';
   // 文字結尾是別名定義，供條號判斷前面是否緊接「（以下簡稱本法）」
   var RE_ALIAS_TAIL = new RegExp(ALIAS_DEF + '\\s*$');
+  // 文字結尾是任意名稱加別名括號（「蒙藏委員會（以下簡稱本會）」），供接回被括號隔開的字尾
+  var RE_PAREN_TAIL = /([\u4e00-\u9fa5]{2,40})\s*[（(]\s*(?:以下)?\s*簡稱\s*[^（）()]{1,10}[）)]\s*$/;
+  // 不能單獨成為法規名、要接在機關或法規名後面的字尾
+  var RE_GENERIC_TAIL = /^(?:施行細則|施行法|組織(?:法|條例|通則|規程)|暫行組織規程|處務規程|辦事細則)$/;
+  // 「其施行細則」「同法施行細則」「本法施行細則」：前半是前指詞或自指詞
+  var RE_XIZE = /^(.*(?:其|本法|本條例|同法|同條例|該法|該條例))施行細則$/;
 
   /* 清理別名定義括號前的法規名；不是有效的外部法規名時回傳空字串。
    * 別名定義本身有「（以下簡稱X）」這個明確的右邊界，
    * 左邊界：先切句讀，再剝除公文前綴（「本細則依」這類）。
    * 不可用 cutLeft，法規名內部常含「與」「及」
    *（「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
-  function aliasName(raw) {
+  /* 清理別名定義括號前的文字，取出法規名。
+   * 先切句讀，再剝除公文前綴（「本細則依」這類）；
+   * 句中殘留的「依」（「發電業依電業法」「所屬機關為依電腦處理個人資料保護法」）
+   * 之後才是法規名。官方 11803 部法規名只有 11 部含「依」，且都不會被定義別名。 */
+  function cleanLead(raw) {
     /* 「本X依」在 trimName 前後各剝一次。
      * 之前：前綴清單含單字「本」，先跑 trimName 只會剝掉「本」，
      *   留下「細則依化粧品衛生安全管理法」（L0030014 實測）。
      * 之後：本頁法規名前面黏著「有關」這類前綴時，要先靠 trimName 剝掉前綴，
      *   才能剝本頁法規名，露出後面的「本細則依」（codex review 實測）。 */
-    var nm = trimName(dropBasis(String(raw).replace(/^[\s\S]*?[。；;，,：:）)]/, '')));
+    var nm = String(raw).replace(/^[\s\S]*?[。；;，,：:）)]/, '').replace(/^[\s\S]*依(?:據|照)?(?=[\u4e00-\u9fa5]{2})/, '');
+    nm = trimName(dropBasis(nm));
     // 頁面標題與內文相連時，法規名前面可能黏著本頁法規名，需剝除
     if (SELF && SELF.name && nm.indexOf(SELF.name) === 0 && nm.length > SELF.name.length) {
       nm = nm.slice(SELF.name.length);
     }
-    nm = dropBasis(nm);
+    return dropBasis(nm);
+  }
+
+  /* 別名定義括號前的法規名；不是有效的外部法規名時回傳空字串。
+   * 不可用 cutLeft，法規名內部常含「與」「及」
+   *（「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
+  function aliasName(raw) {
+    var nm = cleanLead(raw);
     if (!nm || nm.length < 2 || SUFFIX_ONLY.test(nm)) return '';
     return nm === (SELF && SELF.name) ? '' : nm;
   }
@@ -306,7 +325,7 @@
   }
   // 末字是「及」「與」但整個詞是動詞（「參與第九條」「涉及第九條」），不是並列連接詞
   var RE_VERB_CONJ = /(?:涉|波|危|顧|論|提|觸|溯|普)及\s*$|(?:參|給|授|賦|贈|干)與\s*$/;
-  var SELF_PREFIX = '(?:本法|本條例|本規則|本辦法|本標準|本細則|本準則|本通則|同法|同條例|該法)?';
+  var SELF_PREFIX = '(?:本法|本條例|本規則|本辦法|本標準|本細則|本準則|本通則|本編|同法|同條例|該法)?';
   var RE_SELF = new RegExp(
     SELF_PREFIX + '\\s*第\\s*(' + NUM + ')\\s*條(?:\\s*之\\s*(' + NUM + '))?' + TAIL,
     'g');
@@ -328,11 +347,14 @@
                 '本法', '本條例', '本規則', '本辦法',
                 '依據', '按照', '違反', '有關', '案內', '參照', '準用', '適用', '依照', '茲依',
                 '不受', '不適用', '未依', '得依', '應依', '亦同', '所稱', '規定', '準此',
-                '依', '按', '案', '及', '與', '或', '暨', '之', '為', '該', '本', '同',
+                '涉有', '涉嫌', '依', '按', '案', '及', '與', '或', '暨', '之', '為', '該', '本', '同',
                 '前開', '前揭', '所定', '規定', '爰依', '查', '據', '以', '因', '就', '對',
                 '參', '如', '至', '而', '並', '且', '惟', '但', '故', '則', '乃', '係'];
   // 這些是法規官方全名的一部分，剝除前綴時不可越過它們
-  var KEEP = ['中華民國', '臺灣省', '台灣省', '直轄市', '縣（市）'];
+  /* 「查核」「查禁」等複合詞開頭的是法規名本身，前綴清單的「查」（公文的「經查」）
+   * 不可剝：「準用查核辦法」會變成「核辦法」（法規全文語料實測）。 */
+  var KEEP = ['中華民國', '臺灣省', '台灣省', '直轄市', '縣（市）',
+              '查核', '查禁', '查緝', '查驗', '查詢', '查封', '查扣', '查察', '查證', '查處', '查估', '查帳', '查勘'];
   /* 法規名的左邊界。
    * 原本只靠前綴黑名單修剪，遇到「第一百六十四條及民法」「行政機關依中央法規標準法」
    * 這類真實條文就會把前一段吃進來，導致完全查不到（codex review 實測三例）。
@@ -358,7 +380,9 @@
    * 顯示錯誤法條——手寫的 100 部字典實測有 264 例切錯，例如
    * 「依公教人員保險法」被切成「保險法」、「監獄行刑法」被切成「刑法」。
    * 收錄完整清單後，最長匹配自然選中正確的那一部。 */
-  var KNOWN = '@@LAWNAMES@@'.split('|');
+  /* 「刑法」「憲法」是通稱，不在官方名單裡（官方名為中華民國刑法），
+   * 但條文最常這樣引用；不放進字典，「曾犯刑法」就切不出左邊界。 */
+  var KNOWN = '@@LAWNAMES@@'.split('|').concat(REAL_LAW_NAMES);
   var IS_KNOWN = {};
   for (var ki0 = 0; ki0 < KNOWN.length; ki0++) IS_KNOWN[KNOWN[ki0]] = true;
 
@@ -373,6 +397,10 @@
     return best;
   }
 
+  var CONJ = /^(?:及|或|與|暨)$/;
+  // 文字結尾是完整的法規名或條號，其後的連接詞才是兩個引用之間的邊界
+  // 「目」要接在「第N」後面才是條號：「經營業務項目及範圍調整辦法」的「項目」不是
+  var RE_LAW_END = new RegExp('(?:' + SUFFIX + '|第\\s*' + NUM + '\\s*[條項款目]|前條|本條|之' + NUM + ')\\s*$');
   function cutLeft(raw) {
     var known = matchKnown(raw);
     if (known) return known;
@@ -380,6 +408,10 @@
     HARD_EDGE.lastIndex = 0;
     while ((m = HARD_EDGE.exec(raw)) !== null) {
       var end = m.index + m[0].length;
+      /* 連接詞左邊不是完整的法規名或條號時，它在法規名內部，不是邊界：
+       * 「兒童及少年性交易防制條例」「保稅倉庫設立及管理辦法」
+       *（法規全文語料實測：在「及」切斷是最常見的切錯）。 */
+      if (CONJ.test(m[0]) && !RE_LAW_END.test(raw.slice(0, m.index))) continue;
       if (end < raw.length) last = end;
       if (HARD_EDGE.lastIndex <= m.index) HARD_EDGE.lastIndex = m.index + 1;
     }
@@ -1578,73 +1610,67 @@
     RE.lastIndex = 0;
     while ((m = RE.exec(text)) !== null) {
       var rawName = m[1] || m[2];
-      // 先切硬邊界（條號、連接詞、標點），再剝除殘留的公文前綴
-      /* 引號已是明確邊界，不可再切。
-       * 未加引號時用 cutLeft 切左界，但「及」「與」既可能是句子連接詞，
-       * 也可能在法規名內部（如「…申報淨值及一定期間承攬總額認定辦法」）。
-       * 無法從語法區分，故保留較短的切法：寧可查不到，也不要查錯。
-       * 使用者可加引號讓程式正確辨識，安裝頁的說明有提到這一點。 */
-      var name = m[1] ? rawName : trimName(cutLeft(rawName));
       var tiao = cn2num(m[3]);
-      if (!tiao || name.length < 2) continue;
-      // 自指詞要完整標記（「本辦法第1條」而非「辦法第1條」），故不剝除
-      var drop = (m[1] || SELF_WORDS.indexOf(rawName) >= 0) ? 0 : (rawName.length - name.length);
-      /* 「本法」「同法」等自指詞：指向當前頁面的法規，不必另行搜尋。
-       * 必須比對「未經 trimName 的原文」：trimName 會把「本辦法」剝成「辦法」，
-       * 此時自指判定必然落空，還會拿泛稱去搜尋別部法規（fable review 實測）。 */
-      var endsWith = function (list) {
-        for (var i2 = 0; i2 < list.length; i2++) {
-          if (name === list[i2] || rawName === list[i2] ||
-              rawName.slice(-list[i2].length) === list[i2]) return true;
-        }
-        return false;
-      };
-      // 取出實際命中的自指詞，不同的詞可能指向不同法規
-      var hitWord = null;
+      if (!tiao) continue;
+      /* 別名括號夾在法規名中間：「公務人員退休資遣撫卹法（以下簡稱退撫法）施行細則第十七條」
+       *「蒙藏委員會（以下簡稱本會）組織法第二十七條」。括號隔開後，這裡只剩字尾，
+       * 要接回括號前的名稱（法規全文語料實測 284 處只剩「施行細則」）。 */
+      var lead = !m[1] && RE_GENERIC_TAIL.test(rawName) &&
+        RE_PAREN_TAIL.exec(text.slice(Math.max(0, m.index - 80), m.index));
+      var leadName = lead && cleanLead(lead[1]);
+      /* 「其施行細則」「同法施行細則」「本法施行細則」：前半是前指詞或自指詞，
+       * 指向的法規再接上「施行細則」。 */
+      var xize = !m[1] && !leadName && RE_XIZE.exec(rawName);
+      var base = xize ? xize[1] : rawName;
+      /* 引號已是明確邊界，不可再切。
+       * 未加引號時用 cutLeft 切左界，再剝除殘留的公文前綴。 */
+      var name = leadName ? leadName + rawName : (m[1] ? rawName : trimName(cutLeft(rawName)));
+      if (name.length < 2) continue;
+      /* 「本法」「同法」等自指詞與前指詞要比對「未經 trimName 的原文」：
+       * trimName 會把「本辦法」剝成「辦法」，此時自指判定必然落空，
+       * 還會拿泛稱去搜尋別部法規（fable review 實測）。 */
+      /* 「原住民族基本法」「教育基本法」結尾含「本法」，但它是完整的法規名，不是自指詞：
+       * 字典最長匹配的法規名比該詞長時，不做後綴比對（法規全文語料實測）。 */
+      var knownLen = matchKnown(base).length;
       var pickWord = function (list) {
         for (var i3 = 0; i3 < list.length; i3++) {
-          if (name === list[i3] || rawName === list[i3] ||
-              rawName.slice(-list[i3].length) === list[i3]) return list[i3];
+          if (knownLen > list[i3].length) continue;
+          if (base === list[i3] || (!xize && name === list[i3]) ||
+              base.slice(-list[i3].length) === list[i3]) return list[i3];
         }
         return null;
       };
-      var selfWord = pickWord(SELF_WORDS);
-      var anaWord = selfWord ? null : pickWord(ANAPHORA);
+      var selfWord = leadName ? null : pickWord(SELF_WORDS);
+      var anaWord = leadName || selfWord ? null : pickWord(xize ? ANAPHORA.concat('其') : ANAPHORA);
       var isSelf = !!selfWord;
       var isAna = !!anaWord;
-      hitWord = selfWord || anaWord;
       if (isSelf && !SELF) continue;
       /* 剝除前綴後只剩泛稱字尾（如「辦法」「法」）不是有效的法規名，
-       * 拿去搜尋會得到隨機的某部法規。查不到比查錯安全，直接放棄。 */
-      /* 剝除前綴後只剩泛稱字尾（如「辦法」「法」）不是有效的法規名。
+       * 拿去搜尋會得到隨機的某部法規。查不到比查錯安全，直接放棄。
        * 但「憲法」既是字尾也是真實法規名，此時應標記為該法規而非放棄，
        * 更不可讓裸條號規則接手綁成本頁法規（會顯示不相干的條文）。 */
       if (!isSelf && !isAna && SUFFIX_ONLY.test(name)) {
         if (REAL_LAW_NAMES.indexOf(name) < 0) { skipRanges.push([m.index, m.index + m[0].length]); continue; }
       }
-      // 自指詞要完整標記（「本辦法第1條」而非「辦法第1條」），故不剝除前綴
       /* 標記範圍：
-       *   引號法規名、前指詞 → 完整保留
-       *   自指詞 → 只保留自指詞本身（rawName 可能含前文，如「…應依照本法」）
+       *   引號法規名、別名接字尾 → 完整保留
+       *   自指詞、前指詞 → 從該詞開始（rawName 可能含前文，如「…應依照本法」）
        *   一般法規名 → 剝除前綴 */
       var drop;
-      if (m[1]) drop = 0;
-      else if (isSelf || isAna) {
-        var kw = isSelf ? SELF_WORDS : ANAPHORA;
-        var found = -1;
-        for (var ki = 0; ki < kw.length; ki++) {
-          var at = rawName.lastIndexOf(kw[ki]);
-          if (at > found) found = at;
-        }
-        drop = found > 0 ? found : 0;
-      } else drop = rawName.length - name.length;
+      if (m[1] || leadName) drop = 0;
+      else if (isSelf || isAna) drop = Math.max(0, base.lastIndexOf(selfWord || anaWord));
+      else drop = rawName.length - name.length;
+      var tail = xize ? '施行細則' : '';
+      var tgt = isSelf ? selfTarget(selfWord) : null;
+      var tgtName = tgt ? tgt.name + tail : name;
       hits.push({
         start: m.index + drop, end: m.index + m[0].length,
         // 前指詞（同法/該法）指向前文最近的具名引用，於下方 sort 後統一解析
-        name: isAna ? null : (isSelf ? selfTarget(selfWord).name : name),
-        pcode: isAna ? null : (isSelf ? selfTarget(selfWord).pcode : null),
-        word: hitWord,
-        ana: isAna || false,
+        name: isAna ? null : tgtName,
+        // 接上「施行細則」後是另一部法規；剛好是本頁時仍帶本頁代碼
+        pcode: isAna ? null : (tgt ? (tail ? (SELF && tgtName === SELF.name ? SELF.pcode : null) : tgt.pcode) : null),
+        word: selfWord || anaWord, tail: tail,
+        ana: isAna,
         flno: m[4] ? tiao + '-' + cn2num(m[4]) : String(tiao),
         xiang: m[5] ? cn2num(m[5]) : null, kuan: m[6] ? cn2num(m[6]) : null
       });
@@ -1697,7 +1723,7 @@
           start: s0, end: e0,
           name: cont ? prev.name : (defName || SELF.name),
           pcode: cont ? prev.pcode : (defName ? null : SELF.pcode),
-          ana: ana, contAna: ana, word: ana ? prev.word : null,
+          ana: ana, contAna: ana, word: ana ? prev.word : null, tail: ana ? prev.tail : '',
           flno: m[2] ? t2 + '-' + cn2num(m[2]) : String(t2),
           xiang: m[3] ? cn2num(m[3]) : null, kuan: m[4] ? cn2num(m[4]) : null
         });
@@ -1727,23 +1753,26 @@
 
     /* 前指詞（同法/該法）指向前文最近的具名引用。
      * 找不到前文可指時退回本頁法規，但不可直接綁定，否則會顯示別部法的條文。 */
+    /* 「同法施行細則」這類前指詞帶字尾，指向的是另一部法規；
+     * 接上字尾後剛好是本頁時仍帶本頁代碼。 */
+    var bindTo = function (h, nm, pc) {
+      h.name = nm + (h.tail || '');
+      h.pcode = !h.tail ? pc : (SELF && h.name === SELF.name ? SELF.pcode : null);
+    };
     for (var ai = 0; ai < hits.length; ai++) {
       if (!hits[ai].ana) continue;
       var ref = null;
       for (var aj = ai - 1; aj >= 0; aj--) {
         if (!hits[aj].ana && !hits[aj].ex) { ref = hits[aj]; break; }
       }
-      if (ref) { hits[ai].name = ref.name; hits[ai].pcode = ref.pcode; }
-      else {
-        // 同段落找不到先行詞時，看該詞是否有別名定義（如「該條例」）
-        /* 延續前指詞的裸條號不退回本頁：前指詞本身退回本頁已是猜測，
-         * 再讓並列條號跟著猜，錯綁會加倍（sonnet review 於母法語料實測 26 處）。 */
-        var am = aliasMap();
-        if (hits[ai].word && am[hits[ai].word]) {
-          hits[ai].name = am[hits[ai].word]; hits[ai].pcode = null;
-        } else if (SELF && !hits[ai].contAna) { hits[ai].name = SELF.name; hits[ai].pcode = SELF.pcode; }
-        else { hits[ai].drop = true; }
-      }
+      if (ref) { bindTo(hits[ai], ref.name, ref.pcode); continue; }
+      // 同段落找不到先行詞時，看該詞是否有別名定義（如「該條例」）
+      /* 延續前指詞的裸條號不退回本頁：前指詞本身退回本頁已是猜測，
+       * 再讓並列條號跟著猜，錯綁會加倍（sonnet review 於母法語料實測 26 處）。 */
+      var am = aliasMap();
+      if (hits[ai].word && am[hits[ai].word]) bindTo(hits[ai], am[hits[ai].word], null);
+      else if (SELF && !hits[ai].contAna) bindTo(hits[ai], SELF.name, SELF.pcode);
+      else hits[ai].drop = true;
     }
     hits = hits.filter(function (h) { return !h.drop && h.name; });
     // 去除重疊
