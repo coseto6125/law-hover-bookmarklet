@@ -383,8 +383,9 @@
   /* 「刑法」「憲法」是通稱，不在官方名單裡（官方名為中華民國刑法），
    * 但條文最常這樣引用；不放進字典，「曾犯刑法」就切不出左邊界。 */
   var KNOWN = '@@LAWNAMES@@'.split('|').concat(REAL_LAW_NAMES);
-  // 「我國」「本國」「中華民國」是我國，不算外國
-  var RE_FOREIGN = /(?:^|[^我本民])國$|日本國?$|大陸$|香港$|澳門$/;
+  // 前接國名是外國法規；「我國」「本國」「中華民國」是我國（「大韓民國」不是）
+  var RE_FOREIGN = /(?:國|日本|大陸|香港|澳門)$/;
+  var RE_DOMESTIC = /(?:我國|(?:^|[^日])本國|中華民國)$/;
   var IS_KNOWN = {};
   for (var ki0 = 0; ki0 < KNOWN.length; ki0++) IS_KNOWN[KNOWN[ki0]] = true;
 
@@ -398,8 +399,8 @@
     }
     /* 「刑法」「憲法」是我國法規的通稱，前面接國名時是外國法規
      *（「日本刑法」「德國憲法」），不可當成我國的刑法（codex review 實測）。 */
-    if (REAL_LAW_NAMES.indexOf(best) >= 0 &&
-        RE_FOREIGN.test(raw.slice(0, raw.length - best.length))) return '';
+    var lead = raw.slice(0, raw.length - best.length);
+    if (REAL_LAW_NAMES.indexOf(best) >= 0 && RE_FOREIGN.test(lead) && !RE_DOMESTIC.test(lead)) return '';
     return best;
   }
 
