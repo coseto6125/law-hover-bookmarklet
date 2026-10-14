@@ -15,26 +15,64 @@ const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
 
-const SRC = 'https://law.moj.gov.tw/api/Ch/Law/JSON';
+const LAW = 'https://law.moj.gov.tw/api/Ch/Law/JSON';
+const ORDER = 'https://law.moj.gov.tw/api/Ch/Order/JSON';
 const OUT = path.join(__dirname, '..', 'src', 'lawnames.json');
+const SRC = path.join(__dirname, '..', 'src', 'lawhover.js');
 
-async function main() {
-  const buf = Buffer.from(await fetch(SRC, {
+async function fetchLaws(url) {
+  const buf = Buffer.from(await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120' }
   }).then(r => r.arrayBuffer()));
-
-  // 端點回的是 zip，內含 ChLaw.json（UTF-8 with BOM）
+  // 端點回的是 zip，內含 ChLaw.json / ChOrder.json（UTF-8 with BOM）
   const json = unzipFirstJson(buf);
-  const laws = json.Laws || json;
-
-  const names = [...new Set(laws
-    .map(l => (l.LawName || '').trim())
+  return (json.Laws || json).map(l => ({
     // 括號中的制定日與新舊版註記不會出現在條文引用裡，去掉
-    .map(n => n.replace(/（[^）]*(制定|\d{2,3}\.\d{2}\.\d{2})[^）]*）/g, '').trim())
-    .filter(n => n.length >= 2))].sort();
+    name: (l.LawName || '').trim().replace(/（[^）]*(制定|\d{2,3}\.\d{2}\.\d{2})[^）]*）/g, '').trim(),
+    text: (l.LawArticles || []).map(a => a.ArticleContent || '').join('').replace(/\s+/g, '')
+  })).filter(l => l.name.length >= 2);
+}
+
+/* 書籤剝除公文前綴時用的清單（src/lawhover.js 的 PREFIX），直接從原始碼讀，
+ * 不另外維護一份。 */
+function prefixList() {
+  const m = /var PREFIX = \[([\s\S]*?)\];/.exec(fs.readFileSync(SRC, 'utf8'));
+  if (!m) throw new Error('src/lawhover.js 找不到 PREFIX');
+  return m[1].match(/'[^']+'/g).map(q => q.slice(1, -1));
+}
+
+const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+async function main() {
+  const laws = await fetchLaws(LAW);
+  const orders = await fetchLaws(ORDER);
+  /* 命令（辦法、規則等）約一萬部，全收會超過書籤長度上限，只收兩種：
+   * 1. 開頭剛好是公文前綴：沒有字典擋著，前綴規則會吃掉正式名稱的首字
+   *   （「就業促進津貼實施辦法」被剝成「業促進津貼實施辦法」）。
+   * 2. 條文中有被引用，且書籤的左邊界規則會切錯：
+   *    名稱出現在「及／或／與／暨」後面，要靠字典認出連接詞右邊是一部完整法規
+   *   （「申請取得戶籍資料或土地登記規則第二十四條之一」）；
+   *    或名稱本身含有書籤當成邊界的字（src/lawhover.js 的 HARD_EDGE）
+   *   （「認定標準及資格審查辦法」「高資產客戶適用之金融商品及服務管理辦法」）。 */
+  const prefixes = prefixList();
+  const corpus = laws.concat(orders).map(l => l.text).join('\n');
+  const EDGE = /及|或|與|暨|準用|適用|規定|所稱|依|按|第[0-9一二三四五六七八九十百千]+[條項款目]/;
+  const picked = orders.map(l => l.name).filter(n =>
+    prefixes.some(p => n.startsWith(p) && n.length - p.length >= 2) ||
+    (corpus.includes(n + '第') &&
+     (EDGE.test(n) || new RegExp('[及或與暨]' + escapeRe(n) + '第').test(corpus))));
+  const base = new Set(laws.map(l => l.name).concat(picked));
+  /* 字典以最長後綴比對左邊界。收了短名就必須一併收結尾是它的正式全名，
+   * 否則全名會被切成短名而指向另一部法規
+   *（收了「復審文書使用收費標準」卻沒收「官兵權益保障會復審文書使用收費標準」）。 */
+  const all = laws.concat(orders).map(l => l.name);
+  const longer = all.filter(n => !base.has(n) && [...base].some(k => n.length > k.length && n.endsWith(k)));
+  const names = [...new Set([...base, ...longer])].sort();
 
   fs.writeFileSync(OUT, JSON.stringify(names));
-  console.log('法規名字典：' + names.length + ' 部 → ' + path.relative(process.cwd(), OUT));
+  console.log('法規名字典：法律 ' + new Set(laws.map(l => l.name)).size + ' 部＋命令 ' +
+              (names.length - new Set(laws.map(l => l.name)).size) + ' 部 → ' +
+              path.relative(process.cwd(), OUT));
 }
 
 /* 極簡 zip 解析：官方 zip 只有幾個檔案，找出第一個 .json 用 raw deflate 解開，
