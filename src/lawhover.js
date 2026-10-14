@@ -295,8 +295,16 @@
   }
   // 末字是「及」「與」但整個詞是動詞（「參與第九條」「涉及第九條」），不是並列連接詞
   /* 兩個引用之間只有連接詞與條項串，仍是同一部法的延續：
-   * 「民事訴訟法第四百八十八條第一項、第三項、第四百九十條」的「、第三項、」。 */
+   * 「民事訴訟法第四百八十八條第一項、第三項、第四百九十條」的「、第三項、」。
+   * 逗號只在列舉中（間隔已有頓號）或後接連接詞時算列舉：
+   *   「本法第二十二條第四項、第七項，第二十三條第六項」「國籍法第二條第一款至第四款，及第八條」
+   * 否則逗號後是下一個子句：「行政程序法第四十八條第五項但書，第五條所定申請文件」
+   * 的第五條屬本頁（codex review 實測）。
+   * 只有連接詞的間隔（含逗號）沿用原本的判定。 */
   var RE_LIST_GAP = new RegExp('^(?:[\\s、，,及與或暨至]|第\\s*' + NUM + '\\s*[項款目]|本文|但書|前段|後段)*$');
+  function listGap(gap) {
+    return RE_LIST_GAP.test(gap) && (gap.indexOf('、') >= 0 || !/[，,](?!\s*[及與或暨])/.test(gap));
+  }
   var RE_VERB_CONJ = /(?:涉|波|危|顧|論|提|觸|溯|普)及\s*$|(?:參|給|授|賦|贈|干)與\s*$/;
   var SELF_PREFIX = '(?:本法|本條例|本規則|本辦法|本標準|本細則|本準則|本通則|同法|同條例|該法)?';
   var RE_SELF = new RegExp(
@@ -1671,7 +1679,7 @@
         var gap = prev ? text.slice(prev.end, s0) : '';
         var clauseStart = text.slice(0, s0).search(/[^，,。；;：:]*$/);
         var cont = prev && !prev.ex &&
-          (RE_LIST_GAP.test(gap) ||
+          (/^[\s、，,及與或暨至]*$/.test(gap) || listGap(gap) ||
            (/[及與或暨]\s*$/.test(gap) && !RE_VERB_CONJ.test(gap) &&
             !/[，,。；;：:（）()]/.test(gap) &&
             !hits.some(function (h) {
