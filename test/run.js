@@ -465,10 +465,10 @@ async function run() {
     ok('「本編」指本頁', got === '建築技術規則建築設計施工編[本頁]', got);
     got = nameOf2('貨棧貨櫃集散站保稅倉庫物流中心及海關指定業者實施自主管理辦法', 'G0350000',
       '<p>依保稅倉庫設立及管理辦法第四條規定不得進儲。</p>', '保稅倉庫設立及管理辦法第四條');
-    ok('字典裡的法規名內部的「及」不切斷', got === '保稅倉庫設立及管理辦法', got);
+    ok('字典裡的法規名內部的「及」不切斷（字典收入被引用的命令）', got === '保稅倉庫設立及管理辦法', got);
     got = nameOf2('金融機構國內分支機構管理辦法', 'G0380000',
       '<p>自有資本比率應依銀行資本適足性及資本等級管理辦法第五條規定。</p>', '銀行資本適足性及資本等級管理辦法第五條');
-    ok('「及」左邊不是法規名時不切斷', got === '銀行資本適足性及資本等級管理辦法', got);
+    ok('字典裡含「及」的名稱不切斷', got === '銀行資本適足性及資本等級管理辦法', got);
     got = bare('<p>依民法第五條及刑法第十條</p>', '刑法第十條');
     ok('「及」左邊是條號時仍是邊界', got === '刑法', got);
     got = nameOf2('懲治叛亂條例', 'A0000002', '<p>曾犯刑法第一百條第一項之罪。</p>', '刑法第一百條第一項');
@@ -489,6 +489,17 @@ async function run() {
     ok('「同法施行細則」不重複接字尾', got === '電業法施行細則', got);
     got = bare('<p>申請文件應符合審查要求及臺北市建築管理自治條例第五條規定。</p>', '臺北市建築管理自治條例第五條');
     ok('句中的「及」仍是法規名的左邊界', got === '臺北市建築管理自治條例', got);
+    got = bare('<p>依我國民法第五條規定。</p>', '民法第五條');
+    ok('「我國民法」仍是我國民法', got === '民法', got);
+    got = bare('<p>依日本國憲法第九條規定。</p>', '日本國憲法第九條');
+    ok('「日本國憲法」不被認成我國憲法', got === '日本國憲法', got);
+    got = nameOf2('電業法', 'J0030011', '<p>依本法及其施行細則第二條規定。</p>', '本法及其施行細則第二條');
+    ok('「本法及其施行細則」指本頁法規的施行細則', got === '電業法施行細則', got);
+    got = nameOf2('電業法', 'J0030011', '<p>依民法第一條。依「勞工保險條例」及其施行細則第二條規定。</p>', '及其施行細則第二條');
+    ok('引號名稱及其施行細則', got === '勞工保險條例施行細則', got);
+    got = nameOf2('公務人員個人專戶制退休資遣撫卹法', 'S0080036',
+      '<p>適用公務人員退休資遣撫卹法（以下簡稱退撫法）施行細則第十七條及同法施行細則第十八條規定。</p>', '同法施行細則第十八條');
+    ok('別名接字尾之後的「同法施行細則」不重複接字尾', got === '公務人員退休資遣撫卹法施行細則', got);
     got = nameOf2('各級選舉委員會執行監察職務準則', 'D0020051',
       '<p>對涉有違反總統選罷法第四十六條之一。</p>', '總統選罷法第四十六條之一');
     ok('「涉有違反」被剝除', got === '總統選罷法', got);
@@ -738,6 +749,25 @@ async function run() {
     const txt = pn ? pn.textContent : '';
     ok('前兩次連線失敗後仍能取回條文', txt.includes('建築物室內裝修應遵守'), txt.slice(0, 60));
     ok('前兩次失敗後成功（重試生效）', n >= 3, '請求數 ' + n);
+  }
+
+  {
+    /* 施行細則頁的標題含母法名稱，母法的引用不可抓成本頁代碼
+     *（勞工保險條例施行細則頁上的「勞工保險條例第三條」曾顯示細則第三條） */
+    const dom = new JSDOM('<body><h2 id="hlLawName">勞工保險條例施行細則</h2>' +
+      '<p>依勞工保險條例第三條規定辦理。</p></body>', {
+      url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=N0050002',
+      runScripts: 'outside-only', pretendToBeVisual: true,
+    });
+    const w = dom.window;
+    const urls = [];
+    w.fetch = (u) => { urls.push(String(u)); return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') }); };
+    w.eval(code);
+    const mk = [...w.document.querySelectorAll('[data-flno]')].find(m => m.dataset.name === '勞工保險條例');
+    if (mk) mk.dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 300));
+    ok('施行細則頁上的母法引用不抓本頁代碼',
+       !!mk && urls.length > 0 && !urls.some(u => /pcode=N0050002/.test(u)), urls.join(' ') || '未發出請求');
   }
 
   {
