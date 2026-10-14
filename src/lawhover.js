@@ -252,18 +252,18 @@
     var m;
     while ((m = re.exec(txt)) !== null) {
       /* 別名定義本身有「（以下簡稱X）」這個明確的右邊界，
-       * 左邊界只需切到句讀，不可用 cutLeft：法規名內部常含「與」「及」
-       * （如「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
-      /* 左邊界：先切句讀，再剝除公文前綴（「本細則依」這類）。
+       * 左邊界：先切句讀，再剝除公文前綴（「本細則依」這類）。
        * 不可用 cutLeft，法規名內部常含「與」「及」
        *（「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
-      var nm = trimName(String(m[1]).replace(/^[\s\S]*?[。；;，,：:）)]/, ''));
+      var nm = String(m[1]).replace(/^[\s\S]*?[。；;，,：:）)]/, '');
       // 頁面標題與內文相連時，法規名前面可能黏著本頁法規名，需剝除
       if (SELF && SELF.name && nm.indexOf(SELF.name) === 0 && nm.length > SELF.name.length) {
         nm = nm.slice(SELF.name.length);
       }
-      // 剝除殘留的「本X依」「依」等公文用語
-      nm = nm.replace(/^本[\u4e00-\u9fa5]{1,3}(?:係)?依/, '').replace(/^(?:係)?依(?:據|照)?/, '');
+      /* 「本X依」必須在 trimName 之前剝除：前綴清單含單字「本」，
+       * 先跑 trimName 只會剝掉「本」，留下「細則依化粧品衛生安全管理法」，
+       * 這條規則就再也對不上（L0030014 實測）。 */
+      nm = trimName(nm.replace(/^本[\u4e00-\u9fa5]{1,3}(?:係)?依/, '').replace(/^(?:係)?依(?:據|照)?/, ''));
       if (!nm || nm.length < 2 || SUFFIX_ONLY.test(nm)) continue;
       if (nm === (SELF && SELF.name)) continue;
       if (!aliasCache[m[2]]) aliasCache[m[2]] = nm;   // 同一詞以第一個定義為準
