@@ -246,33 +246,46 @@
   function dropBasis(s) {
     return s.replace(/^本[\u4e00-\u9fa5]{1,3}(?:係)?依/, '').replace(/^(?:係)?依(?:據|照)?/, '');
   }
+  // 別名定義「○○法（以下簡稱本法）」：第 1 組是法規名，第 2 組是自指詞
+  var ALIAS_DEF = '([\\u4e00-\\u9fa5]{2,45}?' + SUFFIX +
+    ')\\s*[（(]\\s*(?:以下)?\\s*簡稱\\s*(本[\\u4e00-\\u9fa5]{1,3}|該[\\u4e00-\\u9fa5]{1,3})\\s*[）)]';
+  // 文字結尾是別名定義，供條號判斷前面是否緊接「（以下簡稱本法）」
+  var RE_ALIAS_TAIL = new RegExp(ALIAS_DEF + '\\s*$');
+
+  /* 清理別名定義括號前的法規名；不是有效的外部法規名時回傳空字串。
+   * 別名定義本身有「（以下簡稱X）」這個明確的右邊界，
+   * 左邊界：先切句讀，再剝除公文前綴（「本細則依」這類）。
+   * 不可用 cutLeft，法規名內部常含「與」「及」
+   *（「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
+  function aliasName(raw) {
+    // 字典裡的完整法規名是明確的左邊界，可擋掉黏在前面的其他引用
+    var known = matchKnown(raw);
+    if (known) return known === (SELF && SELF.name) ? '' : known;
+    /* 「本X依」在 trimName 前後各剝一次。
+     * 之前：前綴清單含單字「本」，先跑 trimName 只會剝掉「本」，
+     *   留下「細則依化粧品衛生安全管理法」（L0030014 實測）。
+     * 之後：本頁法規名前面黏著「有關」這類前綴時，要先靠 trimName 剝掉前綴，
+     *   才能剝本頁法規名，露出後面的「本細則依」（codex review 實測）。 */
+    var nm = trimName(dropBasis(String(raw).replace(/^[\s\S]*?[。；;，,：:）)]/, '')));
+    // 頁面標題與內文相連時，法規名前面可能黏著本頁法規名，需剝除
+    if (SELF && SELF.name && nm.indexOf(SELF.name) === 0 && nm.length > SELF.name.length) {
+      nm = nm.slice(SELF.name.length);
+    }
+    nm = dropBasis(nm);
+    if (!nm || nm.length < 2 || SUFFIX_ONLY.test(nm)) return '';
+    return nm === (SELF && SELF.name) ? '' : nm;
+  }
+
   function aliasMap() {
     if (aliasCache !== undefined) return aliasCache;
     aliasCache = {};
     var txt = (document.body ? document.body.textContent : '').slice(0, 8000);
     // 非貪婪：只取最靠近括號的法規名，避免把前文（含本頁法規名）吃進來
-    var re = new RegExp('([\\u4e00-\\u9fa5]{2,45}?' + SUFFIX +
-      ')\\s*[（(]\\s*(?:以下)?\\s*簡稱\\s*(本[\\u4e00-\\u9fa5]{1,3}|該[\\u4e00-\\u9fa5]{1,3})\\s*[）)]', 'g');
+    var re = new RegExp(ALIAS_DEF, 'g');
     var m;
     while ((m = re.exec(txt)) !== null) {
-      /* 別名定義本身有「（以下簡稱X）」這個明確的右邊界，
-       * 左邊界：先切句讀，再剝除公文前綴（「本細則依」這類）。
-       * 不可用 cutLeft，法規名內部常含「與」「及」
-       *（「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
-      /* 「本X依」在 trimName 前後各剝一次。
-       * 之前：前綴清單含單字「本」，先跑 trimName 只會剝掉「本」，
-       *   留下「細則依化粧品衛生安全管理法」（L0030014 實測）。
-       * 之後：本頁法規名前面黏著「有關」這類前綴時，要先靠 trimName 剝掉前綴，
-       *   才能剝本頁法規名，露出後面的「本細則依」（codex review 實測）。 */
-      var nm = trimName(dropBasis(String(m[1]).replace(/^[\s\S]*?[。；;，,：:）)]/, '')));
-      // 頁面標題與內文相連時，法規名前面可能黏著本頁法規名，需剝除
-      if (SELF && SELF.name && nm.indexOf(SELF.name) === 0 && nm.length > SELF.name.length) {
-        nm = nm.slice(SELF.name.length);
-      }
-      nm = dropBasis(nm);
-      if (!nm || nm.length < 2 || SUFFIX_ONLY.test(nm)) continue;
-      if (nm === (SELF && SELF.name)) continue;
-      if (!aliasCache[m[2]]) aliasCache[m[2]] = nm;   // 同一詞以第一個定義為準
+      var nm = aliasName(m[1]);
+      if (nm && !aliasCache[m[2]]) aliasCache[m[2]] = nm;   // 同一詞以第一個定義為準
     }
     return aliasCache;
   }
@@ -283,8 +296,8 @@
     if (word && a[word]) return { name: a[word], pcode: null };
     return { name: SELF.name, pcode: SELF.pcode };
   }
-  // 文字結尾是別名定義「（以下簡稱本法）」，取出自指詞
-  var RE_ALIAS_TAIL = /[（(]\s*(?:以下)?\s*簡稱\s*([本該][一-龥]{1,3})\s*[）)]\s*$/;
+  // 末字是「及」「與」但整個詞是動詞（「參與第九條」「涉及第九條」），不是並列連接詞
+  var RE_VERB_CONJ = /(?:涉|波|危|顧|論|提|觸|溯|普)及\s*$|(?:參|給|授|賦|贈|干)與\s*$/;
   var SELF_PREFIX = '(?:本法|本條例|本規則|本辦法|本標準|本細則|本準則|本通則|同法|同條例|該法)?';
   var RE_SELF = new RegExp(
     SELF_PREFIX + '\\s*第\\s*(' + NUM + ')\\s*條(?:\\s*之\\s*(' + NUM + '))?' + TAIL,
@@ -1650,26 +1663,31 @@
          * 「本法第四條第一項化粧品產品登錄…建立及第十七條第一項回收作業」
          * 的第十七條仍屬本法（L0030014 實測）。子句一斷（逗號以上）就不延續，
          * 因為施行細則也常以裸條號指自己的條文。 */
-        /* 但子句內在具名引用之前已有綁本頁的裸條號時，並列的是本頁條文：
+        /* 但子句內較早的引用與前一個引用不是同一部法時，並列對象有歧義，不延續：
          * 「第十四條第一項…有關應加計本條例第十二條…規定金額部分及第十五條」
-         * 的第十五條是細則自己的（所得基本稅額條例施行細則第 23 條實測）。 */
+         * 的第十五條是細則自己的（所得基本稅額條例施行細則第 23 條實測）。
+         * 前指詞此刻還沒有法規名，一律視為不同。
+         * 間隔含括號也不延續：括號內的引用不延伸到括號外。
+         * 「參與」「涉及」等動詞的末字不算連接詞（codex review 實測）。 */
         var gap = prev ? text.slice(prev.end, s0) : '';
         var clauseStart = Math.max(text.lastIndexOf('，', s0), text.lastIndexOf(',', s0),
           text.lastIndexOf('。', s0), text.lastIndexOf('；', s0), text.lastIndexOf(';', s0),
           text.lastIndexOf('：', s0), text.lastIndexOf(':', s0)) + 1;
         var cont = prev && !prev.ex &&
           (/^[\s、，,及與或暨至]*$/.test(gap) ||
-           (/[及與或暨]\s*$/.test(gap) && !/[，,。；;：:]/.test(gap) &&
+           (/[及與或暨]\s*$/.test(gap) && !RE_VERB_CONJ.test(gap) &&
+            !/[，,。；;：:（）()]/.test(gap) &&
             !hits.some(function (h) {
-              return h.start >= clauseStart && h.end <= prev.start && h.pcode === SELF.pcode;
+              return h.start >= clauseStart && h.end <= prev.start && (h.ana || h.name !== prev.name);
             })));
         /* 延續的對象是前指詞（「同法第十七條…及第十八條」）時，它此刻還沒有法規名，
          * 必須一起標成前指詞，交給下方的前指解析；否則名稱為空，整個連結被丟掉。 */
         var ana = !!(cont && prev.ana);
         /* 條號緊接在別名定義之後：「化粧品衛生安全管理法（以下簡稱本法）第三十一條」，
-         * 括號隔開了法規名，具名規則接不上，條號屬於被定義的那部法（L0030014 第 1 條）。 */
-        var def = cont ? null : RE_ALIAS_TAIL.exec(text.slice(Math.max(0, s0 - 16), s0));
-        var defName = def && aliasMap()[def[1]];
+         * 括號隔開了法規名，具名規則接不上，條號屬於被定義的那部法（L0030014 第 1 條）。
+         * 取括號前緊鄰的法規名，不查全頁對照表：同一頁可能先後定義不同的「本法」。 */
+        var def = cont ? null : RE_ALIAS_TAIL.exec(text.slice(Math.max(0, s0 - 80), s0));
+        var defName = def && aliasName(def[1]);
         hits.push({
           start: s0, end: e0,
           name: cont ? prev.name : (defName || SELF.name),
