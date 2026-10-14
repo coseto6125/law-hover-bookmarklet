@@ -230,6 +230,9 @@ async function main() {
   console.log('\n\x1b[1m修法紀錄（由沿革反查）\x1b[0m');
   {
     async function hoverArt(flno) {
+      await until(page, n => [...document.querySelectorAll('[data-flno]')]
+        .some(e => e.dataset.flno === n && e.dataset.pcode), flno,
+        { required: true, label: '第 ' + flno + ' 條的標記' });
       await page.evaluate(n => {
         const x = [...document.querySelectorAll('[data-flno]')]
           .find(e => e.dataset.flno === n && e.dataset.pcode);
@@ -258,6 +261,9 @@ async function main() {
       });
       try { await cdp.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
       await injected(page, { timeout: 20000 });
+      /* 重新注入後，新插入段落的標記晚於 injected 回報；機器負載高時直接找會落空 */
+      await until(page, () => [...document.querySelectorAll('[data-flno]')].some(e => e.dataset.flno === '77-1'),
+        null, { required: true, label: '第 77 條之 1 的標記' });
       await page.evaluate(() => {
         const x = [...document.querySelectorAll('[data-flno]')].find(e => e.dataset.flno === '77-1');
         x.scrollIntoView({ block: 'center' });
