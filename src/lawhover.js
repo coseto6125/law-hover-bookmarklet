@@ -242,6 +242,10 @@
    * 因此必須建立「自指詞 → 法規」對照，不能只記第一組
    * （codex review 實測：只記第一組會讓「本條例」也指向所得稅法）。 */
   var aliasCache;
+  // 剝除「本細則依」「依據」這類說明立法依據的公文用語
+  function dropBasis(s) {
+    return s.replace(/^本[\u4e00-\u9fa5]{1,3}(?:係)?依/, '').replace(/^(?:係)?依(?:據|照)?/, '');
+  }
   function aliasMap() {
     if (aliasCache !== undefined) return aliasCache;
     aliasCache = {};
@@ -255,15 +259,17 @@
        * 左邊界：先切句讀，再剝除公文前綴（「本細則依」這類）。
        * 不可用 cutLeft，法規名內部常含「與」「及」
        *（「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
-      var nm = String(m[1]).replace(/^[\s\S]*?[。；;，,：:）)]/, '');
+      /* 「本X依」在 trimName 前後各剝一次。
+       * 之前：前綴清單含單字「本」，先跑 trimName 只會剝掉「本」，
+       *   留下「細則依化粧品衛生安全管理法」（L0030014 實測）。
+       * 之後：本頁法規名前面黏著「有關」這類前綴時，要先靠 trimName 剝掉前綴，
+       *   才能剝本頁法規名，露出後面的「本細則依」（codex review 實測）。 */
+      var nm = trimName(dropBasis(String(m[1]).replace(/^[\s\S]*?[。；;，,：:）)]/, '')));
       // 頁面標題與內文相連時，法規名前面可能黏著本頁法規名，需剝除
       if (SELF && SELF.name && nm.indexOf(SELF.name) === 0 && nm.length > SELF.name.length) {
         nm = nm.slice(SELF.name.length);
       }
-      /* 「本X依」必須在 trimName 之前剝除：前綴清單含單字「本」，
-       * 先跑 trimName 只會剝掉「本」，留下「細則依化粧品衛生安全管理法」，
-       * 這條規則就再也對不上（L0030014 實測）。 */
-      nm = trimName(nm.replace(/^本[\u4e00-\u9fa5]{1,3}(?:係)?依/, '').replace(/^(?:係)?依(?:據|照)?/, ''));
+      nm = dropBasis(nm);
       if (!nm || nm.length < 2 || SUFFIX_ONLY.test(nm)) continue;
       if (nm === (SELF && SELF.name)) continue;
       if (!aliasCache[m[2]]) aliasCache[m[2]] = nm;   // 同一詞以第一個定義為準
