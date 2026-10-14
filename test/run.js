@@ -320,6 +320,18 @@ async function run() {
        bf ? bf.dataset.name : '未辨識');
     ok('別名不被公文前綴污染', bf && bf.dataset.name.indexOf('本細則') < 0,
        bf && bf.dataset.name);
+
+    /* 實際頁面的別名定義前面是條號與換行，不會黏著本頁法規名。
+     * 此時「本細則依」的「本」先被前綴清單剝掉，留下「細則依化粧品衛生安全管理法」
+     *（化粧品衛生安全管理法施行細則 L0030014 實測）。 */
+    ms = mk('化粧品衛生安全管理法施行細則', 'L0030014',
+      '<div class="col-no"><a>第 1 條</a></div><div class="law-article">\n' +
+      '<div class="line-0000">本細則依化粧品衛生安全管理法（以下簡稱本法）第三十一條規定訂定之。</div></div>' +
+      '<div class="line-0000">本法第四條第一項化粧品產品登錄。</div>');
+    const bg = ms.find(m => m.textContent.indexOf('本法第四條') >= 0);
+    ok('別名定義前無黏字時仍剝除「本細則依」',
+       bg && bg.dataset.name === '化粧品衛生安全管理法' && !bg.dataset.pcode,
+       bg ? bg.dataset.name : '未辨識');
   }
 
   console.log('\n\x1b[1m兩字法規名（fable 以 8574 個真實段落找到的高危）\x1b[0m');
