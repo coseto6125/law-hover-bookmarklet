@@ -346,6 +346,49 @@ async function run() {
     ok('本頁法規名前有前綴時仍剝除「本細則依」',
        bh && bh.dataset.name === '建築法' && !bh.dataset.pcode,
        bh ? bh.dataset.name : '未辨識');
+
+    /* 同一子句以連接詞並列的裸條號，延續前面的「本法」（L0030014 第 2 條） */
+    ms = mk('化粧品衛生安全管理法施行細則', 'L0030014',
+      '<p>本細則依化粧品衛生安全管理法（以下簡稱本法）第三十一條規定訂定之。</p>' +
+      '<p>本法第四條第一項化粧品產品登錄與產品資訊檔案建立及第十七條第一項回收作業，應由化粧品製造或輸入業者為之。</p>');
+    const bi = ms.find(m => m.textContent === '第十七條第一項');
+    const bn = ms.find(m => m.textContent === '第三十一條');
+    ok('別名定義後的條號屬於被定義的法規',
+       bn && bn.dataset.name === '化粧品衛生安全管理法' && !bn.dataset.pcode,
+       bn ? bn.dataset.name + (bn.dataset.pcode ? '[本頁]' : '') : '未辨識');
+    ok('子句內並列的裸條號延續「本法」',
+       bi && bi.dataset.name === '化粧品衛生安全管理法' && !bi.dataset.pcode && bi.dataset.flno === '17',
+       bi ? bi.dataset.name + (bi.dataset.pcode ? '[本頁]' : '') : '未辨識');
+
+    /* 子句內先出現本頁裸條號時，並列的是本頁條文（所得基本稅額條例施行細則第 23 條） */
+    ms = mk('所得基本稅額條例施行細則', 'G0340115',
+      '<p>本細則依所得基本稅額條例（以下簡稱本條例）第二十條規定訂定之。</p>' +
+      '<p>第十四條第一項、第二項有關應加計本條例第十二條第一項第一款規定金額部分及第十五條，自本條例第十二條第一項第一款施行之日施行。</p>');
+    const bj = ms.find(m => m.textContent === '第十五條');
+    ok('子句先有本頁裸條號時不延續具名引用',
+       bj && bj.dataset.name === '所得基本稅額條例施行細則' && !!bj.dataset.pcode,
+       bj ? bj.dataset.name : '未辨識');
+
+    /* 延續的對象是前指詞時，裸條號跟著解析，不可被丟掉（少年保護事件審理細則） */
+    ms = mk('少年保護事件審理細則', 'C0010009',
+      '<p>本細則依少年事件處理法（以下簡稱本法）第八十七條之一規定訂定之。</p>' +
+      '<p>本法第十八條第一項之移送，應以書面為之。同法第十七條之報告及第十八條第八項之請求，得以書面為之。</p>');
+    const bk = ms.find(m => m.textContent === '第十八條第八項');
+    ok('延續前指詞的裸條號不被丟掉',
+       bk && bk.dataset.name === '少年事件處理法' && !bk.dataset.pcode,
+       bk ? bk.dataset.name : '未標記');
+
+    /* 字典比對出的完整法規名不可再被前綴清單剝字（「就」「本」等單字前綴） */
+    ms = mk('社會救助法施行細則', 'D0050080',
+      '<p>五、依就業保險法第二十五條規定辦理失業認定。</p>');
+    const bl = ms.find(m => m.textContent.indexOf('保險法') >= 0);
+    ok('「就業保險法」不被剝成「業保險法」',
+       bl && bl.dataset.name === '就業保險法', bl ? bl.dataset.name : '未辨識');
+    ms = mk('勞工保險條例施行細則', 'N0050002',
+      '<p>就業保險法（以下簡稱本法）另有規定。</p><p>本法第四條</p>');
+    const bm = ms.find(m => m.textContent === '本法第四條');
+    ok('別名定義不把「就業保險法」剝成「業保險法」',
+       bm && bm.dataset.name === '就業保險法', bm ? bm.dataset.name : '未辨識');
   }
 
   console.log('\n\x1b[1m兩字法規名（fable 以 8574 個真實段落找到的高危）\x1b[0m');
