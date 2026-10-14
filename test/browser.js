@@ -331,6 +331,16 @@ async function main() {
 
     // 此入口只在有修正紀錄的條文出現，確保停在第 3 條
     await hoverArt('3');
+    /* 先等可見面板裡出現入口再點。機器負載高時面板較慢，
+     * 原本直接找連結，找不到就沒點，結果只回報「未開啟」，分不出原因。 */
+    const lyVisible = () => {
+      const q = [...document.body.children].find(n => {
+        const c = String(n.className || '').split(' ');
+        return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
+      });
+      return !!q && [...q.querySelectorAll('a')].some(x => /立法院查此版/.test(x.textContent));
+    };
+    const lyReady = await until(page, lyVisible);
     const ctx2 = page.context();
     const [popup] = await Promise.all([
       ctx2.waitForEvent('page', { timeout: 15000 }).catch(() => null),
@@ -339,11 +349,11 @@ async function main() {
           const c = String(n.className || '').split(' ');
           return /-p$/.test(c[0]) && !c.some(y => /-hide$/.test(y));
         });
-        const t = [...q.querySelectorAll('a')].find(x => /立法院查此版/.test(x.textContent));
+        const t = q && [...q.querySelectorAll('a')].find(x => /立法院查此版/.test(x.textContent));
         if (t) t.click();
       }),
     ]);
-    ok('點擊後開啟彈窗', !!popup, '未開啟');
+    ok('點擊後開啟彈窗', !!popup, lyReady ? '已點擊但未開啟' : '面板中找不到入口，未點擊');
     if (popup) {
       await popup.waitForLoadState('domcontentloaded').catch(() => {});
       ok('彈窗落在立法院法律系統', /lis\.ly\.gov\.tw\/lglawc\/lawsingle/.test(popup.url()),
