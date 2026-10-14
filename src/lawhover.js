@@ -258,9 +258,6 @@
    * 不可用 cutLeft，法規名內部常含「與」「及」
    *（「臺灣地區與大陸地區人民關係條例」會被切成「大陸地區人民關係條例」）。 */
   function aliasName(raw) {
-    // 字典裡的完整法規名是明確的左邊界，可擋掉黏在前面的其他引用
-    var known = matchKnown(raw);
-    if (known) return known === (SELF && SELF.name) ? '' : known;
     /* 「本X依」在 trimName 前後各剝一次。
      * 之前：前綴清單含單字「本」，先跑 trimName 只會剝掉「本」，
      *   留下「細則依化粧品衛生安全管理法」（L0030014 實測）。
@@ -1653,8 +1650,7 @@
         /* 裸條號不一定指向本頁法規。
          * 「人口販運防制法第三十二條、第三十三條」的後半段仍屬該法，
          * 若一律綁成本法會顯示完全錯誤的條文（codex review 實測）。
-         * 往前找最近的具名引用：兩者間若只隔連接詞則視為延續，
-         * 遇句號分號等句界則作用範圍結束。 */
+         * 往前找最近的引用，符合下方兩種情形之一才視為延續。 */
         var prev = null;
         for (var pi = 0; pi < hits.length; pi++) {
           if (hits[pi].end <= s0 && (!prev || hits[pi].end > prev.end)) prev = hits[pi];
@@ -1670,9 +1666,7 @@
          * 間隔含括號也不延續：括號內的引用不延伸到括號外。
          * 「參與」「涉及」等動詞的末字不算連接詞（codex review 實測）。 */
         var gap = prev ? text.slice(prev.end, s0) : '';
-        var clauseStart = Math.max(text.lastIndexOf('，', s0), text.lastIndexOf(',', s0),
-          text.lastIndexOf('。', s0), text.lastIndexOf('；', s0), text.lastIndexOf(';', s0),
-          text.lastIndexOf('：', s0), text.lastIndexOf(':', s0)) + 1;
+        var clauseStart = text.slice(0, s0).search(/[^，,。；;：:]*$/);
         var cont = prev && !prev.ex &&
           (/^[\s、，,及與或暨至]*$/.test(gap) ||
            (/[及與或暨]\s*$/.test(gap) && !RE_VERB_CONJ.test(gap) &&
@@ -1692,7 +1686,7 @@
           start: s0, end: e0,
           name: cont ? prev.name : (defName || SELF.name),
           pcode: cont ? prev.pcode : (defName ? null : SELF.pcode),
-          ana: ana, word: ana ? prev.word : null,
+          ana: ana, contAna: ana, word: ana ? prev.word : null,
           flno: m[2] ? t2 + '-' + cn2num(m[2]) : String(t2),
           xiang: m[3] ? cn2num(m[3]) : null, kuan: m[4] ? cn2num(m[4]) : null
         });
@@ -1731,10 +1725,12 @@
       if (ref) { hits[ai].name = ref.name; hits[ai].pcode = ref.pcode; }
       else {
         // 同段落找不到先行詞時，看該詞是否有別名定義（如「該條例」）
+        /* 延續前指詞的裸條號不退回本頁：前指詞本身退回本頁已是猜測，
+         * 再讓並列條號跟著猜，錯綁會加倍（sonnet review 於母法語料實測 26 處）。 */
         var am = aliasMap();
         if (hits[ai].word && am[hits[ai].word]) {
           hits[ai].name = am[hits[ai].word]; hits[ai].pcode = null;
-        } else if (SELF) { hits[ai].name = SELF.name; hits[ai].pcode = SELF.pcode; }
+        } else if (SELF && !hits[ai].contAna) { hits[ai].name = SELF.name; hits[ai].pcode = SELF.pcode; }
         else { hits[ai].drop = true; }
       }
     }
