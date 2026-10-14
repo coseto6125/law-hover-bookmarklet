@@ -283,6 +283,8 @@
     if (word && a[word]) return { name: a[word], pcode: null };
     return { name: SELF.name, pcode: SELF.pcode };
   }
+  // 文字結尾是別名定義「（以下簡稱本法）」，取出自指詞
+  var RE_ALIAS_TAIL = /[（(]\s*(?:以下)?\s*簡稱\s*([本該][一-龥]{1,3})\s*[）)]\s*$/;
   var SELF_PREFIX = '(?:本法|本條例|本規則|本辦法|本標準|本細則|本準則|本通則|同法|同條例|該法)?';
   var RE_SELF = new RegExp(
     SELF_PREFIX + '\\s*第\\s*(' + NUM + ')\\s*條(?:\\s*之\\s*(' + NUM + '))?' + TAIL,
@@ -336,6 +338,8 @@
    * 「依公教人員保險法」被切成「保險法」、「監獄行刑法」被切成「刑法」。
    * 收錄完整清單後，最長匹配自然選中正確的那一部。 */
   var KNOWN = '@@LAWNAMES@@'.split('|');
+  var IS_KNOWN = {};
+  for (var ki0 = 0; ki0 < KNOWN.length; ki0++) IS_KNOWN[KNOWN[ki0]] = true;
 
   /* 先以已知法規名做最長後綴匹配；命中即為明確的左邊界。 */
   function matchKnown(raw) {
@@ -364,6 +368,9 @@
   function trimName(name) {
     var changed = true;
     while (changed && name.length > 2) {
+      /* 已是完整的已知法規名就停手：前綴清單含「就」「本」等單字，
+       * 否則「就業保險法」會被剝成「業保險法」（施行細則語料實測 33 處）。 */
+      if (IS_KNOWN[name]) break;
       // 已經以官方全名前綴開頭就停手
       var keep = false;
       for (var g = 0; g < KEEP.length; g++) {
@@ -1639,12 +1646,35 @@
         for (var pi = 0; pi < hits.length; pi++) {
           if (hits[pi].end <= s0 && (!prev || hits[pi].end > prev.end)) prev = hits[pi];
         }
+        /* 同一子句內以連接詞並列時也是延續：
+         * 「本法第四條第一項化粧品產品登錄…建立及第十七條第一項回收作業」
+         * 的第十七條仍屬本法（L0030014 實測）。子句一斷（逗號以上）就不延續，
+         * 因為施行細則也常以裸條號指自己的條文。 */
+        /* 但子句內在具名引用之前已有綁本頁的裸條號時，並列的是本頁條文：
+         * 「第十四條第一項…有關應加計本條例第十二條…規定金額部分及第十五條」
+         * 的第十五條是細則自己的（所得基本稅額條例施行細則第 23 條實測）。 */
+        var gap = prev ? text.slice(prev.end, s0) : '';
+        var clauseStart = Math.max(text.lastIndexOf('，', s0), text.lastIndexOf(',', s0),
+          text.lastIndexOf('。', s0), text.lastIndexOf('；', s0), text.lastIndexOf(';', s0),
+          text.lastIndexOf('：', s0), text.lastIndexOf(':', s0)) + 1;
         var cont = prev && !prev.ex &&
-          /^[\s、，,及與或暨至]*$/.test(text.slice(prev.end, s0));
+          (/^[\s、，,及與或暨至]*$/.test(gap) ||
+           (/[及與或暨]\s*$/.test(gap) && !/[，,。；;：:]/.test(gap) &&
+            !hits.some(function (h) {
+              return h.start >= clauseStart && h.end <= prev.start && h.pcode === SELF.pcode;
+            })));
+        /* 延續的對象是前指詞（「同法第十七條…及第十八條」）時，它此刻還沒有法規名，
+         * 必須一起標成前指詞，交給下方的前指解析；否則名稱為空，整個連結被丟掉。 */
+        var ana = !!(cont && prev.ana);
+        /* 條號緊接在別名定義之後：「化粧品衛生安全管理法（以下簡稱本法）第三十一條」，
+         * 括號隔開了法規名，具名規則接不上，條號屬於被定義的那部法（L0030014 第 1 條）。 */
+        var def = cont ? null : RE_ALIAS_TAIL.exec(text.slice(Math.max(0, s0 - 16), s0));
+        var defName = def && aliasMap()[def[1]];
         hits.push({
           start: s0, end: e0,
-          name: cont ? prev.name : SELF.name,
-          pcode: cont ? prev.pcode : SELF.pcode,
+          name: cont ? prev.name : (defName || SELF.name),
+          pcode: cont ? prev.pcode : (defName ? null : SELF.pcode),
+          ana: ana, word: ana ? prev.word : null,
           flno: m[2] ? t2 + '-' + cn2num(m[2]) : String(t2),
           xiang: m[3] ? cn2num(m[3]) : null, kuan: m[4] ? cn2num(m[4]) : null
         });
