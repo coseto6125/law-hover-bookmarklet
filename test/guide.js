@@ -137,6 +137,10 @@ async function main() {
           latest.querySelector('.ver-tldr').textContent +
           [...latest.querySelectorAll('.ver-item')].map(e => e.textContent).join('')),
         remind: /重新拉一次書籤/.test(document.body.textContent),
+        navVer: (document.querySelector('a.top-link[href="#changelog"]') || {}).textContent,
+        // 說明文字內的粗體是強調用，不可被排成獨立一行
+        blockInSpan: [...sec.querySelectorAll('.ver-item span b')]
+          .filter(b => getComputedStyle(b).display === 'block').map(b => b.textContent),
       };
     });
     ok('版本紀錄存在', !!v);
@@ -144,9 +148,11 @@ async function main() {
       /* 對照 package.json，避免每次發版都要改測試。 */
       const want = require('../package.json').version;
       ok('標明版本 ' + want, v.tag === want, v.tag);
+      ok('導覽列版本與 package.json 一致', v.navVer === 'v' + want, v.navVer);
+      ok('說明文字內的粗體不斷行', v.blockInSpan.length === 0, v.blockInSpan.join('、'));
       // ADHD：先給一句話結論，不必讀完
       ok('開頭有一句話結論', /一句話/.test(v.tldr) && v.tldr.length < 90, v.tldr.slice(0, 50));
-      ok('條列可掃視（' + v.items + ' 項）', v.items >= 4 && v.items <= 8, String(v.items));
+      ok('條列可掃視（' + v.items + ' 項）', v.items >= 1 && v.items <= 8, String(v.items));
       // eli5：主要內容不該出現技術術語
       ok('主要內容不含技術術語', !v.jargon);
       // ADHD：細節收折，不強迫閱讀

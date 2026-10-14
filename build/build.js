@@ -83,10 +83,12 @@ fs.writeFileSync(path.join(root, 'dist/lawhover.bookmarklet.txt'), url);
 
 const tpl = fs.readFileSync(path.join(root, 'src/install.tpl.html'), 'utf8');
 // 注意：兩處佔位符（拖曳按鈕的 href、手動安裝用的 textarea）都要替換，
-// 用 split/join 而非 replace，後者只會換掉第一個。
+// 單次全域替換，避免書籤內容裡的字串被第二輪替換誤改。
 const escaped = url.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-const out = tpl.split('__BOOKMARKLET__').join(escaped);
-if (out.indexOf('__BOOKMARKLET__') >= 0) throw new Error('佔位符未完全替換');
+// 版本號取自 package.json，避免導覽列與更新紀錄各自寫死而不同步
+const version = require('../package.json').version;
+const out = tpl.replace(/__BOOKMARKLET__|__VERSION__/g, k => k === '__VERSION__' ? version : escaped);
+if (/__BOOKMARKLET__|__VERSION__/.test(out)) throw new Error('佔位符未完全替換');
 fs.writeFileSync(path.join(root, 'dist/install.html'), out);
 
 // 同步輸出到 docs/ 供 GitHub Pages 直接提供安裝頁
