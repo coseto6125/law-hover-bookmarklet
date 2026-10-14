@@ -46,7 +46,7 @@ const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 async function main() {
   const laws = await fetchLaws(LAW);
   const orders = await fetchLaws(ORDER);
-  /* 命令（辦法、規則等）約一萬部，全收會超過書籤長度上限，只收兩種：
+  /* 命令（辦法、規則等）約一萬部，全收會超過書籤長度上限，只收三種：
    * 1. 開頭剛好是公文前綴：沒有字典擋著，前綴規則會吃掉正式名稱的首字
    *   （「就業促進津貼實施辦法」被剝成「業促進津貼實施辦法」）。
    * 2. 條文中有被引用，且書籤的左邊界規則會切錯：
@@ -59,6 +59,8 @@ async function main() {
   const EDGE = /及|或|與|暨|準用|適用|規定|所稱|依|按|第[0-9一二三四五六七八九十百千]+[條項款目]/;
   const picked = orders.map(l => l.name).filter(n =>
     prefixes.some(p => n.startsWith(p) && n.length - p.length >= 2) ||
+    // 3. 名稱含「依」：別名定義會在句中最後一個「依」切開，要靠字典保護（全部約十部）
+    n.includes('依') ||
     (corpus.includes(n + '第') &&
      (EDGE.test(n) || new RegExp('[及或與暨]' + escapeRe(n) + '第').test(corpus))));
   const base = new Set(laws.map(l => l.name).concat(picked));
