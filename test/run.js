@@ -332,6 +332,20 @@ async function run() {
     ok('別名定義前無黏字時仍剝除「本細則依」',
        bg && bg.dataset.name === '化粧品衛生安全管理法' && !bg.dataset.pcode,
        bg ? bg.dataset.name : '未辨識');
+
+    /* 本頁法規名前面黏著公文前綴時，要先剝前綴才能剝本頁法規名
+     *（mk 把標題放在最前面，無法重現，故直接建頁） */
+    const d = new JSDOM('<body><span>有關</span><h2 id="hlLawName">建築法施行細則</h2>' +
+      '<p>本細則依建築法（以下簡稱本法）訂定之。</p><p>本法第四條規定。</p></body>',
+      { url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070116',
+        runScripts: 'outside-only', pretendToBeVisual: true });
+    d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+    d.window.eval(code);
+    const bh = [...d.window.document.querySelectorAll('[data-flno]')]
+      .find(m => m.textContent.indexOf('本法第四條') >= 0);
+    ok('本頁法規名前有前綴時仍剝除「本細則依」',
+       bh && bh.dataset.name === '建築法' && !bh.dataset.pcode,
+       bh ? bh.dataset.name : '未辨識');
   }
 
   console.log('\n\x1b[1m兩字法規名（fable 以 8574 個真實段落找到的高危）\x1b[0m');
