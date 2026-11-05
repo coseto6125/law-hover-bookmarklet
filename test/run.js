@@ -1467,6 +1467,181 @@ async function run() {
     }
   }
 
+  /* 以下四段的頁面都是原站真實頁面（test/fixtures），每段先寫成失敗的測試再修。 */
+  const named = (w, h, fl) => w.__lawhover__.histFor(h, fl).filter(r => !r.whole).map(r => r.when);
+  const wholes = (w, h, fl) => w.__lawhover__.histFor(h, fl).filter(r => r.whole).map(r => r.when + r.tag);
+
+  console.log('\n\x1b[1m沿革條目內的行政院公告與施行令不算修正\x1b[0m');
+  {
+    // 建築法 12. 一百年一月五日修正第 97 條，同一筆後附一百零一年行政院公告第 77-3、77-4 條改由金管會管轄
+    const b = await whensOf('D0070109', 'history-D0070109.html');
+    ok('建築法第 97 條仍算一百年一月五日修正', named(b.w, b.h, '97').includes('一百年一月五日'), named(b.w, b.h, '97').join('、'));
+    ok('管轄公告的第 77-3 條不算一百年一月五日修正', !named(b.w, b.h, '77-3').includes('一百年一月五日'),
+       named(b.w, b.h, '77-3').join('、'));
+    ok('管轄公告的第 77-4 條不算一百年一月五日修正', !named(b.w, b.h, '77-4').includes('一百年一月五日'),
+       named(b.w, b.h, '77-4').join('、'));
+    // 職業安全衛生法 5. 一百零二年七月三日修正公布名稱及全文 55 條；依第 55 條規定…；後附施行令列出第 7～9 條等
+    const o = await whensOf('N0060001', 'history-N0060001.html');
+    const r102 = o.h.list.find(r => /一百零二年七月三日/.test(r.when));
+    ok('全文修正後附的「依第 55 條規定」與施行令條號不使它變成個別修正', r102 && r102.whole && r102.kind === 'whole',
+       r102 && JSON.stringify({ whole: r102.whole, arts: r102.arts }));
+    ok('職業安全衛生法第 1 條隨一百零二年全文修正', wholes(o.w, o.h, '1').some(x => /一百零二年七月三日/.test(x)),
+       wholes(o.w, o.h, '1').join('、'));
+    ok('施行令列出的第 7 條不算一百零二年個別修正', !named(o.w, o.h, '7').includes('一百零二年七月三日'),
+       named(o.w, o.h, '7').join('、'));
+    // 個人資料保護法 3. 一百零四年修正第 6～8、11…53、54 條；後附會銜公告「第 53 條、第 55 條所列屬法務部之權責事項」
+    const p = await whensOf('I0050021', 'history-I0050021.html');
+    ok('會銜公告的第 55 條不算一百零四年修正', !named(p.w, p.h, '55').includes('一百零四年十二月三十日'),
+       named(p.w, p.h, '55').join('、'));
+    ok('修正清單內的第 54 條照常算一百零四年修正', named(p.w, p.h, '54').includes('一百零四年十二月三十日'),
+       named(p.w, p.h, '54').join('、'));
+    // 2. 九十九年修正名稱及全文 56 條，「但修正前…第 19～22、43 條之刪除，自公布日施行」是施行日期的說明
+    const r99 = p.h.list.find(r => /九十九年五月二十六日/.test(r.when));
+    ok('「但修正前第 19～22、43 條之刪除自公布日施行」不使全文修正變成個別修正', r99 && r99.whole,
+       r99 && JSON.stringify(r99.arts));
+  }
+
+  console.log('\n\x1b[1m民法分編制定：每次制定只套用該編的條文\x1b[0m');
+  {
+    const m = await whensOf('B0000001', 'history-B0000001.html');
+    ok('第 846 條（物權編）只有制定物權編那一筆', wholes(m.w, m.h, '846').join('、') === '十八年十一月三十日（制定物權編）',
+       wholes(m.w, m.h, '846').join('、'));
+    ok('第 1 條（總則編）只有制定總則編那一筆', wholes(m.w, m.h, '1').join('、') === '十八年五月二十三日（制定總則編）',
+       wholes(m.w, m.h, '1').join('、'));
+    ok('第 152 條是總則編最後一條', wholes(m.w, m.h, '152').join('、') === '十八年五月二十三日（制定總則編）',
+       wholes(m.w, m.h, '152').join('、'));
+    ok('第 153 條是債編第一條', wholes(m.w, m.h, '153').join('、') === '十八年十一月二十二日（制定債編）',
+       wholes(m.w, m.h, '153').join('、'));
+    // 4. 同一筆制定「親屬編全文 171 條、繼承編全文 88 條」：967～1137、1138～1225 都屬這一筆
+    ok('第 1138 條（繼承編）屬十九年同時制定的親屬編與繼承編',
+       wholes(m.w, m.h, '1138').join('、') === '十九年十二月二十六日（制定親屬編、繼承編）', wholes(m.w, m.h, '1138').join('、'));
+    ok('第 966 條（物權編最後一條）不屬十九年那一筆', !wholes(m.w, m.h, '966').some(x => /十九年/.test(x)),
+       wholes(m.w, m.h, '966').join('、'));
+    // 只有一次制定的法規照舊：刑法第 13 條
+    const c = await whensOf('C0000001', 'history-C0000001.html');
+    ok('單次制定的法規照舊套用全部條文（刑法第 13 條）', wholes(c.w, c.h, '13').some(x => /二十四年一月一日/.test(x)),
+       wholes(c.w, c.h, '13').join('、'));
+    // 推不出範圍時不猜：沿革提到的條號超出各編累加的總條數，就退回適用全部條文
+    const row = t => '<div class="row"><div class="col-data text-pre">' + t + '</div></div>\n';
+    const fake = '<html><body>' + row('3. 中華民國一百年一月一日總統令修正公布第 400 條條文') +
+      row('2. 中華民國十八年十一月二十二日國民政府制定公布債編全文 100 條') +
+      row('1. 中華民國十八年五月二十三日國民政府制定公布總則編全文 152 條') + '</body></html>';
+    const fw = site('<body><h2 id="hlLawName">X</h2></body>', MOJ('Z0000002'), u => /LawHistory/.test(u) ? fake : null);
+    const fh = await fw.__lawhover__.hist('Z0000002');
+    ok('分編條數加總不足以涵蓋沿革提到的條號時，制定紀錄照舊套用全部條文',
+       wholes(fw, fh, '10').length === 2 && wholes(fw, fh, '400').length === 2, wholes(fw, fh, '10').join('、'));
+  }
+
+  console.log('\n\x1b[1m外國法規前綴：不以「國」結尾的國名\x1b[0m');
+  {
+    for (const [pre, law] of [['新加坡', '公司法'], ['歐盟', '個人資料保護法'], ['歐洲聯盟', '消費者保護法'], ['越南', '勞動基準法'],
+      ['菲律賓', '民法'], ['印尼', '刑法'], ['馬來西亞', '公司法'], ['澳洲', '著作權法'], ['紐西蘭', '民法'],
+      ['加拿大', '刑法'], ['印度', '專利法'], ['德意志', '民法']]) {
+      const w = pageOf('刑事訴訟法', 'C0010001', '<p>參照' + pre + law + '第五條規定。</p>');
+      const ms = marksOf(w);
+      ok('「' + pre + law + '」不被當成我國' + law + '，也不綁本頁',
+         !ms.some(x => x.dataset.name === law || x.dataset.pcode), ms.map(descr).join(' / ') || '（無）');
+    }
+    // 法規名本身含國名者照常標記
+    const w2 = pageOf('刑事訴訟法', 'C0010001', '<p>依香港澳門關係條例第十一條及臺灣地區與大陸地區人民關係條例第二條。</p>');
+    const n2 = marksOf(w2).map(x => x.dataset.name);
+    ok('名稱含國名的我國法規照常標記', n2.includes('香港澳門關係條例') && n2.includes('臺灣地區與大陸地區人民關係條例'),
+       marksOf(w2).map(descr).join(' / '));
+  }
+
+  console.log('\n\x1b[1m行政規則的「第N點」（真實地方法規與中央頁面）\x1b[0m');
+  {
+    const GL = (host, id) => 'https://' + host + '/LawContent.aspx?id=' + id;
+    const ptPage = (file, url, hist) => site(F(file), url, u => hist && /LawContentSource|LawHistory|LawInformation/.test(u) ? F(hist) : null);
+    const ptMarks = w => marksOf(w).filter(x => /^p/.test(x.dataset.flno || ''));
+    const cases = [
+      ['point-glrs-tc-GL002704.html', GL('law.taichung.gov.tw', 'GL002704'), '臺中（表格模式）', 'p3,p4,p4,p4,p3,p4'],
+      ['point-glrs-nantou-GL000008.html', GL('glrs.nantou.gov.tw', 'GL000008'), '南投（全文模式）', 'p4,p4'],
+      ['point-glrs-tycg-GL002351.html', GL('law.tycg.gov.tw', 'GL002351'), '桃園', 'p7,p8,p5,p5,p7,p5,p6,p7,p8,p12'],
+      ['point-glrs-kcg-GL001872.html', GL('outlaw.kcg.gov.tw', 'GL001872'), '高雄（含「本要點第十點」）', 'p5,p3,p10'],
+      ['point-taipei-FL088485.html', 'https://laws.gov.taipei/Law/LawSearch/LawArticleContent/FL088485', '臺北', 'p7'],
+      ['point-moj-E0010019.html', MOJ('E0010019'), '全國法規資料庫（「本辦法第一點及第二點」）', 'p1,p2,p1']];
+    for (const [file, url, label, want] of cases) {
+      const ms = ptMarks(ptPage(file, url));
+      ok('分點規則的裸「第N點」標成本頁的點：' + label, ms.map(x => x.dataset.flno).join(',') === want && ms.every(x => x.dataset.pcode),
+         ms.map(descr).join(' / ') || '（無）');
+    }
+    // 引用其他規則的點（「…作業要點第三點第四款」「…要點」第二點及第七點」）不標，也不可綁成本頁
+    const tc2 = ptMarks(ptPage('point-glrs-tc-GL002835.html', GL('law.taichung.gov.tw', 'GL002835')));
+    ok('引用其他要點的點不標，只標「本要點第二點」', tc2.length === 1 && /本要點第二點/.test(tc2[0].textContent),
+       tc2.map(descr).join(' / ') || '（無）');
+    const nt151 = ptMarks(ptPage('point-glrs-nantou-GL000151.html', GL('glrs.nantou.gov.tw', 'GL000151')));
+    ok('「…作業要點」第二點及第七點」的並列點號也屬他規則，不標', nt151.length === 0, nt151.map(descr).join(' / ') || '（無）');
+    // 壹、貳分章且各章重新從「一、」編號：「第一點」指哪一項有歧義，整頁不認點
+    const plan = ptMarks(ptPage('plan-glrs-nantou-lc2.html', GL('glrs.nantou.gov.tw', 'GL000001')));
+    ok('壹、貳分章且點號重編的計畫不標任何點', plan.length === 0, plan.map(descr).join(' / ') || '（無）');
+    // 以條分項的法規頁照舊不標「第N點」
+    const law = ptMarks(pageOf('建築法', 'D0070109', '<div class="law-reg-content"><div class="row"><div class="col-no">第 1 條</div>' +
+      '<div class="col-data">一、依第三點規定辦理。</div></div><div class="row"><div class="col-no">第 2 條</div>' +
+      '<div class="col-data">二、本條。</div></div></div>'));
+    ok('以條分項的法規頁不標「第N點」', law.length === 0, law.map(descr).join(' / ') || '（無）');
+
+    // 懸停取本頁該點的全文，不混入下一點
+    const tw = ptPage('point-glrs-tc-GL002704.html', GL('law.taichung.gov.tw', 'GL002704'));
+    const t3 = await hoverOn(tw, ptMarks(tw)[0]);
+    ok('懸停「第三點」顯示本頁第三點，不混入第四點', /第 3 點/.test(t3) && /三、申請既有化糞池自行廢除/.test(t3) &&
+       /本要點下達生效日起/.test(t3) && !/四、既有化糞池/.test(t3), t3.slice(0, 160));
+    const mw = ptPage('point-moj-E0010019.html', MOJ('E0010019'));
+    const t1 = await hoverOn(mw, ptMarks(mw)[0]);
+    ok('全國法規資料庫的分點規則：懸停「本辦法第一點」顯示第一點', /來訪外賓抵離華人數在三人以上/.test(t1) && !/二、來訪外賓/.test(t1),
+       t1.slice(0, 120));
+
+    // 點號標題（「三、」）標出沿革：南投 GL000008 第三點修正過三次，第一點只隨全文修正
+    const nw = ptPage('point-glrs-nantou-GL000008.html', GL('glrs.nantou.gov.tw', 'GL000008'), 'history-point-nantou-GL000008.html');
+    await sleep(300);
+    const heads = [...nw.document.querySelectorAll('[data-lh-head]')].map(x => x.dataset.lhHead);
+    ok('點號標題逐點標記（南投 8 點）', heads.join(',') === 'p1,p2,p3,p4,p5,p6,p7,p8', heads.join(','));
+    const h3 = nw.document.querySelector('[data-lh-head="p3"]');
+    ok('修正過的點號標黃（第三點修正 3 次）', h3 && h3.dataset.lhMod === '3', h3 && h3.getAttribute('title'));
+    const th3 = await hoverOn(nw, h3);
+    ok('點號標題的沿革面板以「點」稱呼', /第 3 點 修正沿革/.test(th3) && /本點個別修正 3 次/.test(th3), th3.slice(0, 120));
+    const nh = await whensOf('GL000008', 'history-point-nantou-GL000008.html', GL('glrs.nantou.gov.tw', 'GL000008'));
+    ok('「修正第三點、增訂第四、五點規定」歸給第 4、5 點', named(nh.w, nh.h, 'p4').includes('112年5月17日') &&
+       named(nh.w, nh.h, 'p5').includes('112年5月17日'), named(nh.w, nh.h, 'p4') + ' / ' + named(nh.w, nh.h, 'p5'));
+    ok('點的修正不算成同號的條', named(nh.w, nh.h, '3').length === 0, named(nh.w, nh.h, '3').join('、'));
+    const yh = await whensOf('GL002351', 'history-point-tycg-GL002351.html', GL('law.tycg.gov.tw', 'GL002351'));
+    ok('「修正第 3、6、7 點」與「修正第 3、5、7、8、13、14 點」都歸給第 7 點',
+       named(yh.w, yh.h, 'p7').join('、') === '114 年 7 月 17 日、112 年 9 月 14 日', named(yh.w, yh.h, 'p7').join('、'));
+    ok('「修正全文 14 點」套用到每一點', wholes(yh.w, yh.h, 'p1').some(x => /115/.test(x)), wholes(yh.w, yh.h, 'p1').join('、'));
+    const tpw = site('<html><body><h3>臺北市測試要點</h3></body></html>',
+      'https://laws.gov.taipei/Law/LawSearch/LawArticleContent/FL088485', u => /LawInformation/.test(u) ? F('history-point-taipei-FL088485.html') : null);
+    const tph = await tpw.__lawhover__.hist('FL088485');
+    ok('臺北「修正發布第6點條文及第7點條文」歸給第 6、7 點',
+       named(tpw, tph, 'p6').some(x => /115年7月17日/.test(x)) && named(tpw, tph, 'p7').some(x => /115年7月17日/.test(x)),
+       named(tpw, tph, 'p6') + ' / ' + named(tpw, tph, 'p7'));
+
+    // 邊界情形：以南投全文模式的樣板合成（空段落、全形數字、超出點數、之X、重按書籤、並發、沿革失敗）
+    const nt = body => '<!DOCTYPE html><html><head><title>南投縣政府主管法規共用系統-法規內容-南投縣測試要點</title></head><body>' +
+      '<div id="ctl00_cp_content_divLawContent08" class="ClearCss">' + body + '</div></body></html>';
+    const four = nt('<p>一、本要點依某法訂定之。</p><p> </p><p>二、申請者應符合第３點規定。</p><p></p>' +
+      '<p>三、補助標準如下：</p><p>（一）每案新臺幣一萬元。</p><p>四、違反第九點或第二點之一者，不予補助；依第三點辦理。</p>');
+    const ew = site(four, GL('glrs.nantou.gov.tw', 'GL009999'), () => null);
+    const em = ptMarks(ew).map(x => x.dataset.flno + ':' + x.textContent);
+    ok('空白段落不影響分點；全形「第３點」照常標記', em[0] === 'p3:第３點', em.join(' / '));
+    ok('超出本頁點數的「第九點」與「第二點之一」不標', em.length === 2 && em[1] === 'p3:第三點', em.join(' / '));
+    const heads0 = ew.document.querySelectorAll('[data-lh-head]').length;
+    ew.__lawhover__.toggle();
+    ok('重按書籤不重複包點號標題、不重複標記', ew.document.querySelectorAll('[data-lh-head]').length === heads0 && heads0 === 4 &&
+       ptMarks(ew).length === 2, heads0 + ' 個標題，' + ptMarks(ew).length + ' 處');
+    const sub = ptMarks(site(nt('<p>一、甲。</p><p>二、依第一點。</p><p>二之一、乙。</p><p>三、丙。</p>'), GL('glrs.nantou.gov.tw', 'GL009998'), () => null));
+    ok('有「二之一、」這類點號的頁面不認點（不支援就不標）', sub.length === 0, sub.map(descr).join(' / ') || '（無）');
+    // 並發懸停同一點：條文取自本頁不另抓，沿革只抓一次；沿革抓不到時條文照常顯示
+    const cw = site(four, GL('glrs.nantou.gov.tw', 'GL009997'), () => null);
+    await sleep(300);
+    const before0 = cw.__calls.length, c3 = ptMarks(cw)[0];
+    c3.dispatchEvent(new cw.MouseEvent('mouseover', { bubbles: true }));
+    const tc = await hoverOn(cw, c3, 500);
+    const added0 = cw.__calls.slice(before0);
+    ok('懸停點號引用不另抓條文頁', !added0.some(u => /LawContent\.aspx/.test(u)), added0.join(' | '));
+    ok('沿革抓不到時仍顯示本頁該點，並說明沿革查詢失敗', /三、補助標準如下/.test(tc) && /每案新臺幣一萬元/.test(tc) &&
+       !/四、違反/.test(tc) && /沿革查詢失敗/.test(tc), tc.slice(0, 140));
+  }
+
   console.log('\n\x1b[1m快取\x1b[0m');
   const before = calls.length;
   m3.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));

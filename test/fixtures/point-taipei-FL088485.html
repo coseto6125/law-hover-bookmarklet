@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="zh-tw" class="global-font-md">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no">
+    <meta name="format-detection" content="telephone=no">
+    <title>臺北市法規查詢系統</title>
+    <meta name="DC.Title" content="臺北市法規查詢系統">
+    <meta name="DC.Creator" content="臺北市政府法務局">
+    <meta name="DC.Subject" content="臺北市法規查詢系統 - ">
+    <meta name="DC.Description" content="本網站目的在公佈臺北市及中央法規相關訊息">
+    <meta name="DC.Contributor" content="臺北市政府法務局">
+    <meta name="DC.Type" content="文字">
+    <meta name="DC.Format" content="text/html">
+    <meta name="DC.Source" content="臺北市政府法務局">
+    <meta name="DC.Language" content="中文">
+    <meta name="DC.coveraget.max" content="2013/12/31">
+    <meta name="DC.coveraget.min" content="2007/01/01">
+    <meta name="DC.Publisher" content="臺北市政府法務局">
+    <meta name="DC.Date" content="2007/12/28">
+    <meta name="DC.Identifier" content="379250000A">
+    <meta name="DC.Relation">
+    <meta name="DC.Rights" content="臺北市政府法務局版權所有">
+    <meta name="Category.Theme" content="300">
+    <meta name="Category.Cake" content="J30">
+    <meta name="Category.Service" content="I70">
+    <meta name="Keywords" content="臺北市法規查詢系統 - ">
+    
+    <link rel="stylesheet" href="/Law/css/font-icon.css?v=YqOPLUXyAHYdc4SSO_oTmpicXvSM7NMKyvxUwD5TGn4" />
+    <link rel="stylesheet" href="/Law/lib/jqueryui/themes/base/jquery-ui.min.css" />
+    <link rel="stylesheet" href="/Law/css/style.css?v=AcK1-UyixYH_a9egW2hABzEndhmj1Y9Gm-cClfrkwLk">
+    <link rel="stylesheet" href="/Law/css/law.css?v=wH1uZsYmwZL-TvujVLMCgQfyKv38xD1eiPL-FJCf5cQ" />
+    <link rel="icon" type="image/x-icon" href="/Law/img/favicon.ico">
+    <script src="/Law/lib/jquery/jquery.min.js"></script>
+    
+        <style type="text/css"></style>
+    
+</head>
+<body class="page-home">
+    <a href="#content_main" id="gotocontent" title="跳到主要內容" class="sr-only sr-only-focusable">跳到主要內容</a>
+    <nav class="navbar navbar-navbar navbar-expand-lg" aria-label="上方功能選項及搜尋">
+        <div class="container navbar-container">
+            <button id="btn-hamburger" class="navbar-toggler hamburger" type="button" aria-expanded="false" aria-label="展開選單" aria-controls="navbar-drawer">
+                <span class="sr-only">展開選單</span>
+                <span role="img" class="navbar-toggler-icon" aria-hidden="true"></span>
+            </button>
+            <nav id="navbar-top" class="navbar navbar-top d-lg-block d-xl-block nav-lg">
+                <div class="container">
+                    <span class="access-key"><a href="#U" name="U" id="U" accesskey="U" title="上方功能選項區(Alt+U)">:::</a></span>
+                    <div class="clock">
+                        <i class="material-icons material-icons-outlined" role="img" aria-label="時間">alarm</i>
+                        <time class="nowDate" datetime=""></time>
+                    </div>
+                    <nav>
+                        <ul class="navbar-nav q-link">
+                            <li class="nav-item">
+                                <a class="nav-link" href="https://legalaffairs.gov.taipei/" title="連結至回法務局首頁頁面">回法務局首頁</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至網站導覽頁面" href="/Law/Home/Sitemap">網站導覽</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至ENGLISH頁面" href="/Law/English/BrowseLaws">ENGLISH</a>
+                            </li>
+                            <li class="nav-item urbanplanLink">
+                                <a class="nav-link" title="連結至都市計畫書法規命令專區頁面" href="/Law/UrbanPlanSearch">都市計畫書法規命令專區</a>
+                            </li>
+                            <li class="nav-item sopLink">
+                                <a class="nav-link" title="連結至SOP專區頁面" href="/Law/SOPSearch">SOP專區</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至logo下載頁面" href="/Law/Home/Logo">logo下載</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至線上教學頁面" href="/Law/Home/Tutorial">線上教學</a>
+                            </li>
+                        </ul>
+
+                        <ul class="navbar-nav f-switch">
+                            <li class="nav-item">
+                                <a class="nav-link" data-size="sm" href="javascript:;" role="button" aria-pressed="false" title="小字型">小</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link f-on" data-size="md" href="javascript:;" role="button" aria-pressed="true" title="中字型">中</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-size="lg" href="javascript:;" role="button" aria-pressed="false" title="大字型">大</a>
+                            </li>
+                        </ul>
+                    </nav>
+
+                </div>
+            </nav><h1 class="navbar-brand logo">
+                <span id="site-total-name">臺北市法規查詢系統</span>
+                <a title="連結臺北市法規查詢系統網站首頁" aria-label="連結臺北市法規查詢系統網站首頁" href="/Law">
+                    <img src="/Law/img/svg/site-logo.svg" alt="臺北市法規查詢系統logo大圖">
+                </a>
+            </h1><nav id="navbar-search" class="navbar navbar-search col-lg-4" aria-label="全站搜尋">
+                <div class="input-box">
+                    <label for="top-search" class="sr-only">全站查詢關鍵字欄位</label>
+                    <input id="top-search" name="allSearchString" class="form-control" placeholder="請輸入全站查詢關鍵字" type="text" size="10" aria-label="請輸入全站查詢關鍵字" />
+                </div>
+                <button type="button" class="btn btn-primary" name="allSearchButton" role="button" aria-label="搜尋">搜尋</button>
+            </nav><nav id="navbar-drawer" class="navbar-drawer mobile-offcanvas collapse" aria-hidden="true" style="display: none;">
+                <nav id="offcanvas-header" class="navbar offcanvas-header">
+                    <a href="javascript:;" class="nav-link js-drawer-close" role="button" aria-label="關閉選單">
+                        <i class="material-icons material-icons-outline">close</i>
+                    </a>
+                </nav>
+                
+                <nav class="navbar navbar-top d-lg-none">
+                    <div class="container">
+                        <div class="clock">
+                            <i class="material-icons material-icons-outlined" role="img" aria-label="時間">alarm</i>
+                            <time class="nowDate" datetime=""></time>
+                        </div>
+                        <nav>
+                            <ul class="navbar-nav q-link">
+                                <li class="nav-item">
+                                    <a class="nav-link" href="https://legalaffairs.gov.taipei/" title="連結至回法務局首頁頁面">回法務局首頁</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" title="連結至網站導覽頁面" href="/Law/Home/Sitemap">網站導覽</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" title="連結至ENGLISH頁面" href="/Law/English/BrowseLaws">ENGLISH</a>
+                                </li>
+                                <li class="nav-item urbanplanLink">
+                                    <a class="nav-link" title="連結至都市計畫書法規命令專區頁面" href="/Law/UrbanPlanSearch">都市計畫書法規命令專區</a>
+                                </li>
+                                <li class="nav-item sopLink">
+                                    <a class="nav-link" title="連結至SOP專區頁面" href="/Law/SOPSearch">SOP專區</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" title="連結至logo下載頁面" href="/Law/Home/Logo">logo下載</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" title="連結至線上教學頁面" href="/Law/Home/Tutorial">線上教學</a>
+                                </li>
+                            </ul>
+                            <ul class="navbar-nav f-switch">
+                                <li class="nav-item">
+                                    <a class="nav-link" data-size="sm" href="javascript:;" role="button" aria-pressed="false" title="小字型">小</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link f-on" data-size="md" href="javascript:;" role="button" aria-pressed="true" title="中字型">中</a>
+                                </li>
+                                <li class="nav-item">
+                                    <a class="nav-link" data-size="lg" href="javascript:;" role="button" aria-pressed="false" title="大字型">大</a>
+                                </li>
+                            </ul>
+                        </nav>
+                    </div>
+                </nav>
+                
+                <nav id="navbar-menu" class="navbar navbar-menu" aria-label="主要選單區">
+                    <div class="container">
+                        <ul class="navbar-nav">
+                            <li class="nav-item home-button">
+                                <a class="nav-link" titlte="連結至首頁" href="/Law">回首頁</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至最新訊息頁面" href="/Law/News">最新訊息</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至法規類別頁面" href="/Law/LawCategory">法規類別</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至法規查詢頁面" href="/Law/LawSearch">法規查詢</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至解釋令函頁面" href="/Law/Interpretation">解釋令函</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至訴願決定書頁面" href="/Law/LawDecision">訴願決定書</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至草案預告頁面" href="/Law/DraftPreview">草案預告</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至綜合查詢頁面" href="/Law/Search">綜合查詢</a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" title="連結至相關網站頁面" href="/Law/Home/RelatedWebsite">相關網站</a>
+                            </li>
+                        </ul>
+                    </div>
+                </nav>
+            </nav><div class="screen-overlay"></div>
+        </div>
+    </nav>
+    <div class="screen-overlay"></div>
+    <main id="content_main_anchor" tabindex="-1">
+        <span class="access-key"><a href="#C" name="C" id="C" accesskey="C" title="中央內容區(Alt+C)">:::</a></span>
+        
+
+
+
+
+<nav aria-label="網站頁面路徑">
+    <span class="access-key"><a href="#C" name="C" id="content_main" accesskey="C" title="中間主要內容區(Alt+C)">:::</a></span>
+    <ol class="breadcrumb container">
+        <li class="breadcrumb-item home"><a title="連結至首頁" href="/Law">首頁</a></li>
+        <li class="breadcrumb-item"><a title="連結至法規資訊" href="/Law/LawSearch/LawInformation/FL088485">法規資訊</a></li>
+        <li class="breadcrumb-item active" aria-current="page">&#x6CD5;&#x898F;&#x6240;&#x6709;&#x689D;&#x6587;</li>
+    </ol>
+</nav>
+<!-- .breadcrumb -->
+
+<section class="content">
+    <div class="cont-box container">
+        <div class="cont-inner">
+            <div class="detail-head">
+                <div class="col-heading">
+                    <h2 class="subject">
+                        法規資訊
+                    </h2>
+                    <div class="btn-group" role="group" aria-label="回前頁功能按鈕群組">
+    <a href="javascript:window.history.back();" role="button" class="btn" title="回上頁">
+        <i class="material-icons" role="img" aria-labelledby="arrow-left">
+            keyboard_arrow_left
+        </i>
+        <span id="arrow-left">回上頁</span>
+    </a>
+</div>
+                </div>
+            </div>
+            <h3 class="small-subject row">
+                <span>&#x81FA;&#x5317;&#x5E02;&#x6CD5;&#x898F;&#x6240;&#x6709;&#x689D;&#x6587;</span>
+                <span class="right-btns">
+    <a class="back-link" role="button" title="將本頁資料另存PDF" href="/Law/LawSearch/LawExport/FL088485?type=0">
+        <i class="material-icons" role="img" aria-labelledby="save-ui-icon">text_rotate_vertical</i>
+        <ins id="save-ui-icon">另存PDF</ins>
+    </a>
+    <a class="back-link" role="button" title="另開新視窗將本頁資料列印" target="new" href="/Law/LawSearch/LawPrint/FL088485?type=0">
+        <i class="material-icons" role="img" aria-labelledby="print-ui-icon">print</i>
+        <ins id="print-ui-icon">友善列印</ins>
+    </a>
+</span>
+            </h3>
+            <div class="info-upper">
+                
+    <div class="form-group row">
+        <div class="col-label">
+            <label fix="">法規類號</label>
+        </div>
+        <div class="col-input">
+            <dfn>&#x5317;&#x5E02;04&#xFF0D;06&#xFF0D;3035</dfn>
+        </div>
+    </div>
+<div class="form-group row">
+    <div class="col-label">
+        <label fix="">名　　稱</label>
+    </div>
+    <div class="col-input set-flex">
+                <a class="law-link" title="&#x81FA;&#x5317;&#x5E02;&#x670D;&#x52D9;&#x696D;&#x6C70;&#x63DB;&#x7BC0;&#x80FD;&#x8A2D;&#x5099;&#x88DC;&#x52A9;&#x8981;&#x9EDE;" href="/Law/LawSearch/LawInformation/FL088485">&#x81FA;&#x5317;&#x5E02;&#x670D;&#x52D9;&#x696D;&#x6C70;&#x63DB;&#x7BC0;&#x80FD;&#x8A2D;&#x5099;&#x88DC;&#x52A9;&#x8981;&#x9EDE;</a>
+    </div>
+</div>
+    <div class="form-group row">
+        <div class="col-label">
+            <label fix="">法規位階</label>
+        </div>
+        <div class="col-input">
+            <dfn>&#x884C;&#x653F;&#x898F;&#x5247;&#xFF1A;&#x5C6C;&#x884C;&#x653F;&#x7A0B;&#x5E8F;&#x6CD5;&#x7B2C;159&#x689D;&#x7B2C;2&#x9805;&#x7B2C;2&#x6B3E;</dfn>
+        </div>
+    </div>
+    <div class="form-group row">
+        <div class="col-label">
+            <label fix="">修正日期</label>
+        </div>
+        <div class="col-input">
+            <dfn>&#x6C11;&#x570B; 115 &#x5E74; 07 &#x6708; 17 &#x65E5;</dfn>
+        </div>
+    </div>
+<div class="form-group row">
+    <div class="col-label">
+        <label fix="">沿　　革</label>
+    </div>
+    <div class="col-input">
+        <dfn class="pre">&#x4E2D;&#x83EF;&#x6C11;&#x570B;115&#x5E74;7&#x6708;17&#x65E5;&#x81FA;&#x5317;&#x5E02;&#x653F;&#x5E9C;&#x7522;&#x696D;&#x767C;&#x5C55;&#x5C40;&#x5317;&#x5E02;&#x7522;&#x696D;&#x516C;&#x5B57;&#x7B2C;11530590461&#x865F;&#x4EE4;&#x4FEE;&#x6B63;&#x767C;&#x5E03;&#x7B2C;6&#x9EDE;&#x689D;&#x6587;&#x53CA;&#x7B2C;7&#x9EDE;&#x689D;&#x6587;&#xFF1B;&#x4E26;&#x81EA;115&#x5E74;7&#x6708;22&#x65E5;&#x751F;&#x6548;</dfn>
+    </div>
+</div>
+<style>
+    .col-input .text-danger, .col-input .pre {
+        display: block; /* 保證兩者各自占用一行 */
+        width: 100%; /* 強制撐滿父容器寬度 */
+    }
+
+    .pre {
+        margin-top: 8px; /* 增加間距美觀 */
+    }
+</style>
+                    <div class="form-group row btn-infos">
+        <a class="btn btn-primary lawArticleContent" title="連結至所有條文" href="/Law/LawSearch/LawArticleContent/FL088485">
+            <i class="material-icons" role="img" aria-labelledby="btn-infos-icon-1">
+                subject
+            </i>
+            <span id="btn-infos-icon-1">所有條文</span>
+        </a>
+        <a class="btn btn-primary lawChapter disabled" title="連結至篇章節" tabindex="-1" style="pointer-events: none;" href="/Law/Home/Index/FL088485">
+            <i class="material-icons" role="img" aria-labelledby="btn-infos-icon-2">
+                apps
+            </i>
+            <span id="btn-infos-icon-2">編章節</span>
+        </a>
+        <a class="btn btn-primary" title="連結至條文檢索" href="/Law/LawSearch/LawArticleContentSearch/FL088485">
+            <i class="material-icons" role="img" aria-labelledby="btn-infos-icon-3">
+                tune
+            </i>
+            <span id="btn-infos-icon-3">條文檢索</span>
+        </a>
+        <a class="btn btn-primary" title="連結至條號查詢" href="/Law/LawSearch/LawArticleNoSearch/FL088485">
+            <i class="material-icons" role="img" aria-labelledby="btn-infos-icon-4">
+                pin
+            </i>
+            <span id="btn-infos-icon-4">條號查詢</span>
+        </a>
+        
+        <a class="btn btn-primary disabled" title="連結至附件下載" tabindex="-1" style="pointer-events: none;" href="/Law/Home/Index/FL088485">
+            <i class="material-icons" role="img" aria-labelledby="btn-infos-icon-5">
+                file_download
+            </i>
+            <span id="btn-infos-icon-5">附件下載</span>
+        </a>
+        
+        <a class="btn btn-primary disabled" title="連結至制定依據" tabindex="-1" style="pointer-events: none;" href="/Law/Home/Index/FL088485">
+            <i class="material-icons" role="img" aria-labelledby="btn-infos-icon-6">
+                extension
+            </i>
+            <span id="btn-infos-icon-6">制定依據</span>
+        </a>
+        <a class="btn btn-primary" title="連結至歷史沿革" href="/Law/LawSearch/LawInformation/FL088485">
+            <i class="material-icons" role="img" aria-labelledby="btn-infos-icon-7">
+                history
+            </i>
+            <span id="btn-infos-icon-7">歷史沿革</span>
+        </a>
+    </div>
+    <div class="form-group row btn-infos-drop">
+        <div class="col-button">
+            <div class="law-infos-switch">
+                <label for="lawInformationSwitch" class="sr-only">切換選擇法規資訊內容</label>
+                <select class="form-control" id="lawInformationSwitch">
+                    <option value="/Law/LawSearch/LawInformation/FL088485">歷史沿革</option>
+                    <option value="/Law/LawSearch/LawArticleContent/FL088485">所有條文</option>
+                    <option value="/Law/LawSearch/LawArticleContentSearch/FL088485">條文檢索</option>
+                    <option value="/Law/LawSearch/LawArticleNoSearch/FL088485">條號查詢</option>
+                </select>
+            </div>
+        </div>
+    </div>
+<script>
+    $(function () {
+        $("#lawInformationSwitch").on("change", function () {
+            window.location.href = $(this).val();
+        });
+        $("#lawInformationSwitch option[value*='/LawArticleContent/']").prop("selected", "selected");
+    });
+</script>
+            </div><!-- .into-upper -->
+        </div><!-- .cont-inner -->
+    </div><!-- .cont-box.container -->
+
+    <div class="cont-box container">
+        <div class="cont-inner">
+            <div class="detail-body">
+                <article class="col-article">
+                        <ul class="law law-content">
+                                <li><div class="row">
+    <div class="col-data">
+            <div class="law-articlepre">一、臺北市政府產業發展局（以下簡稱產業局）為達成本市 2050 淨零排
+    放目標，辦理補助臺北市（以下簡稱本市）服務業汰換轄內營業場所
+    老舊空調設備、照明燈具、室內停車場智慧照明、電冰箱、冷凍櫃、
+    冷凍（藏）庫、空氣門簾及電扇，以提升節電效率，特訂定本要點。</div>
+
+    </div>
+        <div class="col-link">
+        </div>
+</div></li>
+                                <li><div class="row">
+    <div class="col-data">
+            <div class="law-articlepre">二、補助對象：指於本市營業並辦妥公司、商業登記證明、法人設立證書
+    、營業（稅籍）登記證明或其他經產業局認定足資證明在本市從事服
+    務業。惟各級政府機關、公立醫院學校及其出資捐助逾百分之五十以
+    上之法人除外。</div>
+
+    </div>
+        <div class="col-link">
+        </div>
+</div></li>
+                                <li><div class="row">
+    <div class="col-data">
+            <div class="law-articlepre">三、本要點所定之補助、受理申請期間、補助預算額度及補充規定事項，
+    另行訂定，公告於產業局網站。</div>
+
+    </div>
+        <div class="col-link">
+        </div>
+</div></li>
+                                <li><div class="row">
+    <div class="col-data">
+            <div class="law-articlepre">四、本要點用詞，定義如下：
+（一）空調：
+      1.無風管空氣調節機：指符合中華民國國家標準（以下簡稱 CNS）
+        3615  及 CNS14464 規定，其額定冷氣能力 71kW 以下，且列入
+        經濟部標準檢驗局應施檢驗品目者。
+      2.接風管空氣調節機：指符合 CNS 3615 及 CNS 15173  規定，其
+        額定冷氣能力 71kW 以下，且列入經濟部標準檢驗局應施檢驗品
+        目者。
+      3.中央空調系統：指冰水主機及其週邊附屬設備（包含冰水泵、區
+        域水泵、冷卻水泵、冷卻水塔或散熱鰭片、空調箱、小型送風機
+        及全熱交換器等）。
+（二）照明燈具：指辦公與營業場所之 LED  燈具。
+（三）室內停車場智慧照明：指室內停車場至少需有自動開關、調光或時
+      序控制等一項以上智慧且照明控制功能之照明燈具。
+（四）電冰箱：指符合 CNS 2062 規定且列入經濟部標準檢驗局應施檢驗
+      品目。
+（五）冷凍櫃：指取得經濟部能源署冷凍櫃（箱）節能標章且在標章有效
+      期限內。
+（六）冷凍（藏）庫：指冷凝機與保溫庫體分離設置，且應具備變頻冷凝
+      主機、蒸發器及散熱裝置，包含製冷系統以冷卻櫃體內部，使置放
+      於其內部之冷藏或冷凍食品維持於規定溫度範圍之內之保溫裝置。
+      不包含定頻壓縮機加裝外掛式變頻器。
+（七）空氣門簾：為有效防止冷氣外洩或阻隔室外熱氣滲入，設置長度應
+      等於或大於門寬。
+（八）電扇：指取得經濟部能源署節能標章，且在標章有效期限內之天花
+      板循環扇、吊電扇或自動旋轉吊電扇。不包括桌上型、壁掛型、箱
+      型電扇及立扇。</div>
+
+    </div>
+        <div class="col-link">
+        </div>
+</div></li>
+                                <li><div class="row">
+    <div class="col-data">
+            <div class="law-articlepre">五、各補助品項與申請條件：
+（一）補助品項：
+      1.本市轄內之服務業汰換既有空調。
+      2.本市轄內之服務業汰換既有照明燈具。
+      3.本市轄內之服務業汰換所屬室內停車場智慧照明。
+      4.本市轄內之服務業汰換既有之電冰箱、冷凍櫃或冷凍（藏）庫設
+        備。
+      5.本市轄內之服務業新設之智慧節能冷凍（藏）庫設備、空氣門簾
+        或電扇。
+（二）申請條件：
+      1.申請汰換、新設前款品項設備補助，應依產業局訂定之日期執行
+        之。
+      2.申請金額應為含稅價格。
+      3.設備設置地址應位於本市，並與用電地址相同。</div>
+
+    </div>
+        <div class="col-link">
+        </div>
+</div></li>
+                                <li><div class="row">
+    <div class="col-data">
+            <div class="law-articlepre">六、補助標準：
+    本要點補助汰換節能設備之額度，每一申請單位（同一公司或機構）
+    當年度累計補助上限為新臺幣三百萬元。申請單位不論由總公司（機
+    構）或其所屬分公司（機構）分別提出申請，其補助金額均合併計算
+    ，且合計不得超過前開上限。各項節能設備之補助額度計算方式如下
+    ：
+（一）空調：
+      1.無風管空氣調節機：汰舊換新後之設備，應符合經濟部公告之「
+        無風管空氣調節機容許耗用能源基準與能源效率分級標示事項、
+        方法及檢查方式」所規範之一級新品，額定冷氣能力每 kW 補助
+        新臺幣二千五百元，每案補助金額新臺幣一百五十萬元以上者，
+        負擔自籌款應超過補助金額。
+      2.接風管空氣調節機：汰舊換新後之設備，應符合經濟部公告之「
+        無風管空氣調節機容許耗用能源基準與能源效率分級標示事項、
+        方法及檢查方式」所規範之一級氣冷分離式或水冷式空氣調節機
+        之室外機，搭配其系列型號室內機之新品，每 kW 補助新臺幣二
+        千五百元，每案補助金額新臺幣一百五十萬元以上者，負擔自籌
+        款應超過補助金額。
+      3.中央空調系統：汰舊換新項目至少須包含冰水主機設備，且冰水
+        主機須符合經濟部能源署公告「蒸氣壓縮式冰水機組容許耗用能
+        源基準與能源效率分級標示事項方法及檢查方式」依冰水機組製
+        冷能源效率分級基準表，製冷能源效率分級基準性能係數 （COP
+        ）為 1  級之機種。
+     （1）汰換中央空調得申請補助項目包含：
+        甲、汰舊換新後之設備包含冰水主機及週邊附屬設備，以及安裝
+            前款設備直接使用之材料零件。
+        乙、工作施作費用包含保險費用、職安衛費用、既有設備拆除清
+            運費用、新設備運送安裝費用及其他工程施作必要之費用。
+        丙、非屬工程施作必要之項目（如裝修費用…）不予補助。
+     （2）每案補助基準為百分之三十；資本額超過新臺幣一億元者，補
+          助比例減少百分之十。
+     （3）申請案如搭配連鎖控制系統最佳化，補助比例提高百分之十。
+     （4）申請單位用電地址位於內湖區、南港區、松山區、中山區（松
+          江路以東）等四個申請用電受台電公司核供限制之行政區域且
+          契約用電容量超過八百瓩以上者，如於申請當年度或完工後向
+          台電公司申請調降契約容量，補助比例提高百分之十。
+     （5）補助金額以新臺幣三百萬元為上限，每案補助金額新臺幣一百
+          五十萬元以上者，負擔自籌款應超過補助金額。
+（二）照明燈具：
+      1.汰舊換新後之照明燈具，僅限發光二極體（LED）之各式燈具，
+        且經能源署核准登錄之節能標章、「發光二極體平板燈具」、「
+        天井燈」、「筒燈及嵌燈」、「出口及避難指示燈」、「室內照
+        明燈具」、「辦公室及營業場所燈具」獲證之新品。
+      2.每具補助百分之五十費用，照明燈具每具以新臺幣五百元為上限
+        ，每案補助金額新臺幣一百五十萬元以上者，自籌款應超過補助
+        金額。
+（三）室內停車場智慧照明：
+      1.換裝智慧照明之發光效率應達 120lm／W 以上，且符合 CNS1411
+        5 （電器照明與類似設備之射頻干擾限制值與量測方法）及 CNS
+        14335 （燈具安全通則）等認證；或符合經濟部公告之「室內停
+        車場智慧照明燈具節能標章能源效率基準與標示方法」，經經濟
+        部能源署核准登錄之節能標章「室內停車場智慧照明燈具」獲證
+        之新品。且至少須部分或全部具備自動開關、調光或時序控制等
+        一項以上智慧照明控制功能。
+      2.每盞補助百分之五十費用，且以新臺幣五百元為上限，每案補助
+        金額新臺幣一百五十萬元以上者，自籌款應超過補助金額。
+（四）電冰箱：汰舊換新後之設備，應符合經濟部能源署公告之「電冰箱
+      容許耗用能源基準與能源效率分級標示事項、方法及檢查方式」所
+      規範之一級風扇式冷凍冷藏電冰箱、直冷式冷凍冷藏電冰箱或冷藏
+      式電冰箱，每台產品每公升（L） 補助新臺幣二十元，且以新臺幣
+      八千元為上限。（以經濟部能源署網站公布為準）
+（五）冷凍櫃：汰舊換新後之設備，應符合經濟部能源署公告之「冷凍櫃
+      （箱）節能標章能源效率基準與標示方法」取得節能標章之廠牌、
+      型號之新品，每台產品每公升（L） 補助新臺幣二十元，且以新臺
+      幣八千元為上限。（節能標章產品清單以經濟部能源署網站公布為
+      準）
+（六）冷凍（藏）庫：
+      1.汰舊換新或新設冷凍（藏）庫項目至少須包含冷凝主機設備，並
+        符合下列規定：
+     （1）冷凝主機設備：限採用變頻控制之高能效壓縮機。不包含定頻
+          壓縮機加裝外掛式變頻器。
+     （2）補助項目包含：
+        甲、汰舊換新冷凍（藏）設備、庫板：
+            A.申請補助項目包含：
+              a.汰舊換新後之設備包含冷凝主機及週邊附屬設備，以及
+                安裝前揭設備直接使用之材料零件。庫板需為 PIR（Po
+                lyisocyanurate，聚異三聚氰酸酯）、PU（Polyuretha
+                ne，聚氨酯）或 XPS（Extruded Polystyrene，聚苯乙
+                烯）材質，具有阻隔冷氣外洩及保溫之功能。
+              b.工作施作費用包含保險費用、職安衛費用、既有設備拆
+                除清運費用、換新設備運送安裝費用及其他工程施作必
+                要之費用。
+              c.非屬工程施作必要之項目（如裝修費用…）不予補助。
+              d.申請者應委由冷凍空調丙級技術士以上人員負責量測施
+                工前冷凍（藏）庫現況用電情形，於週一至週日同一時
+                間逐日量測連續一百六十八小時之舊冷凍（藏）庫用電
+                量紀錄，並提供預估節能成效。
+        乙、新設智慧節能冷凍（藏）設備、庫板：
+            A.申請補助項目包含：
+              a.新設設備包含冷凝主機、智慧節能連鎖控制系統及週邊
+                附屬設備，以及安裝前揭設備直接使用之材料零件。庫
+                板需為 PIR（Polyisocyanurate，聚異三聚氰酸酯）、
+                PU（Polyurethane，聚氨酯）或 XPS（Extruded Polys
+                tyrene，聚苯乙烯）材質，具有阻隔冷氣外洩及保溫之
+                功能。
+              b.工作施作費用包含保險費用、職安衛費用、新設備運送
+                安裝費用及其他工程施作必要之費用。
+              c.非屬工程施作必要之項目（如裝修費用…）不予補助。
+              d.申請者應委由冷凍空調丙級技術士以上人員提供預估節
+                能成效。
+      2.每案補助百分之三十；資本額超過新臺幣一億元者，補助比例減
+        少百分之十。
+      3.冷凝主機限（原廠型錄款式）具備智慧節能連鎖控制系統最佳化
+        功能，補助比例提高百分之十。
+      4.申請單位為中小企業，或用電地址位於內湖區、南港區、松山區
+        、中山區（松江路以東）等四個申請用電受台電公司核供限制之
+        行政區域且契約用電容量超過八百瓩以上者，如於申請當年度或
+        完工後向台電公司申請調降契約容量，補助比例提高百分之十。
+      5.每案補助上限新臺幣三百萬元，每案補助金額新臺幣一百五十萬
+        元以上者，自籌款應超過補助金額。
+      6.竣工時應委由冷凍空調丙級技術士以上人員提供量測冷凍（藏）
+        庫完工後用電情形，於週一至週日同一時間逐日量測連續一百六
+        十八小時之新冷凍（藏）庫用電量紀錄，並提供節能成果分析。
+      7.申請人應承諾切結於完工後二年內，每年一月底、七月底提出前
+        六個月期間節能成果報告書，並應配合機關之要求出席會議，每
+        次出席會議酌予補助出席費。
+（七）空氣門簾：每台補助百分之五十費用，並以新臺幣五千元為上限。
+（八）電扇：每台補助百分之五十費用，並以新臺幣一千元為上限，且限
+      已設有空調設備之場所。（節能標章產品清單以經濟部能源署網站
+      公布為準）</div>
+
+    </div>
+        <div class="col-link">
+        </div>
+</div></li>
+                                <li><div class="row">
+    <div class="col-data">
+            <div class="law-articlepre">七、申請文件、程序、經費請撥及核銷：
+（一）申請者應於公告受理申請期間內，檢具下列文件向產業局提出申請
+      （申請文件請掛號郵寄或親送至產業局公告指定之委辦單位、地址
+      ）：
+      1.申請無風管、接風管空氣調節機、照明燈具及室內停車場智慧照
+        明、電冰箱、冷凍櫃、空氣門簾或電扇補助，於施工完成後檢具
+        下列文件：
+     （1）補助申請書。（附件一）
+     （2）公司、商業登記證明、法人設立證書、營業（稅籍）登記證明
+          或其他經產業局認定足資證明在本市從事服務業之證明文件。
+          （附件二）
+     （3）汰換及換裝節能設備汰換施（完）工證明文件。（附件三）
+     （4）符合前點補助標準之設備規格證明文件。
+     （5）載明產品型號之購買證明文件。
+     （6）最近一期台電公司電費單影本（申請者與電費單用戶名不同者
+          ，須另出具租賃契約影本，或足資證明使用之文件，設備設置
+          地址應與用電地址相同）。
+     （7）申請汰換無風管、接風管空氣調節機、電冰箱或冷凍櫃補助須
+          檢附回收證明文件，依據設備別及規格回收途徑說明如下：
+        甲、冷凍能力 9.3kW  以下之空調機、800 公升（L） 以下電冰
+            箱及 800  公升（L） 以下家用冷凍櫃：依循環境部廢四機
+            逆向回收體系進行處理，並以廢四機回收聯單第三聯正本作
+            為證明文件。
+        乙、冷凍能力 9.3kW  以上之空調機，須檢附相關回收證明文件
+            ，請擇一方式辦理：
+            A.委託領有廢棄物清除許可證，且許可清除項目包含廢棄物
+              代碼：D-2605（含塑膠、橡膠或油脂之廢壓縮機）以及 D
+              -2619 （廢電氣器材）之合法機構進行處理。檢附該機構
+              之許可證明文件以及廢舊主機設備之回收證明文件。
+            B.依循本府環境保護局所訂回收途徑進行處理，申請人應自
+              行或委託廠商將廢舊主機運送至本市山豬窟廢棄物處理場
+              （臺北市南港區南深路 37 號，電話：02-26511434） 做
+              為暫存區域。檢附「臺北市設備汰換回收聯單第三聯」正
+              本作為證明文件。回收聯單申請請至臺北市智慧節電網-
+              廢機回收流程下載（https://energy.gov.taipei/Subsid
+              ize/Page3） 。
+        丙、800 公升（L） 以上電冰箱、營業用冷凍櫃及 800  公升（
+            L） 以上家用冷凍櫃：委託領有廢棄物清除許可證，且許可
+            清除項目包含廢棄物代碼：D-2605（含塑膠、橡膠或油脂之
+            廢壓縮機）以及 D-2619 （廢電氣器材）之合法機構進行處
+            理。檢附該機構之許可證明文件以及廢舊主機設備之回收證
+            明文件。
+     （8）受補助者戶名之金融機構存摺封面影本。
+     （9）領據。
+    （10）其他經產業局規定之文件。
+      2.申請中央空調系統或冷凍（藏）庫補助，須於公告受理期間，施
+        工前先檢具補助申請書及公司、商業登記證明、法人設立證書、
+        營業（稅籍）登記證明或其他經產業局認定足資證明在本市從事
+        服務業之證明文件，經產業局核准補助後，待完工後檢具下列文
+        件：
+     （1）產業局核准補助函影本。
+     （2）中央空調系統、冷凍（藏）庫施（完）工驗收報告書。（附件
+          四）
+     （3）符合前點補助標準之設備規格證明文件。
+     （4）載明產品型號之購買證明文件。
+     （5）最近一期台電公司電費單影本（申請者與電費單用戶名不同者
+          ，須另出具租賃契約影本，或足資證明使用之文件，設備設置
+          地址應與用電地址相同）
+     （6）申請汰換補助，其廢舊主機設備之處置，須檢附相關回收證明
+          文件，請擇一方式辦理：
+        甲、委託領有廢棄物清除許可證，且許可清除項目包含廢棄物代
+            碼：D-2605（含塑膠、橡膠或油脂之廢壓縮機）以及 D-261
+            9 （廢電氣器材）之合法機構進行處理。檢附該機構之許可
+            證明文件以及廢舊主機設備之回收證明文件。
+        乙、依循本府環境保護局所訂回收途徑進行處理，申請人應自行
+            或委託廠商將廢舊主機運送至本市山豬窟廢棄物處理場（臺
+            北市南港區南深路 37 號，電話：02-26511434） 做為暫存
+            區域。檢附「臺北市設備汰換回收聯單第三聯」正本作為證
+            明文件。回收聯單申請請至臺北市智慧節電網- 廢機回收流
+            程下載（https://energy.gov.taipei/Subsidize/Page3）
+            。
+     （7）用電地址位於受台電公司核供限制之行政區域且契約用電容量
+          超過八百瓩以上，申請補助比例提高百分之十者，應檢附向台
+          電公司申請契約用電調整下降核定函。
+     （8）受補助者戶名之金融機構存摺封面影本。
+     （9）領據。
+    （10）其他經產業局規定之文件。
+（二）申請者提送之文件不符規定，經通知限期補正，屆期未補正或補正
+      不全者，應予駁回或不予撥款。
+（三）產業局為確認請領補助案件執行情形，得派員進行現場查核；現場
+      查核結果與提送文件不符者，得要求申請者說明並限期改善，申請
+      者應配合辦理。
+（四）申請中央空調系統或冷凍（藏）庫補助，產業局得參酌申請標的之
+      總節能量、冷凍（藏）庫出租使用率、節能效益及市場價格等因素
+      ，酌減補助金額或不予補助。
+（五）經審核通過之請領補助案件，產業局將以電匯轉帳方式將補助款撥
+      入以受補助者為戶名之金融機構指定帳號。</div>
+
+    </div>
+        <div class="col-link">
+        </div>
+</div></li>
+                                <li><div class="row">
+    <div class="col-data">
+            <div class="law-articlepre">八、審核作業：
+（一）申請補助案件依收件先後順序進行審查，並將審查結果通知申請者
+      。冷凍（藏）庫則視出租使用率作為經費優先核撥之判斷。
+（二）申請中央空調系統及冷凍（藏）庫補助，採二階段審查，第一階段
+      僅就申請補助品項、規格預為審查，不代表最終核發補助金額，實
+      際核定補助金額仍應依實際完工結果，辦理第二階段複審後核定。
+（三）補助預算額度餘額如不足提供最後一個序位獲得補助之申請者補助
+      金額時，產業局得依所剩餘額度核定補助。
+（四）當年度補助各品項預算額度用罄時，產業局得停止受理補助申請。</div>
+
+    </div>
+        <div class="col-link">
+        </div>
+</div></li>
+                                <li><div class="row">
+    <div class="col-data">
+            <div class="law-articlepre">九、補助之撤銷、廢止及追回補助款：
+（一）受補助者有下列情形之一者，產業局得視情節輕重，撤銷或廢止原
+      核准補助處分之全部或一部，並追回已撥付之全部或一部補助款：
+      1.以詐欺或其他不正方式申請補助或檢具之申請資料有虛偽、隱匿
+        等不實情事。
+      2.未依補助款用途支用。
+      3.檢附不實之支用單據辦理核銷或有虛報、浮報之不實情事。
+      4.有第七點第二款應不予撥款之情形。
+      5.經查證有未安裝使用、轉賣或無故拆除之情事。
+      6.同一補助案同時獲其他政府機關相關補助款。
+      7.其他違反本要點或相關法令規定之情事。
+（二）有前款各目情事者，產業局並得依情節輕重，對該補助案件停止補
+      助一年至五年。</div>
+
+    </div>
+        <div class="col-link">
+        </div>
+</div></li>
+                                <li><div class="row">
+    <div class="col-data">
+            <div class="law-articlepre">十、其他事項：
+（一）受補助者應同意產業局得於推廣節能減碳宣導或其他非營利目的之
+      各式文宣、網站及各類宣導展覽場合使用相關資料；並就產業局所
+      舉辦之節能相關活動、觀摩或會議，配合及提供相關協助。
+（二）其餘依臺北市政府各機關（基金）對民間團體及個人補（捐）助預
+      算執行應注意事項有關規定辦理。
+（三）本要點所定書表格式，由產業局定之。
+（四）產業局保留隨時得補充、修正及解釋本要點之權利。</div>
+
+    </div>
+        <div class="col-link">
+        </div>
+</div></li>
+                        </ul>
+                </article>
+            </div>
+        </div><!-- .cont-inner -->
+    </div>
+</section>
+
+    </main>
+    <input id="csrfToken" name="__RequestVerificationToken" type="hidden" value="CfDJ8IhajabAKfpKoC6nS1_FyFexHufL1CoDgS9zm-44Ek_SXfW83Gytmv74q9kXpzI2z7fOQh308UD3trmOGlt3uwaZ4nqerq54ertM9HDdm00Dzn_lLi4Enak1eS9LjK8iuN1oVeIeHTU4VcgIlLML0rM"></input>
+
+    <div class="belt">
+        <ul class="container">
+            <span class="access-key"><a href="#B" name="B" id="B" accesskey="B" title="下方資訊區(Alt+B)">:::</a></span>
+            <li class="col">
+                <div class="belt-icon one-month"></div><div class="belt-text">
+                    <strong>本月造訪人次</strong>
+                    <span id="monthVisit" class="belt-digit" role="description">0</span>
+                </div>
+            </li>
+            <li class="col">
+                <div class="belt-icon all-month"></div><div class="belt-text">
+                    <strong>本月頁面瀏覽人次</strong>
+                    <span id="monthBrowse" class="belt-digit">0</span>
+                </div>
+            </li>
+            <li class="col">
+                <div class="belt-icon all-visitors"></div><div class="belt-text">
+                    <strong>總造訪人次<span>(自93.07.26起)</span></strong>
+                    <span id="allVisit" class="belt-digit">0</span>
+                </div>
+            </li>
+            <li class="col">
+                <div class="belt-icon all-pageviews"></div><div class="belt-text">
+                    <strong>頁面總瀏覽人次<span>(自105.7.15起)</span></strong>
+                    <span id="allBrowse" class="belt-digit">0</span>
+                </div>
+            </li>
+        </ul>
+    </div>
+    <footer class="site-footer">
+        <div class="container">
+            <ul class="foot-top">
+                <li>
+                    <a title="連結政府網站資料開放宣告頁面" href="/Law/Home/OpenData">
+                        政府網站資料開放宣告
+                    </a>
+                </li>
+                <li>
+                    <a title="連結隱私權及資訊安全政策頁面" href="/Law/Home/Policy">
+                        隱私權及資訊安全政策
+                    </a>
+                </li>
+            </ul><div class="foot-body row">
+                <div class="col-12 col-md-4 dla-logo">
+                    <a href="https://legalaffairs.gov.taipei/" target="new" rel="noreferrer noopener" title="連結臺北市政府法務局網站" aria-label="連結臺北市政府法務局網站">
+                        <img src="/Law/img/ui/dla-logo.png" alt="臺北市政府法務局標誌">
+                    </a>
+                </div><div class="col-12 col-md-4 address">
+                    <ul>
+                        <li>
+                            <strong>地　　址</strong>
+                            <span>
+                                110204 臺北市信義區市府路1號8樓東北區
+                            </span>
+                        </li>
+                        <li>
+                            <strong>電　　話</strong>
+                            <span>
+                                <a href="tel:1999" aria-label="1 9 9 9">1999</a>
+                                (非臺北市<a href="tel:0227208889" aria-label="02 27208889">02-27208889</a>)
+                            </span>
+                        </li>
+                        <li>
+                            <strong>傳　　真</strong>
+                            <span>02-27596695、02-27593266</span>
+                        </li>
+                        <li>
+                            <strong>陳情系統</strong>
+                            <span>
+                                <a href="https://1999.gov.taipei" target="_blank" rel="noreferrer noopener" title="另開新視窗連結至臺北市陳情系統網站" aria-label="連結臺北市陳情系統網站">
+                                    https://1999.gov.taipei
+                                </a>
+                            </span>
+                        </li>
+                        <li>
+                            <strong>電子信箱</strong>
+                            <span>
+                                <a href="mailto:la_laws@gov.taipei" title="臺北市政府法務局電子信箱" aria-label="臺北市政府法務局電子信箱">
+                                    la_laws@gov.taipei
+                                </a>
+                            </span>
+                        </li>
+                        <li class="remind">
+                            本局信箱係處理與系統相關之問題，其餘市政問題請至陳情系統反映。
+                        </li>
+                    </ul>
+                </div><div class="col-12 col-md-4 badges">
+                    <ul class="foot-badges-list">
+                        <li class="access">
+                            <a href="https://accessibility.moda.gov.tw/Applications/Detail?category=20260106163957" title="另開新視窗連結至網站無障礙資訊網頁" aria-label="連結網站無障礙資訊網頁" target="_blank">
+                                <img src="/Law/img/ui/aa-logo-2026.png" alt="通過AA無障礙網頁檢測">
+                            </a>
+                        </li>
+                        <li class="egov">
+                            <a href="https://www.gov.tw" title="另開新視窗連結至我的E政府網站" aria-label="連結我的E政府網站" target="_blank">
+                                <img src="/Law/img/ui/egov.png" alt="我的E政府標誌">
+                            </a>
+                        </li>
+                        <li class="tpe">
+                            <a href="https://www.gov.taipei" title="另開新視窗連結至臺北市政府網站" aria-label="連結臺北市政府網站" target="_blank">
+                                <img src="/Law/img/ui/tpe-logo.png" alt="臺北市政府市徽">
+                            </a>
+                        </li>
+                    </ul>
+
+                    <ul class="navbar-nav f-switch">
+                        <li class="nav-item">
+                            <a class="nav-link" data-size="sm" href="javascript:;" role="button" aria-pressed="false" title="小字型">小</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link f-on" data-size="md" href="javascript:;" role="button" aria-pressed="true" title="中字型">中</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-size="lg" href="javascript:;" role="button" aria-pressed="false" title="大字型">大</a>
+                        </li>
+                    </ul>
+                    <div class="update-time">
+                        <strong id="site-maintainer">本網站由臺北市政府法務局維護</strong>
+                        <em aria-labelledby="site-maintainer">更新日期：<span id="sysUpdateDate"></span></em>
+                    </div>
+                </div>
+            </div><ul class="foot-bottom" role="mark">
+                <li>本網站係提供法規之最新動態資訊及資料檢索，並不提供法規及法律諮詢之服務，如有法律上的疑義，建議您可逕向發布法規之主管機關洽詢。</li>
+                <li>本網站之臺北市法規資料係由本府各機關所提供之電子檔或書面編排製作，若與本府公報之公布文字有所不同，以本府公報刊載之資料為準。</li>
+                <li>有關中央法規資料係由本系統於政府公報及各主管機關網站所發布之法規資料蒐集編排製作，若與政府公報或各主管機關之公布文字有所不同，以政府公報及各主管機關刊載之資料為準。</li>
+                <li>本網站資料如有文字疏漏之處，敬請告知本網站管理人員，我們會即刻修正。</li>
+            </ul>
+        </div>
+    </footer>
+    <a class="btn-floater"
+       href="#top"
+       role="button"
+       aria-label="快速回到頁首按鈕"
+       title="快速回到頁首按鈕" onclick="scrollToTop();" id="goToTopLink">
+        <span class="sr-only">快速回到頁首按鈕</span>
+    </a>
+    <form id="allSearchForm" method="get" action="/Law/Search/SearchResult">
+        <input type="hidden" id="hidAllSearchString" name="SearchString.Keyword1">
+    </form>
+
+    <script src="/Law/lib/bootstrap/js/bootstrap.min.js"></script>
+    <script src="/Law/lib/jqueryui/jquery-ui.min.js"></script>
+    <script src="/Law/js/style.min.js?v=jkmb0YSfhEZbpxCm9LlEF0i9sO6gDqQ_Yif7IjOevd4"></script>
+    <script src="/Law/js/site.js?v=3VL8_E6ql_53yY_xxUnHKVLadGUrY4PbsvgMj71NmVw"></script>
+
+    <script>
+        // 無障礙選單控制腳本
+        $(document).ready(function () {
+            var $drawer = $('#navbar-drawer');
+            var $hamburger = $('#btn-hamburger');
+            var $closeBtn = $('.js-drawer-close');
+            var $body = $('body');
+            var $overlay = $('.screen-overlay');
+
+            // 【修正】只針對行動版專用的重複區塊 (offcanvas-header 與 navbar-top) 控制焦點
+            // 這樣就不會影響到下方的主要選單 (#navbar-menu)，讓桌機版能正常 Tab 遊走
+            var $mobileOnlySections = $drawer.children('#offcanvas-header, .navbar-top');
+
+            function toggleMobileInert(isHidden) {
+                if (isHidden) {
+                    $mobileOnlySections.find('a, button, input').attr('tabindex', '-1');
+                    $mobileOnlySections.attr('aria-hidden', 'true');
+                } else {
+                    $mobileOnlySections.find('a, button, input').removeAttr('tabindex'); 
+                    $mobileOnlySections.attr('aria-hidden', 'false');
+                }
+            }
+            
+            // 初始化：預設關閉狀態，禁用行動版專屬區塊的焦點
+            toggleMobileInert(true);
+
+            // 開啟選單
+            $hamburger.on('click', function () {
+                $drawer.addClass('show');
+                $drawer.show().attr('aria-hidden', 'false');
+                toggleMobileInert(false); // 開啟時啟用內部焦點
+                $body.addClass('offcanvas-active');
+                $(this).attr('aria-expanded', 'true');
+
+                // 焦點移入抽屜
+                setTimeout(function(){
+                    var $firstFocus = $drawer.find('a, button, input').filter(':visible').first();
+                    if($firstFocus.length) {
+                        $firstFocus.focus();
+                    }
+                }, 100);
+            });
+
+            // 關閉選單函式
+            function closeDrawer() {
+                $drawer.removeClass('show');
+                $drawer.hide().attr('aria-hidden', 'true'); 
+                toggleMobileInert(true); // 關閉時禁用內部焦點
+                $body.removeClass('offcanvas-active');
+                $hamburger.attr('aria-expanded', 'false');
+                $hamburger.focus(); // 焦點還原回漢堡
+            }
+
+            // 綁定關閉
+            $closeBtn.on('click', function (e) {
+                e.preventDefault();
+                closeDrawer();
+            });
+            $overlay.on('click', function(){
+                closeDrawer();
+            });
+
+            // 鍵盤導航 (Tab Loop & ESC) - 只在行動版抽屜展開時運作
+            $drawer.on('keydown', function (e) {
+                var isTab = (e.key === 'Tab' || e.keyCode === 9);
+                var isEsc = (e.key === 'Escape' || e.keyCode === 27);
+                
+                // 如果沒有展開 class，就不進行焦點捕捉
+                if (!$drawer.hasClass('show')) return;
+
+                if (isEsc) {
+                    closeDrawer();
+                    return;
+                }
+
+                if (!isTab) return;
+
+                var $focusableElements = $drawer.find('a, button, input, [tabindex]:not([tabindex="-1"])').filter(':visible');
+                var $firstElement = $focusableElements.first();
+                var $lastElement = $focusableElements.last();
+
+                if (e.shiftKey && $(e.target).is($firstElement)) {
+                    e.preventDefault();
+                    $lastElement.focus();
+                }
+                else if (!e.shiftKey && $(e.target).is($lastElement)) {
+                    e.preventDefault();
+                    $firstElement.focus();
+                }
+            });
+        });
+    </script>
+
+    
+    <noscript>您的瀏覽器不支援JavaScript功能，若網頁功能無法正常使用時，請開啟瀏覽器JavaScript狀態</noscript>
+</body>
+</html>
