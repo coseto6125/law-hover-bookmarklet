@@ -30,6 +30,8 @@ try {
   console.warn('terser 不可用，改用保守壓縮：' + e.message);
 }
 if (!minified) {
+  // CI 產物會直接上線，不能悄悄換成未經測試的保守壓縮版
+  if (process.env.CI) { console.error('CI 中必須以 terser 壓縮，中止建置'); process.exit(1); }
   code = code
     .replace(/^\s*\/\*[\s\S]*?\*\//gm, '')
     .split('\n')

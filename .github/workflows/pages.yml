@@ -22,8 +22,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build bookmarklet and install page
-        run: node build/build.js
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # terser 是 devDependency；沒裝時 build 會退回保守壓縮，產出與本機測過的不同
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Test and build bookmarklet and install page
+        run: npm test
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
