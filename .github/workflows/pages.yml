@@ -28,6 +28,16 @@ jobs:
         run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Test and build bookmarklet and install page
         run: npm test
+      # 瀏覽器測試（安裝頁引導動畫、跨平台觸控）。不放進部署 job，維持 build job 無部署權限。
+      - name: Install Chromium for browser tests
+        run: npx playwright install --with-deps chromium
+      - name: Test install page in a real browser
+        run: npm run test:guide
+      # ONLINE=0 只跑離線案例並以其成績退出：GitHub runner 不一定連得到 law.moj.gov.tw
+      - name: Test touch and platform behavior (offline cases)
+        run: npm run test:mobile
+        env:
+          ONLINE: '0'
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

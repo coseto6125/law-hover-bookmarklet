@@ -98,6 +98,14 @@ async function main() {
     }
   }
 
+  /* ONLINE=0：只跑離線案例並以離線案例自己的成績退出（CI 的 GitHub runner 不一定連得到
+   * law.moj.gov.tw）。這是明確的選擇，不算略過，所以退出碼是 0 或 1，不是 77。
+   * 沒設 ONLINE=0 時連不上線上站台仍算略過（77），避免離線的綠燈被誤當成完整通過。 */
+  if (process.env.ONLINE === '0') {
+    await browser.close();
+    console.log('（ONLINE=0：只跑離線案例，通過 ' + report.pass + '，失敗 ' + report.fail + '）');
+    return report.done();
+  }
   try { await globalThis.fetch('https://law.moj.gov.tw/'); }
   catch (e) {
     // 只略過線上案例；前面離線案例的失敗不能被吞掉，略過也不算通過（退出碼 77）

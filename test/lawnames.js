@@ -84,4 +84,54 @@ for (const n of LOCAL) {
   ok(n + ' 未被誤命中', best === '' || best === n, '誤命中「' + best + '」');
 }
 
+console.log('\n\x1b[1m字典產生器（build/gen-lawnames.js）\x1b[0m');
+{
+  const zlib = require('zlib');
+  const { unzipFirstJson, sourceConsts } = require('../build/gen-lawnames');
+  const u32 = n => { const b = Buffer.alloc(4); b.writeUInt32LE(n >>> 0); return b; };
+  const u16 = n => { const b = Buffer.alloc(2); b.writeUInt16LE(n); return b; };
+  /* 組一個 zip：entries = [{name, data, method, descriptor}]。descriptor 為真時模擬串流產生的
+   * zip：旗標位元 3、本機標頭的大小為 0，真正的大小只在中央目錄與資料之後的 descriptor。 */
+  function makeZip(entries) {
+    const locals = [], central = [];
+    let off = 0;
+    for (const e of entries) {
+      const raw = Buffer.from(e.data);
+      const body = e.method === 8 ? zlib.deflateRawSync(raw) : raw;
+      const name = Buffer.from(e.name);
+      const flag = e.descriptor ? 8 : 0;
+      const head = Buffer.concat([u32(0x04034b50), u16(20), u16(flag), u16(e.method), u16(0), u16(0), u32(0),
+        u32(e.descriptor ? 0 : body.length), u32(e.descriptor ? 0 : raw.length), u16(name.length), u16(0), name]);
+      const dd = e.descriptor ? Buffer.concat([u32(0x08074b50), u32(0), u32(body.length), u32(raw.length)]) : Buffer.alloc(0);
+      const local = Buffer.concat([head, body, dd]);
+      central.push(Buffer.concat([u32(0x02014b50), u16(20), u16(20), u16(flag), u16(e.method), u16(0), u16(0), u32(0),
+        u32(body.length), u32(raw.length), u16(name.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(off), name]));
+      locals.push(local);
+      off += local.length;
+    }
+    const cd = Buffer.concat(central);
+    const end = Buffer.concat([u32(0x06054b50), u16(0), u16(0), u16(entries.length), u16(entries.length),
+      u32(cd.length), u32(off), u16(0)]);
+    return Buffer.concat([...locals, cd, end]);
+  }
+  const json = '\uFEFF{"Laws":[{"LawName":"民法"}]}';
+  const want = { Laws: [{ LawName: '民法' }] };
+  const same = (zip) => { try { return JSON.stringify(unzipFirstJson(zip)) === JSON.stringify(want); } catch { return false; } };
+  ok('zip：deflate、無 data descriptor', same(makeZip([{ name: 'a.json', data: json, method: 8 }])));
+  ok('zip：deflate、有 data descriptor（本機標頭大小為 0）',
+     same(makeZip([{ name: 'a.json', data: json, method: 8, descriptor: true }])));
+  ok('zip：stored、有 data descriptor', same(makeZip([{ name: 'a.json', data: json, method: 0, descriptor: true }])));
+  ok('zip：略過前面的非 JSON 檔', same(makeZip([{ name: 'readme.txt', data: 'x', method: 8, descriptor: true },
+     { name: 'b.json', data: json, method: 8, descriptor: true }])));
+  const throwsWith = (buf, re) => { try { unzipFirstJson(buf); return false; } catch (e) { return re.test(e.message); } };
+  ok('zip：非 zip 內容（錯誤頁面）給出明確訊息', throwsWith(Buffer.from('<html>503</html>'), /不是有效的 zip/));
+  ok('zip：空內容給出明確訊息', throwsWith(Buffer.alloc(0), /不是有效的 zip/));
+  ok('zip：沒有 JSON 檔給出明確訊息', throwsWith(makeZip([{ name: 'a.txt', data: 'x', method: 8 }]), /找不到 JSON/));
+
+  const { prefixes, edge } = sourceConsts();
+  ok('PREFIX 讀自原始碼（含「前項」「本法依」）', prefixes.includes('前項') && prefixes.includes('本法依'));
+  ok('HARD_EDGE 讀自原始碼：含標點與全形數字', edge.test('甲（乙）辦法') && edge.test('第１條') && edge.test('及'));
+  ok('HARD_EDGE 為無狀態（連續 .test 結果一致）', edge.test('甲及乙') === edge.test('甲及乙') && !edge.global);
+}
+
 report.done();

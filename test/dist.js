@@ -75,9 +75,24 @@ ok('手動安裝 textarea 存在', !!ta);
 // 由 DOM 取值可一併驗證 HTML 跳脫是否正確：跳脫錯誤會導致屬性被截斷
 ok('拖曳按鈕 href 經瀏覽器解析後等於產物', drag && drag.getAttribute('href') === raw,
    drag ? '長度 ' + drag.getAttribute('href').length + ' vs ' + raw.length : '');
-ok('textarea 內容經瀏覽器解析後等於產物', ta && ta.value === raw,
-   ta ? JSON.stringify(ta.value.slice(0, 40)) : '');
-ok('兩個安裝路徑內容一致', drag && ta && drag.getAttribute('href') === ta.value);
+/* 網址在靜態 HTML 只出現一次（拖曳按鈕的 href）；textarea 留空，由頁面腳本從 href 填入。
+ * 否則 54KB 的網址會在頁面裡存兩份，傳輸時 gzip 的 32KB 視窗也無法去重。 */
+ok('textarea 在靜態 HTML 中為空（網址不重複內嵌）', ta && ta.textContent === '', ta ? ta.textContent.length + ' 字元' : '');
+// 取網址中段一小段（依建置同樣的方式跳脫）數出現次數；位置在 gzip 資料裡，不會與頁面其他文字撞到
+const probe = raw.slice(1000, 1200).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+ok('網址在安裝頁中只出現一次', html.split(probe).length === 2, html.split(probe).length - 1 + ' 次');
+{
+  /* 實際執行頁面腳本，確認 textarea 被填成與產物完全相同的網址 */
+  const live = new JSDOM(html, { runScripts: 'dangerously', pretendToBeVisual: true, beforeParse(w) {
+    w.matchMedia = w.matchMedia || (() => ({ matches: false, addEventListener() {}, addListener() {} }));
+  } });
+  const lta = live.window.document.querySelector('textarea');
+  ok('頁面腳本把 textarea 填成與產物相同的網址', lta && lta.value === raw,
+     lta ? '長度 ' + lta.value.length + ' vs ' + raw.length : '');
+  ok('填入後兩個安裝路徑內容一致',
+     lta && live.window.document.querySelector('a.drag').getAttribute('href') === lta.value);
+  live.window.close();
+}
 
 console.log('\n\x1b[1m安裝頁把關鍵事實講清楚\x1b[0m');
 const text = doc.body.textContent;

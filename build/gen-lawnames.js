@@ -14,6 +14,8 @@
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
+const acorn = require('acorn');
+const walk = require('acorn-walk');
 
 const LAW = 'https://law.moj.gov.tw/api/Ch/Law/JSON';
 const ORDER = 'https://law.moj.gov.tw/api/Ch/Order/JSON';
@@ -33,12 +35,26 @@ async function fetchLaws(url) {
   })).filter(l => l.name.length >= 2);
 }
 
-/* 書籤剝除公文前綴時用的清單（src/lawhover.js 的 PREFIX），直接從原始碼讀，
- * 不另外維護一份。 */
-function prefixList() {
-  const m = /var PREFIX = \[([\s\S]*?)\];/.exec(fs.readFileSync(SRC, 'utf8'));
-  if (!m) throw new Error('src/lawhover.js 找不到 PREFIX');
-  return m[1].match(/'[^']+'/g).map(q => q.slice(1, -1));
+/* 書籤剝除公文前綴的清單（PREFIX）與左邊界規則（HARD_EDGE）都直接從 src/lawhover.js 讀，
+ * 不另外維護一份。用 acorn 依名稱找出宣告，連同它們依賴的 NUMC / NUM 一起求值。
+ * HARD_EDGE 由 NUM 組成，不是字面量，所以要求值而不是只取字面量。 */
+function sourceConsts() {
+  const src = fs.readFileSync(SRC, 'utf8');
+  const inits = new Map();
+  walk.simple(acorn.parse(src, { ecmaVersion: 2020, sourceType: 'script' }), {
+    VariableDeclarator(n) {
+      if (n.id.type === 'Identifier' && n.init) inits.set(n.id.name, src.slice(n.init.start, n.init.end));
+    }
+  });
+  const order = ['NUMC', 'NUM', 'HARD_EDGE', 'PREFIX'];
+  for (const k of order) if (!inits.has(k)) throw new Error('src/lawhover.js 找不到 ' + k + ' 宣告');
+  const [prefixes, edge] = new Function(order.map(k => 'var ' + k + ' = ' + inits.get(k) + ';').join('\n') +
+    '\nreturn [PREFIX, HARD_EDGE];')();
+  if (!Array.isArray(prefixes) || !prefixes.length || !(edge instanceof RegExp)) {
+    throw new Error('PREFIX 或 HARD_EDGE 的型別不符');
+  }
+  // 來源的 HARD_EDGE 帶 g 旗標（給 exec 迴圈用）；.test 會記住 lastIndex，這裡要無狀態的版本
+  return { prefixes, edge: new RegExp(edge.source) };
 }
 
 /* 條文中每個「第」前面緊接的法規名，以及其中前一字是連接詞的。
@@ -69,9 +85,8 @@ async function main() {
    *   （「申請取得戶籍資料或土地登記規則第二十四條之一」）；
    *    或名稱本身含有書籤當成邊界的字（src/lawhover.js 的 HARD_EDGE）
    *   （「認定標準及資格審查辦法」「高資產客戶適用之金融商品及服務管理辦法」）。 */
-  const prefixes = prefixList();
+  const { prefixes, edge: EDGE } = sourceConsts();
   const corpus = laws.concat(orders).map(l => l.text).join('\n');
-  const EDGE = /及|或|與|暨|準用|適用|規定|所稱|依|按|第[0-9一二三四五六七八九十百千]+[條項款目]/;
   const { cited, afterConj } = citedNames(corpus, orders.map(l => l.name));
   const picked = orders.map(l => l.name).filter(n =>
     prefixes.some(p => n.startsWith(p) && n.length - p.length >= 2) ||
@@ -83,7 +98,8 @@ async function main() {
    * 否則全名會被切成短名而指向另一部法規
    *（收了「復審文書使用收費標準」卻沒收「官兵權益保障會復審文書使用收費標準」）。 */
   const all = laws.concat(orders).map(l => l.name);
-  const longer = all.filter(n => !base.has(n) && [...base].some(k => n.length > k.length && n.endsWith(k)));
+  const baseList = [...base];
+  const longer = all.filter(n => !base.has(n) && baseList.some(k => n.length > k.length && n.endsWith(k)));
   const names = [...new Set([...base, ...longer])].sort();
 
   fs.writeFileSync(OUT, JSON.stringify(names));
@@ -93,25 +109,39 @@ async function main() {
 }
 
 /* 極簡 zip 解析：官方 zip 只有幾個檔案，找出第一個 .json 用 raw deflate 解開，
- * 免得為了一次建置引入 zip 相依套件。 */
+ * 免得為了一次建置引入 zip 相依套件。
+ * 從檔尾的中央目錄讀大小與位置，不讀本機標頭的大小：串流產生的 zip 會設 data descriptor
+ * 旗標，本機標頭的大小是 0，真正的大小只在中央目錄裡。 */
 function unzipFirstJson(buf) {
-  let pos = 0;
-  while (pos < buf.length - 4) {
-    if (buf.readUInt32LE(pos) !== 0x04034b50) { pos++; continue; }
-    const method = buf.readUInt16LE(pos + 8);
-    const compSize = buf.readUInt32LE(pos + 18);
-    const nameLen = buf.readUInt16LE(pos + 26);
-    const extraLen = buf.readUInt16LE(pos + 28);
-    const name = buf.slice(pos + 30, pos + 30 + nameLen).toString('utf8');
-    const start = pos + 30 + nameLen + extraLen;
-    if (/\.json$/i.test(name) && compSize > 0) {
-      const raw = buf.slice(start, start + compSize);
-      const out = method === 8 ? zlib.inflateRawSync(raw) : raw;
-      return JSON.parse(out.toString('utf8').replace(/^\uFEFF/, ''));
-    }
-    pos = start + compSize;
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 0xffff); i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('下載內容不是有效的 zip（找不到中央目錄），可能是錯誤頁面或下載中斷');
+  const count = buf.readUInt16LE(eocd + 10);
+  let pos = buf.readUInt32LE(eocd + 16);
+  for (let k = 0; k < count; k++) {
+    if (buf.readUInt32LE(pos) !== 0x02014b50) throw new Error('zip 中央目錄損毀');
+    const method = buf.readUInt16LE(pos + 10);
+    const compSize = buf.readUInt32LE(pos + 20);
+    const nameLen = buf.readUInt16LE(pos + 28);
+    const extraLen = buf.readUInt16LE(pos + 30);
+    const commentLen = buf.readUInt16LE(pos + 32);
+    const local = buf.readUInt32LE(pos + 42);
+    const name = buf.slice(pos + 46, pos + 46 + nameLen).toString('utf8');
+    pos += 46 + nameLen + extraLen + commentLen;
+    if (!/\.json$/i.test(name)) continue;
+    if (compSize === 0xffffffff || local === 0xffffffff) throw new Error('不支援 zip64');
+    if (method !== 0 && method !== 8) throw new Error('不支援的 zip 壓縮方式：' + method);
+    const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+    const raw = buf.slice(start, start + compSize);
+    const out = method === 8 ? zlib.inflateRawSync(raw) : raw;
+    return JSON.parse(out.toString('utf8').replace(/^\uFEFF/, ''));
   }
   throw new Error('zip 內找不到 JSON');
 }
 
-main().catch(e => { console.error('產生法規名字典失敗：' + e.message); process.exit(1); });
+module.exports = { unzipFirstJson, sourceConsts };
+if (require.main === module) {
+  main().catch(e => { console.error('產生法規名字典失敗：' + e.message); process.exit(1); });
+}

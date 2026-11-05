@@ -72,6 +72,20 @@ async function main() {
 
   console.log('\n\x1b[1m操作與收尾\x1b[0m');
   ok('全程無 JS 錯誤', errs.length === 0, errs.slice(0, 2).join(' | '));
+
+  console.log('\n\x1b[1m手動安裝欄位與常見問題\x1b[0m');
+  {
+    const r = await page.evaluate(() => ({
+      href: document.getElementById('dragBtn').getAttribute('href'),
+      ta: document.getElementById('bmText').value,
+      faq: [...document.querySelectorAll('details.qa')].map(d => d.textContent).join('\n'),
+    }));
+    const raw = fs.readFileSync(path.join(root, 'dist/lawhover.bookmarklet.txt'), 'utf8');
+    ok('textarea 載入後填入書籤網址（與產物相同）', r.ta === raw, '長度 ' + r.ta.length + ' vs ' + raw.length);
+    ok('拖曳鈕 href 等於產物', r.href === raw);
+    ok('常見問題如實說明其他網站的提示', r.faq.includes('「本工具僅在法規網站上運作」') && r.faq.includes('縣市'));
+    ok('常見問題不再宣稱只在 law.moj.gov.tw 運作', !r.faq.includes('僅在該站運作'));
+  }
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
   ok('Esc 可關閉引導', await page.evaluate(() =>

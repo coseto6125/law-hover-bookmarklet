@@ -20,7 +20,10 @@ fi
 cd "$(dirname "$0")"
 # npm test 會先 build，測試沒過就不部署。CI=1 讓 build 在 terser 失敗時中止，不上傳保守壓縮版。
 # 測試與 build 不需要 Cloudflare 憑證，不讓它們讀到。
-env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID CI=1 npm test
+# 瀏覽器測試（安裝頁引導動畫、跨平台觸控含線上案例）也要過；連不上線上站台或沒有瀏覽器會以 77 退出，同樣中止部署。
+for t in test test:guide test:mobile; do
+  env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID CI=1 npm run "$t"
+done
 CLOUDFLARE_API_TOKEN="$token" CLOUDFLARE_ACCOUNT_ID="$account" \
   npx --yes wrangler@4.156.0 pages deploy docs \
   --project-name law-hover-bookmarklet \

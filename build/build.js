@@ -42,23 +42,16 @@ if (!minified) {
 
 /* 書籤網址的編碼方式。
  *
- * encodeURIComponent 對中文每字要 9 個字元（%E5%BB%BA），本專案中文佔約
- * 兩成，導致體積膨脹 1.8 倍。改為 gzip + base64，載入時由瀏覽器原生的
- * DecompressionStream 解壓，再以 blob script 執行。
- *
- * 為何 blob script 能通過 CSP：目標站台的 script-src 含 'strict-dynamic'，
- * 由已信任的腳本動態插入的 script 會被一併信任（實測確認 blob、eval、
- * new Function、import(blob) 在 law.moj.gov.tw 上皆可用，零 CSP 違規）。
- * 用 blob script 而非 eval，是因為它最不依賴 unsafe-eval。
- *
- * 實測：54907 → 18092 字元（省 67%），解壓加執行 22ms。
- * 若瀏覽器不支援 DecompressionStream，載入器會退回未壓縮版本。 */
-const plain = encodeURIComponent(code).replace(/'/g, '%27');
-/* base64 的 '+' 在網址中要轉義成 %2B（3 倍長度），實測有 273 個。
+ * encodeURIComponent 對中文每字要 9 個字元（%E5%BB%BA），本專案中文佔比高，
+ * 體積會膨脹將近一倍。改為 gzip + base64url，載入時由瀏覽器原生的
+ * DecompressionStream 解壓，再以 inline script（textContent）執行；
+ * 為何不用 blob script 見下方載入器的註解。
+ * 不內嵌未壓縮的備援版本：那會讓網址反而變長。 */
+/* base64 的 '+' 在網址中要轉義成 %2B（3 倍長度），數量不少。
  * 改用 base64url（'+'→'-'、'/'→'_'），完全避開轉義，解碼時再換回來。 */
 const gz = zlib.gzipSync(Buffer.from(code, 'utf8'), { level: 9 })
   .toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
-/* 降級：不內嵌未壓縮版本（那會讓網址反而變長），改為明確告知。
+/* 降級：瀏覽器不支援 DecompressionStream 時，載入器以 alert 明確告知，不靜默失敗。
  * DecompressionStream 自 Chrome 80 / Firefox 113 / Safari 16.4 起支援，
  * 2020 年後的瀏覽器都有；真的太舊時給出可行動的訊息而非靜默失敗。 */
 const loader =
@@ -95,7 +88,7 @@ fs.writeFileSync(path.join(root, 'dist/install.html'), out);
 
 // 同步輸出到 docs/ 供 GitHub Pages 直接提供安裝頁
 const docs = path.join(root, 'docs');
-if (!fs.existsSync(docs)) fs.mkdirSync(docs);
+fs.mkdirSync(docs, { recursive: true });
 fs.writeFileSync(path.join(docs, 'index.html'), out);
 fs.writeFileSync(path.join(docs, 'lawhover.bookmarklet.txt'), url);
 // 停用 Jekyll 處理，安裝頁是靜態 HTML，不需要也不應被處理
@@ -131,8 +124,7 @@ fs.writeFileSync(path.join(docs, '_headers'), [
 const LIMIT = 64000;   // Chrome 書籤網址實測上限約 64KB
 console.log('bookmarklet 長度：' + url.length + ' 字元' +
             (minified ? '（terser + gzip）' : '（保守壓縮 + gzip）') +
-            '　餘裕 ' + (LIMIT - url.length) + ' 字元' +
-            '　未壓縮為 ' + plain.length + ' 字元');
+            '　餘裕 ' + (LIMIT - url.length) + ' 字元');
 if (url.length > LIMIT) {
   console.error('錯誤：超過書籤長度上限 ' + LIMIT + '，瀏覽器會截斷導致完全失效');
   process.exit(1);

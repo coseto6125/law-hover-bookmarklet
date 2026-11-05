@@ -533,7 +533,7 @@ footer a{color:#1a4fa0}
 
       <details class="manual">
         <summary>改用手動貼上（書籤列按右鍵 → 新增網頁）</summary>
-        <textarea readonly id="bmText" aria-label="書籤網址">__BOOKMARKLET__</textarea>
+        <textarea readonly id="bmText" aria-label="書籤網址"></textarea>
         <div class="copy-row">
           <button class="btn-s" id="copyBtn">複製網址</button>
           <span class="note-inline">貼上後若開頭的 <code>javascript:</code> 不見了，請<b>手動補上</b>。</span>
@@ -632,7 +632,7 @@ footer a{color:#1a4fa0}
       <details class="qa">
         <summary>點了書籤沒反應，畫面什麼都沒變</summary>
         <div class="qa-b">
-          <p>先確認網址列是 <code>https://law.moj.gov.tw/...</code>，本工具<b>僅在該站運作</b>，在其他網站點了不會有任何反應。</p>
+          <p>先確認網址列是全國法規資料庫或你所在縣市的法規查詢系統。在其他網站點了，畫面上方會出現「本工具僅在法規網站上運作」的提示。</p>
           <p>若網址正確，點下去後畫面<b>最上方中央</b>會出現一條綠色提示，告訴你標記了幾處引用，同時被標記的字會閃兩下黃色。若提示寫「沒有找到法條引用」，代表這一頁本來就沒有條號可標。</p>
         </div>
       </details>
@@ -1347,6 +1347,8 @@ footer a{color:#1a4fa0}
 
 /* ---------- 複製 ---------- */
 var copyBtn=document.getElementById('copyBtn'),bmText=document.getElementById('bmText');
+/* 網址只在拖曳鈕的 href 內嵌一份（約 54KB），手動複製用的欄位載入時才從 href 填入 */
+bmText.value=document.getElementById('dragBtn').getAttribute('href');
 copyBtn.addEventListener('click',function(){
   bmText.select();
   var done=function(){copyBtn.textContent='已複製 ✓';setTimeout(function(){copyBtn.textContent='複製網址';},1600);};
@@ -1426,17 +1428,25 @@ var guide=document.getElementById('guide'),ghost=document.getElementById('ghost'
     capT=document.getElementById('capT'),capD=document.getElementById('capD'),
     stageBody=document.getElementById('stageBody'),bmBar=document.getElementById('bmBar'),
     playBtnG=document.getElementById('guidePlay');
-var timers=[],reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function at(ms,fn){timers.push(setTimeout(fn,reduce?Math.min(ms,120):ms));}
-function clearAll(){timers.forEach(clearTimeout);timers=[];}
-function setStep(i){
-  for(var k=0;k<4;k++){
-    var s=document.getElementById('st'+k);
-    s.className='step'+(k<i?' done':k===i?' now':'');
-  }
+/* 兩支引導動畫（桌面、手機）共用同一個播放器：計時器、步驟指示、說明文字。
+ * stepPrefix+k 是第 k 個步驟元素的 id；titleEl/descEl 是說明文字的標題與內文。 */
+function makePlayer(stepPrefix,stepCount,titleEl,descEl){
+  var timers=[];
+  return {
+    at:function(ms,fn){timers.push(setTimeout(fn,reduce?Math.min(ms,120):ms));},
+    clear:function(){timers.forEach(clearTimeout);timers=[];},
+    step:function(i){
+      for(var k=0;k<stepCount;k++){
+        document.getElementById(stepPrefix+k).className='step'+(k<i?' done':k===i?' now':'');
+      }
+    },
+    cap:function(t,d){titleEl.textContent=t;descEl.innerHTML=d;}
+  };
 }
-function cap(t,d){capT.textContent=t;capD.innerHTML=d;}
+var gp=makePlayer('st',4,capT,capD),
+    at=gp.at,clearAll=gp.clear,setStep=gp.step,cap=gp.cap;
 /* 依實際元素座標移動幽靈游標。
  * 先前用寫死的數值，元素位置一改就對不上（使用者回報位置錯誤）。
  * 座標以 stageBody 為基準，游標尖端對準目標中心。 */
@@ -1451,8 +1461,7 @@ function ghostTo(el,dx,dy){
     Math.round(er.left-sr.left+er.width/2-GHOST_TIP_X+(dx||0)),
     Math.round(er.top-sr.top+er.height/2-GHOST_TIP_Y+(dy||0)));
 }
-// 書籤列在 stageBody 之外（上方），y 會是負值，屬正常
-var ghostToBar=ghostTo;
+// 書籤列在 stageBody 之外（上方），ghostTo 的 y 會是負值，屬正常
 
 function reset(){
   clearAll();
@@ -1479,7 +1488,7 @@ function play(){
     setStep(0);
     cap('1 · 先叫出書籤列','按 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>B</kbd>。書籤列就是網址列下面那一條。');
     ghost.classList.add('on');
-    ghostToBar(bmBar,-40);            /* 游標指向書籤列 */
+    ghostTo(bmBar,-40);            /* 游標指向書籤列 */
   });
 
   /* 步驟 2：拖曳按鈕到書籤列 */
@@ -1493,7 +1502,7 @@ function play(){
     stageBtn.classList.add('faded');
   });
   at(4000,function(){                 /* 拖到書籤列的插入點 */
-    ghostToBar(bmDrop,6);
+    ghostTo(bmDrop,6);
     bmDrop.classList.add('on');
   });
   at(5000,function(){
@@ -1514,7 +1523,7 @@ function play(){
     stageInstall.style.display='none';stageLaw.style.display='';
     stageUrl.textContent='law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109';
     stageBtn.classList.remove('faded');
-    ghostToBar(bmNew);                /* 移到書籤列上新增的書籤 */
+    ghostTo(bmNew);                /* 移到書籤列上新增的書籤 */
   });
   at(9000,function(){
     bmNew.style.transform='scale(.9)';
@@ -1550,12 +1559,8 @@ var mg=document.getElementById('mguide'),mgUrl=document.getElementById('mgUrl'),
     mgCite=document.getElementById('mgCite'),mgPanel=document.getElementById('mgPanel'),
     mgTap=document.getElementById('mgTap'),mgCapT=document.getElementById('mgCapT'),
     mgCapD=document.getElementById('mgCapD'),mgPlayB=document.getElementById('mgPlay');
-var mgT=[];
-function mAt(ms,fn){mgT.push(setTimeout(fn,reduce?Math.min(ms,120):ms));}
-function mClear(){mgT.forEach(clearTimeout);mgT=[];}
-function mStep(i){for(var k=0;k<3;k++){
-  var e=document.getElementById('ms'+k);e.className='step'+(k<i?' done':k===i?' now':'');}}
-function mCap(t,d){mgCapT.textContent=t;mgCapD.innerHTML=d;}
+var mp=makePlayer('ms',3,mgCapT,mgCapD),
+    mAt=mp.at,mClear=mp.clear,mStep=mp.step,mCap=mp.cap;
 /* 點擊漣漪：座標依實際元素計算，與桌面版同樣不寫死 */
 function tapAt(el){
   if(!el)return;

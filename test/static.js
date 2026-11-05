@@ -108,4 +108,29 @@ console.log('\n\x1b[1m建置產物同樣檢查\x1b[0m');
   }
 }
 
+console.log('\n\x1b[1m法規名字典注入\x1b[0m');
+{
+  /* 名稱要原樣進入字串字面量：引號、反斜線、$& 與 U+2028 都不能破壞或改寫程式碼 */
+  const { loadSource } = require('../build/source');
+  const nasty = ["a'b", 'c\\d', 'e$&f', 'g$`h', 'i\u2028j', '民法'];
+  const vm = require('vm');
+  let built, err;
+  try { built = loadSource(nasty).code; } catch (e) { err = e; }
+  ok('含特殊字元的名稱可注入且程式碼仍合法', !!built && (() => { try { new vm.Script(built); return true; } catch { return false; } })(),
+     err ? err.message : '');
+  if (built) {
+    const ast = acorn.parse(built, { ecmaVersion: 2020, sourceType: 'script' });
+    let lit;
+    walk.simple(ast, { VariableDeclarator(n) {
+      if (n.id.name === 'KNOWN') {
+        let c = n.init;
+        while (c.type === 'CallExpression') c = c.callee.object || c.callee;
+        lit = c.value;
+      }
+    } });
+    ok('字串字面量逐字等於名稱以 | 相接', lit === nasty.join('|'), JSON.stringify(lit));
+  }
+  ok('空名單也可注入', (() => { try { return loadSource([]).code.includes('"".split'); } catch { return false; } })());
+}
+
 report.done();
