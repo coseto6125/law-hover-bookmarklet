@@ -57,7 +57,8 @@ const LAWS=[
       if(withArts===0 && !onlyEnacted) flag.push('抽不到任何條號');
       if(withWhen<h.list.length*0.6) flag.push('日期抽取率低 '+withWhen+'/'+h.list.length);
       // 分編立法者（民法）用 LawRedirectLY 端點，有入口即可
-      if(!h.lyUrl) flag.push('無立法院入口');
+      // 中華民國憲法的沿革頁本身沒有 LawRedirect 連結（原站如此，非解析失敗），不列為異常
+      if(!h.lyUrl && pcode!=='A0000001') flag.push('無立法院入口');
     }
     // 抽樣：找一個有修法紀錄的條號驗證反查
     let sample='';

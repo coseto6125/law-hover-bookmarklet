@@ -221,9 +221,10 @@ async function main() {
     ok('沿革面板有立法院入口', /立法院法律系統/.test(h3));
 
     // 全文修正每條都有，不具區辨力，須與個別修正分開陳述
-    const h78 = await hoverHead('78');
+    // 第 78 條在 73 年「76～78」的範圍內，其實個別修正過；第 9 條才是只隨全文修正
+    const h9 = await hoverHead('9');
     ok('僅隨全文修正者明確區分',
-       /未被個別修正過/.test(h78) && /全文修正/.test(h78), h78.slice(0, 80));
+       /未被個別修正過/.test(h9) && /全文修正/.test(h9), h9.slice(0, 80));
     ok('條號沿革過程無 CSP 違規', (await page.evaluate(() => window.__csp.length)) === 0);
   }
 
@@ -312,11 +313,11 @@ async function main() {
     ok('列出修正年份', /九十二年|\d+年/.test(t3));
     ok('提供完整沿革連結', /查看完整沿革/.test(t3));
 
-    // 建築法第 78 條未被個別修正，只隨全文修正異動
-    const t78 = await hoverArt('78');
+    // 建築法第 9 條未被個別修正，只隨全文修正異動（第 78 條在「76～78」範圍內，不能拿來測）
+    const t9 = await hoverArt('9');
     ok('未個別修正的條文明確說明',
-       /未見此條的修正紀錄|未被個別修正過/.test(t78),
-       t78.slice(Math.max(0, t78.search(/未見|未被個別/) - 10), 80));
+       /未見此條的修正紀錄|未被個別修正過/.test(t9),
+       t9.slice(Math.max(0, t9.search(/未見|未被個別/) - 10), 80));
     ok('查沿革過程無 CSP 違規', (await page.evaluate(() => window.__csp.length)) === 0);
 
     // 立法院有歷史條文全文，但跨網域無法內嵌，改以彈窗開啟。

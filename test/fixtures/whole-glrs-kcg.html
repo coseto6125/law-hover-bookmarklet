@@ -1,0 +1,528 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head><meta http-equiv="Content-Type" content="text/html; charset=utf-8" /><meta http-equiv="X-UA-Compatible" content="IE=edge" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- 響應式網頁設定：若後端設定不開啟響應式網頁效果，則不顯示以下這一行 -->
+    <meta id="ctl00_RWDSetup" name="viewport" content="width=590" /><title>
+	高雄市政府主管法規共用系統-法規內容-高雄市都市計畫資訊流通供應辦法
+</title><link href="css/bootstrap.min.css" rel="stylesheet" type="text/css" media="screen" /><link href="css/bootstrap-icons.min.css" rel="stylesheet" type="text/css" /><link href="css/layout.css?v=202607031054" rel="stylesheet" type="text/css" media="screen" /><link href="css/table.css?v=202607031054" rel="stylesheet" type="text/css" media="screen" />
+    <!-- 網站樣式設定：依據後端設定樣式編號，讀取對應的CSS檔 -->
+    <link id="ctl00_TemplateID" href="/css/01.css" rel="stylesheet" type="text/css" media="all" /><link href="css/printweb.css" rel="stylesheet" type="text/css" media="print" />
+    <!-- 網頁背景圖設定：若後端自行上傳背景圖，則顯示以下這一行 -->
+    
+
+    <script src="/js/jquery-3.7.1.min.js" type="text/javascript" nonce="ceBkeFuXt02o6AZFdU+wqA=="></script>
+    <script type="text/javascript" nonce="ceBkeFuXt02o6AZFdU+wqA==">
+        $(function () {
+            //避免XFS攻擊
+            if (top != self) { top.location = self.location; }
+            //無障礙需求
+            //$("pre").attr("title", "內容");
+        });
+    </script>
+    <noscript><span class="text-white">您的瀏覽器不支援JavaScript功能，若網頁功能無法正常使用時，請開啟瀏覽器JavaScript狀態</span></noscript>
+    
+    <style nonce="ceBkeFuXt02o6AZFdU+wqA==">
+        #dvContent, #dvContent p, #dvContent div {
+            white-space: pre-wrap !important;
+        }
+        #cp_content_divContent .ClearCss pre {
+            font-family: "細明體", "MingLiU", serif;
+        }
+        /* 補上 Quill 客製化字型尺寸 (10pt~24pt) */
+        .ql-size-10pt, .x_ql-size-10pt { font-size: 0.833em; }
+        .ql-size-12pt, .x_ql-size-12pt { font-size: 1.0em; }
+        .ql-size-14pt, .x_ql-size-14pt { font-size: 1.167em; }
+        .ql-size-16pt, .x_ql-size-16pt { font-size: 1.333em; }
+        .ql-size-18pt, .x_ql-size-18pt { font-size: 1.5em; }
+        .ql-size-20pt, .x_ql-size-20pt { font-size: 1.667em; }
+        .ql-size-24pt, .x_ql-size-24pt { font-size: 2.0em; }
+
+        /* 定義字型套用至編輯區的 Class 規則 */
+.ql-font-kai, .x_ql-font-kai {
+    font-family: "標楷體", "DFKai-SB", "BiauKai", serif;
+}
+
+.ql-font-pmingliu, .x_ql-font-pmingliu {
+    font-family: "新細明體", "PMingLiU", serif;
+}
+
+.ql-font-mingliu, .x_ql-font-mingliu {
+    font-family: "細明體", "MingLiU", serif;
+}
+
+.ql-font-times, .x_ql-font-times {
+    font-family: "Times New Roman", Times, serif;
+}
+
+/* 設定下拉選單預設顯示名稱 */
+.ql-snow .ql-picker.ql-font .ql-picker-label::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item::before {
+    content: '預設字型' !important;
+}
+
+/* 將各個字型代碼精準對映為「中文/英文顯示名稱」（在選單內也會以該字型呈現） */
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="kai"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="kai"]::before {
+    content: '標楷體' !important;
+    font-family: "標楷體", "DFKai-SB", "BiauKai", serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="pmingliu"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="pmingliu"]::before {
+    content: '新細明體' !important;
+    font-family: "新細明體", "PMingLiU", serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="mingliu"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="mingliu"]::before {
+    content: '細明體' !important;
+    font-family: "細明體", "MingLiU", serif;
+}
+
+.ql-snow .ql-picker.ql-font .ql-picker-label[data-value="times"]::before,
+.ql-snow .ql-picker.ql-font .ql-picker-item[data-value="times"]::before {
+    content: 'Times New Roman' !important;
+    font-family: "Times New Roman", Times, serif;
+}
+    </style>
+
+</head>
+<body>
+    <form name="aspnetForm" method="post" action="./LawContent.aspx?id=GL000080" id="aspnetForm">
+<div>
+<input type="hidden" name="__VIEWSTATE" id="__VIEWSTATE" value="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" />
+</div>
+
+<div>
+
+	<input type="hidden" name="__VIEWSTATEGENERATOR" id="__VIEWSTATEGENERATOR" value="DE2A1C13" />
+	<input type="hidden" name="__VIEWSTATEENCRYPTED" id="__VIEWSTATEENCRYPTED" value="" />
+</div>
+        
+        <!--<a href="#content" id="AM" class="sr-only sr-only-focusable A1">跳到主要內容區塊</a>-->
+        <header>
+            <div class="navbar navbar-expand-md navbar-default">
+				<a href="#AC" id="AM" class="sr-only sr-only-focusable A1">跳到主要內容區塊</a>
+                <div id="ctl00_h1title" class="nav-system">主管法規查詢系統</div>
+                <div class="header-con">
+                    <!-- 上方選單 -->
+                    <div class="collapse navbar-collapse header-nav">
+                        <ul class="nav navbar-nav">
+                            <li><a href="#U" id="AU" name="U" title="功能區塊" accesskey="U">:::</a></li>
+
+                            <li><a href="SiteMapPage.aspx">網站導覽</a></li>
+                            
+                            <li id="ctl00_Manual_All"><a href="/UseManual/使用手冊20171020.pdf" title="下載使用手冊.pdf">使用手冊</a></li>
+                            
+                            
+                            <li><a href="index.aspx">回首頁</a></li>
+                            
+                            
+                        </ul>
+                    </div>
+                    <div class="navbar-header">
+						<ul class="navbar-nav d-md-none m-menu">
+                            <li class="nav-item text-nowrap">
+                                <button type="button" class="navbar-toggler myNavbar" data-bs-toggle="offcanvas" data-bs-target="#myNavbar" aria-controls="myNavbar" aria-expanded="false" aria-label="功能選單">
+                                    <span class="navbar-toggler-icon"></span>
+                                </button>
+                            </li>
+                        </ul>
+                        <!-- 領用機關Logo 圖片-->
+                        <h1 class="logo">
+                            <a href="index.aspx" id="ctl00_aUCName" title="高雄市政府主管法規查詢系統：回首頁">
+                                <img src="ImageHandler.ashx?Field=Logo" id="ctl00_imgUCName" width="320" height="90" alt="高雄市政府logo：回主管法規查詢系統首頁" />
+                            </a>
+                        </h1>
+                        <!-- 系統名稱Banner -->
+                        <div class="sys-name">
+                            <img src="images/logo_system.png" id="ctl00_imglogo" width="300" height="90" alt="主管法規查詢系統 Laws and Regulations Retrieving System" />
+                        </div>
+                        <!-- 上方整合查詢 -->
+                        <div class="collapse navbar-collapse search-box">
+                            <div class="navbar-form" role="search">
+                                <div class="input-group">
+                                    <label for="keyword1" class="sr-only">請輸入關鍵字</label>
+                                    <input id="keyword1" type="text" class="form-control" accesskey="S" placeholder="請輸入關鍵字" aria-label="整合查詢">
+                                    <span class="input-group-btn">
+                                        <button type="button" class="btn btn-default" id="btn_searchForm" >整合查詢</button>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+						<ul class="navbar-nav d-md-none m-search">
+                            <li class="nav-item text-nowrap">
+                                <button type="button" class="navbar-toggler mySearch" data-bs-toggle="collapse" data-bs-target="#mySearch" aria-controls="mySearch" aria-expanded="false" aria-label="查詢功能">
+                                    <span class="bi bi-search"></span>
+                                </button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="clearfix"></div>
+                </div>
+                <!-- myNavbar 主選單 -->
+                <nav class="offcanvas offcanvas-end menu" id="myNavbar" aria-label="主要功能選單">
+                    <div class="menu-con">
+                        <div class="offcanvas-header">
+                            <div>主管法規查詢系統</div>
+                            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="關閉主選單"></button>
+                        </div>
+                        <ul>
+                            <li class="active"><a href="index.aspx">最新訊息</a></li>
+                            <li><a href="LawCategoryMain.aspx?type=M" id="hlLawCategory">法規體系</a></li>
+                            <li><a href="LawQuery.aspx">法規檢索</a></li>
+                            <!-- 人事行政總處客制 -->
+                            <li></li>
+                            <!-- 環保署客制 -->
+                            <li></li>
+                            
+                            <li><a href="DraftForum.aspx">草案預告</a></li>
+                            <li><a href="WebList.aspx">相關網站</a></li>
+                            <!-- 小螢幕才會顯示 -->
+                            <li class="topmenu visible-xs"><a href="SiteMapPage.aspx">網站導覽</a></li>
+                            
+                            <li class="topmenu visible-xs"><a href="/UseManual/使用手冊20171020.pdf" title="下載使用手冊.pdf">使用手冊</a></li>
+                            <li class="topmenu visible-xs"><a href="index.aspx">回首頁</a></li>
+                            <li id="ctl00_Manual_Eng_mobile" class="topmenu visible-xs"><a href="EngNewsList.aspx">English</a></li>
+                            
+                        </ul>
+                        <div class="clearfix"></div>
+                    </div>
+                </nav>
+                <!-- mySearch 整合查詢 小螢幕顯示-->
+                <div class="menu visible-xs" role="navigation">
+                    <div class="collapse navbar-collapse" id="mySearch">
+                        <div class="navbar-form" role="search">
+                            <div class="input-group">
+                                <label for="keyword2" class="sr-only">請輸入關鍵字</label>
+                                <input id="keyword2" type="text" class="form-control" placeholder="請輸入關鍵字">
+                                <button type="button" id="btn_searchForm2" class="btn btn-default" >
+                                    <i class="bi bi-search"><span class="sr-only">整合查詢</span></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="clearfix"></div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主要內容 -->
+        <div class="container-fluid con-bg">
+            <div class="content-con" id="content" role="main">
+                <a href="#C" id="AC" name="C" title="內容區塊" accesskey="C">:::</a>
+                
+    <ol class="breadcrumb">
+        現在位置：
+		<li><span aria-current="page">法規內容</span></li>
+    </ol>
+    <div class="btn-printer">
+        <a href="LawContent.aspx?media=print&id=GL000080" id="ctl00_cp_content_aPrint" class="btn btn-default" title="另開新視窗" target="_blank"><i class="bi bi-printer-fill"></i>&nbsp;友善列印</a>
+    </div>
+    <div class="text-con">
+        <div class="text-title">
+            <h2><i class="bi bi-geo-alt-fill"></i>
+                法規內容</h2>
+        </div>
+        
+<style  nonce="ceBkeFuXt02o6AZFdU+wqA==" >
+    .ld-ann {
+        color:#ff5b00; 
+        margin-bottom:20px; 
+        font-weight:bold; 
+        font-size:105%;
+    }
+</style>
+
+<table class="table table-bordered tab-edit">
+    <tr>
+        <th>法規名稱：</th>
+        <td>高雄市都市計畫資訊流通供應辦法</td>
+    </tr>
+    <tr>
+        <th>公發布日：</th>
+        <td>
+            民國 100 年 12 月 26 日
+            <div id="ctl00_cp_content_lawheader1_divCauseStatusAnnDate" class="text-danger"></div>
+        </td>
+    </tr>
+    <tr id="ctl00_cp_content_lawheader1_trAmdDate">
+	<th id="ctl00_cp_content_lawheader1_thAmdDate">修正日期：</th>
+	<td>
+            民國 102 年 01 月 10 日
+            
+        </td>
+</tr>
+
+    <tr id="ctl00_cp_content_lawheader1_trODWord">
+	<th>發文字號：</th>
+	<td>
+            高市府都發開字第10135620800號令</td>
+</tr>
+
+    <tr>
+        <th>法規體系：</th>
+        <td>
+            都市發展局</td>
+    </tr>
+    
+    
+    <tr id="ctl00_cp_content_lawheader1_trAnnFiles02">
+	<th>圖表附件：</th>
+	<td>
+            <ul id="ctl00_cp_content_lawheader1_ulAnnFiles02"><li><a href="Download.ashx?FileID=13063&id=GL000080&type=LAW" title="下載 修正1高雄市都市計畫資訊流通供應辦法第四條.pdf 檔案">修正1高雄市都市計畫資訊流通供應辦法第四條.pdf</a></li></ul>
+        </td>
+</tr>
+
+</table>
+
+<a id="lawmenu" class="sr-only">法規功能按鈕區</a>
+<ul class="btnZone">
+    <li><a href="LawContent.aspx?id=GL000080#lawmenu" id="ctl00_cp_content_lawheader1_aLawContent" class="btn btn-default">法規內容</a></li>
+    <li></li>
+    <li><a href="LawContentSearch.aspx?id=GL000080#lawmenu" id="ctl00_cp_content_lawheader1_aLawContentSearch" class="btn btn-default">條文檢索</a></li>
+    <li></li>
+    <li><a href="LawContentSource.aspx?id=GL000080#lawmenu" id="ctl00_cp_content_lawheader1_aLawContentSource" class="btn btn-default">法規沿革</a></li>
+    <li><a href="LawContentHistoryList.aspx?id=GL000080" id="ctl00_cp_content_lawheader1_aLawContentHistory" class="btn btn-default">歷史法規</a></li>
+    <li></li>
+    <li></li>
+    <li></li>
+</ul>
+
+        
+        
+
+        <div id="ctl00_cp_content_divContent" class="well law-reg law-content">
+            <div class="law-reg-content law-article">
+                
+                
+                
+
+                
+                
+
+                
+                
+
+                
+                
+
+                
+                <div id="ctl00_cp_content_divLawContent08" class="ClearCss"><strong><span class="csp-s0">第一條&nbsp;</span></strong><span class="csp-s0">&nbsp; 為公開本市都市計畫資訊，以利民眾共享及應用，特訂定本辦法。<br>
+<br>
+<br>
+<strong>第二條</strong>&nbsp;&nbsp; 本辦法之主管機關為本府都市發展局。<br>
+都市計畫資訊之受理申請及提供作業，主管機關得委託其他機關（構）、法<br>
+人或團體辦理。<br>
+<br>
+<br>
+<strong>第三條</strong>&nbsp;&nbsp;&nbsp;本辦法所稱都市計畫資訊如下：<br>
+一、依法公告之都市計畫相關資訊。<br>
+二、都市計畫地形圖。<br>
+三、其他經主管機關認定得公開之都市計畫相關資訊。<br>
+前項資訊得以紙類或電磁紀錄方式提供。<br>
+<br>
+<br>
+<strong>第四條&nbsp;</strong>&nbsp;申請提供都市計畫資訊者，應填具申請書及切結書向主管機關為之。</span><br>
+<br>
+<br>
+<br>
+<span class="csp-s0"><strong>第五條</strong>&nbsp;&nbsp; 都市計畫資訊之使用，以主管機關核准之範圍為限。<br>
+都市計畫資訊使用人(以下簡稱使用人)未經主管機關同意，不得將都市計畫<br>
+資訊轉錄、轉售、贈與或提供網路下載。<br>
+<br>
+<br>
+<strong>第六條</strong>&nbsp;&nbsp; 使用人於各類出版品、簡報、書面報告、申請文件或參與採購投標<br>
+引用都市計畫資訊時，應於資訊右下角標示主管機關核准之文號。<br>
+<br>
+<br>
+<strong>第七條&nbsp;</strong>&nbsp;&nbsp;使用人應經主管機關授權，始得將其加值利用都市計畫資訊所產生<br>
+之成果販售或提供他人。<br>
+<br>
+<br>
+<strong>第八條&nbsp;</strong>&nbsp;&nbsp;都市計畫資訊僅供參考，使用人引用時應負查證義務。<br>
+<br>
+<br>
+<strong>第九條&nbsp;</strong>&nbsp;&nbsp;主管機關得將都市計畫資訊置於網站，提供免費下載或列印；其資<br>
+訊內容、格式、使用人之身分管制及認證方式，由主管機關另定之。<br>
+<br>
+<br>
+<strong>第十條&nbsp;</strong>&nbsp;&nbsp;申請提供紙類或電磁紀錄都市計畫資訊，其收費標準如附表。<br>
+<br>
+<br>
+<strong>第十一條</strong>&nbsp;&nbsp;&nbsp;本府所屬機關申請提供都市計畫資訊者，免收費用。<br>
+政府機關、學術研究機構、公營事業機構申請提供都市計畫資訊者，紙類資<br>
+訊按收費標準百分之五十計收；電磁紀錄資訊按收費標準百分之十。但其他<br>
+政府機關與主管機關以書面協議互相提供資訊，或因公務使用申請提供都市<br>
+計畫資訊者，得酌減或免收費用。<br>
+都市計畫資訊因修測更新部分資訊，原申購地形圖數值圖檔之申請人續購更<br>
+新後相同圖幅之圖檔者，按收費標準三分之ㄧ計收。但重新測製之地形圖數<br>
+值圖檔，不適用之。<br>
+<br>
+<br>
+<strong>第十二條&nbsp;</strong>&nbsp;&nbsp;本辦法自發布日施行。</span><br>
+&nbsp;</div>
+
+                
+                
+            </div>
+        </div>
+    </div>
+
+            </div>
+            <div class="clearfix"></div>
+        </div>
+        <!-- 主要內容結束 -->
+
+        <footer>
+
+            
+                    <div class="footer-con">
+                        <a href="#Z" id="AF" name="Z" title="網站資訊區塊" accesskey="Z">:::</a>
+                        <div class="clearfix"></div>
+                        
+                        <ul class="address">
+                            <li>
+                                高雄市政府：802221高雄市苓雅區四維三路2號</li>
+                            <li>電話總機：
+                                07-3368333
+                                傳真電話：07-3338191</li>
+                            <li>系統版本：<span id="ctl00_lblVersionDate">115.09.10</span></li>
+                            <li>系統更新日期：<span id="ctl00_lblUpdateDate">115.10.27</span></li>
+                            
+                        </ul>
+
+                        <ul class="logo-box">
+                            
+                            
+                            
+                        </ul>
+                        <div id="ctl00_divBrowsingPeople" class="visitors">瀏覽人數：29,553,246</div>
+                    </div>
+                
+            <p id="gotop"><a role="button" href="#">回上方</a></p>
+        </footer>
+    </form>
+</body>
+</html>
+<script src="/js/bootstrap.min.js" type="text/javascript" nonce="ceBkeFuXt02o6AZFdU+wqA=="></script>
+<script src="/js/app.js" type="text/javascript" nonce="ceBkeFuXt02o6AZFdU+wqA=="></script>
+<script src="/js/FYLS.js" nonce="ceBkeFuXt02o6AZFdU+wqA=="></script>
+<script type="text/javascript" nonce="ceBkeFuXt02o6AZFdU+wqA==">
+    $(function () {
+        ChangeFunUrl();
+        $(window).resize(function () {
+            ChangeFunUrl();
+        });
+    });
+    function ChangeFunUrl() {
+        //功能頁面切換：依據頁面寬度切換功能
+        if ($(window).width() < 767) {
+            $("#hlLawCategory").attr("href", "LawCategoryMain.aspx?type=M");
+        }
+        else {
+            $("#hlLawCategory").attr("href", "LawCategoryMain.aspx");
+        }
+    }
+    function QueryString(name) {
+        var AllVars = window.location.search.substring(1);
+        var Vars = AllVars.split("&");
+        for (i = 0; i < Vars.length; i++) {
+            var Var = Vars[i].split("=");
+            if (Var[0] == name) return Var[1];
+        }
+        return "";
+    }
+    function GlobalCheckForm1() {
+        var keyword = $.trim($("#keyword1").val());
+        //全文檢索字詞不得為空值
+        if (keyword == "") {
+            alert("請輸入「檢索字詞」！");
+            return false;
+        }
+        //全文檢索字詞格式綜合判斷
+        if (keyword != "" && !validKeys(keyword)) {
+            alert("檢索字詞格式錯誤！請檢查後重新輸入！");
+            return false;
+        }
+        if (keyword != "" && isFullWidthText(keyword)) {
+            alert("檢索字詞格式錯誤！請檢查後重新輸入！")
+            return false;
+        }
+        window.open("SearchAllResultList.aspx?KW=" + encodeURIComponent(keyword), "_self");
+    }
+    function isFullWidthText(text) {
+        for (let i = 0; i < text.length; i++) {
+            const charCode = text.charCodeAt(i);
+            if ((charCode >= 0xFF01 && charCode <= 0xFF60) ||
+                (charCode >= 0xFFE0 && charCode <= 0xFFE6)) {
+                continue;
+            }
+            return false;
+        }
+        return true;
+    }
+    function GlobalCheckForm2() {
+        var keyword = $.trim($("#keyword2").val());
+        //全文檢索字詞不得為空值
+        if (keyword == "") {
+            alert("請輸入「檢索字詞」！");
+            return false;
+        }
+        //全文檢索字詞格式綜合判斷
+        if (keyword != "" && !validKeys(keyword)) {
+            alert("檢索字詞格式錯誤！請檢查後重新輸入！");
+            return false;
+        }
+        if (keyword != "" && isFullWidthText(keyword)) {
+            alert("檢索字詞格式錯誤！請檢查後重新輸入！")
+            return false;
+        }
+        window.open("SearchAllResultList.aspx?KW=" + encodeURIComponent(keyword), "_self");
+    }
+</script>
+<script type="text/javascript" nonce="ceBkeFuXt02o6AZFdU+wqA==">
+    $(document).ready(function () {
+        //註冊整合查詢按鈕2事件
+        $("#btn_searchForm").on("click", function (e) {
+            GlobalCheckForm1();
+            e.preventDefault();
+            return false;
+        });
+
+        //註冊整合查詢按鈕2事件
+        $("#btn_searchForm2").on("click", function (e) {
+            GlobalCheckForm2();
+            e.preventDefault();
+            return false; 
+        });
+        $(document).on("keydown", function (e) {
+            if (e.key === "Enter") {
+                var active = document.activeElement;
+                console.log("目前焦點元素：", active.id);
+                if (active && active.id === "keyword1") {
+                    // 使用者焦點在 Master 的檢索輸入欄位，才觸發整合查詢
+                    GlobalCheckForm1();
+                    e.preventDefault();  // 阻止預設送出表單
+                    return false;
+                }
+                if (active && active.id === "keyword2") {
+                    // 使用者焦點在 Master 的檢索輸入欄位，才觸發整合查詢
+                    GlobalCheckForm2();
+                    e.preventDefault();  // 阻止預設送出表單
+                    return false;
+                }
+            }
+        });
+    });
+</script>
+
+
+    <style nonce="ceBkeFuXt02o6AZFdU+wqA==">
+.csp-s0 { font-size: 1em !important; } 
+</style>
+
+
+

@@ -901,6 +901,356 @@ async function run() {
     }
   }
 
+  /* 以下各段皆為 review 對已出貨程式碼實測找到的錯誤資料。
+   * 共用：建立指定網址的頁面、以路由函式回應 fetch、讀取目前可見的面板文字。 */
+  const site = (html, url, route) => {
+    const d = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
+    const w = d.window;
+    w.__calls = [];
+    w.fetch = u => {
+      w.__calls.push(String(u));
+      const body = route(decodeURIComponent(String(u)));
+      return Promise.resolve(body == null
+        ? { ok: false, status: 404, text: () => Promise.resolve('') }
+        : { ok: true, status: 200, text: () => Promise.resolve(body) });
+    };
+    w.eval(code);
+    return w;
+  };
+  const panelOf = w => {
+    const p = [...w.document.body.children].find(x => {
+      const c = String(x.className || '').split(' ');
+      return /^lh-[a-z0-9]+-p$/.test(c[0] || '') && !c.some(y => /-hide$/.test(y));
+    });
+    return p ? p.textContent.replace(/\s+/g, ' ') : '';
+  };
+  const hoverOn = async (w, el, ms) => {
+    if (!el) return '（找不到標記）';
+    el.dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
+    await sleep(ms || 400);
+    return panelOf(w);
+  };
+  const MOJ = pc => 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=' + pc;
+  // 只回應沿革頁，其餘一律 404
+  const histSite = (pc, file, url, body) => site(
+    '<!DOCTYPE html><html><head><title>主管法規共用系統-法規內容-測試辦法</title></head><body>' +
+    '<h2 id="hlLawName">X</h2>' + (body || '') + '</body></html>',
+    url || MOJ(pc), u => /LawHistory|LawContentSource/.test(u) ? F(file) : null);
+  const whensOf = async (pc, file, url) => {
+    const w = histSite(pc, file, url);
+    const h = await w.__lawhover__.hist(pc);
+    return { h, w, at: fl => w.__lawhover__.histFor(h, fl).map(r => r.when) };
+  };
+
+  console.log('\n\x1b[1m沿革條號清單的解析（review 以真實沿革頁實測）\x1b[0m');
+  {
+    const xf = await whensOf('C0000001', 'history-C0000001.html');
+    ok('範圍「74～75-1」涵蓋第 75 條（98 年修正）',
+       xf.at('75').includes('九十八年六月十日'), xf.at('75').join('、'));
+    ok('範圍「74～75-1」涵蓋第 74-1 條', xf.at('74-1').includes('九十八年六月十日'),
+       xf.at('74-1').join('、'));
+    ok('範圍上界依之號比較：75-2 不在「74～75-1」內',
+       !xf.at('75-2').includes('九十八年六月十日'), xf.at('75-2').join('、'));
+    ok('範圍「358～363」涵蓋端點第 358 條（92 年增訂）',
+       xf.at('358').includes('九十二年六月二十五日'), xf.at('358').join('、'));
+    ok('範圍「358～363」涵蓋中間的第 360 條',
+       xf.at('360').includes('九十二年六月二十五日'), xf.at('360').join('、'));
+    ok('範圍外的第 364 條不被算入「358～363」',
+       !xf.at('364').includes('九十二年六月二十五日'), xf.at('364').join('、'));
+    ok('跨行斷開的「334↵-1」不誤判為第 334 條',
+       !xf.at('334').includes('九十一年一月三十日'), xf.at('334').join('、'));
+    ok('跨行斷開的「334↵-1」歸給第 334-1 條',
+       xf.at('334-1').includes('九十一年一月三十日'), xf.at('334-1').join('、'));
+    ok('解析出的條號清單不含斷行殘片「-1」',
+       !xf.h.list.some(r => r.arts.some(a => !/^\d+(-\d+)?$/.test(a))),
+       JSON.stringify(xf.h.list.map(r => r.arts.filter(a => !/^\d+(-\d+)?$/.test(a))).flat()));
+    const t1935 = xf.h.list.find(r => /二十四年一月一日/.test(r.when));
+    ok('最後一筆沿革不吃進頁尾文字', t1935 && !/最新訊息|中央法規/.test(t1935.text),
+       t1935 && t1935.text.slice(-40));
+
+    const mf = await whensOf('B0000001', 'history-B0000001.html');
+    ok('斷在數字中間的「78↵4～790」歸給第 784、785 條',
+       mf.at('785').includes('九十八年一月二十三日'), mf.at('785').join('、'));
+    // 換行也可能吃掉頓號：「刪除第 986、987、993↵994 條」是兩條，不能接成 993994
+    ok('換行取代頓號時拆成兩條（「993↵994」）',
+       mf.at('993').includes('八十七年六月十七日') && mf.at('994').includes('八十七年六月十七日'),
+       mf.at('993').join('、') + ' / ' + mf.at('994').join('、'));
+    ok('斷在數字中間的「1↵055-2」歸給第 1055-2 條，不產生第 1 條',
+       mf.at('1055-2').includes('八十五年九月二十五日') && !mf.at('1').includes('八十五年九月二十五日'),
+       mf.at('1055-2').join('、') + ' / ' + mf.at('1').join('、'));
+    ok('長條號清單不截斷：第 749 條見於 88 年 4 月債編修正',
+       mf.at('749').includes('八十八年四月二十一日'), mf.at('749').join('、'));
+    ok('長條號清單不截斷：清單尾端的第 756-9 條也找得到',
+       mf.at('756-9').includes('八十八年四月二十一日'), mf.at('756-9').join('、'));
+  }
+
+  console.log('\n\x1b[1m條號排版不明確時不猜（codex review 反例）\x1b[0m');
+  {
+    // 合成的中央站沿革頁：第 2 筆的條號清單在原站折行處無法判斷是拆開還是接起來
+    const page = rows => '<html><body>' + rows.map(r => '<div class="row"><div class="col-data text-pre">' + r +
+      '</div></div>\n').join('') + '</body></html>';
+    const histHtml = async (html, heads) => {
+      const w = site('<!DOCTYPE html><html><body><h2 id="hlLawName">X</h2>' + (heads || '') + '</body></html>',
+        MOJ('Z0000001'), u => /LawHistory/.test(u) ? html : null);
+      const h = await w.__lawhover__.hist('Z0000001');
+      return { w, h, named: fl => w.__lawhover__.histFor(h, fl).filter(r => !r.whole).map(r => r.when) };
+    };
+    const A = '一百十年一月一日', B = '一百十一年二月二日';
+    const hp = page([
+      '3. 中華民國' + B + '總統令修正公布第 74～75\n    80 條條文',
+      '2. 中華民國' + A + '總統令修正公布第 10、11\n    12 條條文',
+      '1. 中華民國一百年一月一日總統令制定公布全文 1200 條']);
+    const x = await histHtml(hp, '<div class="col-no">第 1112 條</div><div class="col-no">第 12 條</div>');
+    ok('「10、11↵12」不把第 1112 條當成修正過', !x.named('1112').includes(A), x.named('1112').join('、'));
+    ok('「10、11↵12」拆接兩可時，第 12 條也不算確定修正', !x.named('12').includes(A), x.named('12').join('、'));
+    // 「11↵12」整組兩可（11、12 或 1112），只有第 10 條確定
+    ok('同一清單中確定的條號照常計入（第 10 條），兩可那組的第 11 條不算',
+       x.named('10').includes(A) && !x.named('11').includes(A), x.named('10') + ' / ' + x.named('11'));
+    ok('「74～75↵80」不把範圍延伸成 74～7580（第 100 條）', !x.named('100').includes(B), x.named('100').join('、'));
+    await sleep(300);
+    const t12 = await hoverOn(x.w, x.w.document.querySelector('[data-lh-head="12"]'));
+    ok('排版不明確的紀錄另行說明，不計入修正次數',
+       /無法確認/.test(t12) && /一百十年一月一日/.test(t12) && !/本條個別修正/.test(t12), t12.slice(0, 140));
+    const h1112 = x.w.document.querySelector('[data-lh-head="1112"]');
+    ok('排版不明確的紀錄不讓條號標題標成修正過', h1112 && !h1112.dataset.lhMod, h1112 && h1112.getAttribute('title'));
+
+    /* 一組內有多個斷行時，每個斷行都可能是接或拆（2^k 種讀法），
+     * 不能只比「全部接」與「全部拆」：「1↵0↵55」可讀成 1055，也可讀成 10、55。 */
+    const C = '一百十二年三月三日';
+    const y = await histHtml(page(['1. 中華民國' + C + '總統令修正公布第 1\n    0\n    55 條條文']));
+    ok('「1↵0↵55」兩種讀法都成立時不當成第 1055 條', !y.named('1055').includes(C), y.named('1055').join('、'));
+    ok('「1↵0↵55」兩種讀法都成立時第 10、55 條也不算確定',
+       !y.named('10').includes(C) && !y.named('55').includes(C), y.named('10') + ' / ' + y.named('55'));
+    ok('「1↵0↵55」列為不確定、交由面板說明',
+       y.h.list.length === 1 && !!y.h.list[0].unsure, JSON.stringify(y.h.list[0] && y.h.list[0].unsure));
+    // 只有一種讀法成立時照常採用：「1↵05↵5」的「05」不能單獨成條，唯一讀法是 1055
+    const y2 = await histHtml(page(['1. 中華民國' + C + '總統令修正公布第 1\n    05\n    5 條條文']));
+    ok('唯一成立的讀法照常採用（「1↵05↵5」→ 1055）', y2.named('1055').includes(C), y2.named('1055').join('、'));
+
+    // 全形數字的日期：不能因年份是全形而整筆漏掉
+    const fw = await histHtml(page(['1. 中華民國１１５年１月１日令修正第 4 條']));
+    ok('全形數字年份的沿革條目照常解析', fw.named('4').length === 1 && /115/.test(fw.named('4')[0] || ''),
+       fw.h.list.length + ' 筆：' + fw.named('4').join('、'));
+  }
+
+  console.log('\n\x1b[1m制定與全文修正分開陳述\x1b[0m');
+  {
+    // 刑法第 13 條自 24 年制定後未曾修正，沿革只有制定公布那一筆
+    const w = histSite('C0000001', 'history-C0000001.html', null,
+      '<div class="col-no">第 13 條</div><div class="col-no">第 75 條</div>');
+    await sleep(300);
+    const head = w.document.querySelector('[data-lh-head="13"]');
+    ok('只有制定紀錄的條號，標題提示不說「全文修正」',
+       head && !/全文修正/.test(head.getAttribute('title') || ''), head && head.getAttribute('title'));
+    const t = await hoverOn(w, head);
+    ok('只有制定紀錄的條號，沿革面板標為制定而非全文修正',
+       /（制定）/.test(t) && !/（全文修正）|僅隨全文修正/.test(t), t.slice(0, 90));
+    const t75 = await hoverOn(w, w.document.querySelector('[data-lh-head="75"]'));
+    ok('個別修正過的條號，制定紀錄標為制定', /本條個別修正 \d+ 次/.test(t75) && /（制定）/.test(t75) &&
+       !/全文修正/.test(t75), t75.slice(0, 120));
+
+    // 建築法有兩次修正公布全文、一次制定公布：第 9 條只隨這三筆異動
+    const wb = histSite('D0070109', 'history-D0070109.html', null,
+      '<div class="col-no">第 9 條</div><div class="col-no">第 78 條</div>');
+    await sleep(300);
+    const t9 = await hoverOn(wb, wb.document.querySelector('[data-lh-head="9"]'));
+    ok('修正公布全文仍稱全文修正，制定另計（建築法第 9 條）',
+       /全文修正異動 2 次/.test(t9) && /（制定）/.test(t9), t9.slice(0, 120));
+    // 第 78 條在 73 年「76～78」的範圍內，先前被誤報為未個別修正
+    const t78 = await hoverOn(wb, wb.document.querySelector('[data-lh-head="78"]'));
+    ok('範圍「76～78」涵蓋建築法第 78 條', /本條個別修正 1 次/.test(t78) && /七十三年十一月七日/.test(t78),
+       t78.slice(0, 120));
+  }
+
+  console.log('\n\x1b[1m地方法規沿革（以 <br> 分隔的條目）\x1b[0m');
+  {
+    const kf = await whensOf('GL000080', 'history-glrs-kcg.html',
+      'https://outlaw.kcg.gov.tw/LawContent.aspx?id=GL000080');
+    ok('無編號、以 <br> 分隔的沿革逐筆解析（高雄）', kf.h.list.length === 2,
+       kf.h.list.length + ' 筆：' + kf.h.list.map(r => r.text.slice(0, 30)).join(' | '));
+    ok('高雄沿革反查第 4 條的修正', kf.at('4').includes('102年1月10日'), kf.at('4').join('、'));
+    const tf = await whensOf('GL000050', 'history-glrs-tycg.html',
+      'https://law.tycg.gov.tw/LawContent.aspx?id=GL000050');
+    const raw = (F('history-glrs-tycg.html').match(/\d+\.中華民國/g) || []).length;
+    ok('有編號但以 <br> 分隔的沿革不黏成一筆（桃園）', raw > 1 && tf.h.list.length === raw,
+       '解析 ' + tf.h.list.length + ' 筆，原始 ' + raw + ' 筆');
+  }
+
+  console.log('\n\x1b[1m司法院解釋的字號驗證\x1b[0m');
+  {
+    const page = '<body><h2 id="hlLawName">建築法</h2>' +
+      '<p>參照司法院釋字第7號及釋字第77號，並依114年憲判字第6號與115年憲判字第6號判決。</p></body>';
+    const list = (jy) => '<a href="/LawClass/ExContent.aspx?ty=CJ&amp;JC=CJ00009709&amp;JNO=6&amp;JYEAR=' +
+      jy + '&amp;JCASE=憲判">x</a>';
+    const route = jy => u => /ty=C&CC=D&CNO=/.test(u) ? F('explain-C-77.html')
+      : /LawSearchJudge/.test(u) ? list(jy)
+      : /ty=CJ/.test(u) ? F('explain-CJ-115-6.html') : null;
+    const pick = (w, kind, no, yr) => [...w.document.querySelectorAll('[data-ex]')]
+      .find(m => m.dataset.ex === kind && m.dataset.exno === no && (!yr || m.dataset.exyear === yr));
+
+    let w = site(page, MOJ('D0070109'), route('115'));
+    let t = await hoverOn(w, pick(w, 'C', '7'));
+    ok('釋字第 7 號不接受第 77 號的內容（號碼須完全相同）',
+       !/釋字第 77 號/.test(t) && /查不到/.test(t), t.slice(0, 80));
+    w = site(page, MOJ('D0070109'), route('115'));
+    t = await hoverOn(w, pick(w, 'C', '77'));
+    ok('釋字第 77 號正常顯示', /釋字第 77 號/.test(t) && !/查不到/.test(t), t.slice(0, 80));
+
+    w = site(page, MOJ('D0070109'), route('114'));
+    t = await hoverOn(w, pick(w, 'CJ', '6', '114'));
+    ok('憲判字驗證年度：114 年第 6 號不接受 115 年的判決',
+       !/115 年憲判字第 6 號/.test(t) && /查不到/.test(t), t.slice(0, 80));
+    w = site(page, MOJ('D0070109'), route('115'));
+    t = await hoverOn(w, pick(w, 'CJ', '6', '115'));
+    ok('115 年憲判字第 6 號正常顯示', /115 年憲判字第 6 號/.test(t) && !/查不到/.test(t), t.slice(0, 80));
+
+    // 同一則解釋在回應前連續滑過兩次，只該請求一次
+    w = site(page, MOJ('D0070109'), () => null);
+    w.fetch = u => { w.__calls.push(String(u)); return new Promise(() => {}); };
+    const m7 = pick(w, 'C', '77');
+    m7.dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
+    m7.dispatchEvent(new w.MouseEvent('mouseout', { bubbles: true }));
+    m7.dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
+    await sleep(200);
+    ok('同一則解釋並發滑過只請求一次', w.__calls.length === 1, w.__calls.length + ' 次');
+  }
+
+  console.log('\n\x1b[1m全文切條：只認條首標題，不認條文內的引用\x1b[0m');
+  {
+    const GL = 'https://glrs.nantou.gov.tw/LawContent.aspx?id=GL000001';
+    const doc = inner => '<!DOCTYPE html><html><head><title>南投縣政府主管法規共用系統-法規內容-南投縣測試自治條例</title></head>' +
+      '<body><div id="ctl00_cp_content_divLawContent08" class="ClearCss">' + inner + '</div></body></html>';
+    /* 書籤所在頁只放引用，滑過後取回的全文才是受測對象。
+     * 條號標題常是 3 字的獨立文字節點（「第1條」），短於掃描門檻不會被標記，
+     * 所以不能拿全文頁自己的標題來滑。 */
+    const cite = '<!DOCTYPE html><html><head><title>南投縣政府主管法規共用系統-法規內容-南投縣測試自治條例</title></head>' +
+      '<body><p>依第1條、第2條、第5條、第一百零四條、第一百零五條、第一百零六條規定辦理。</p></body></html>';
+    const art = async (html, fl, url) => {
+      const w = site(cite, url || GL, () => html);
+      return hoverOn(w, [...w.document.querySelectorAll('[data-flno]')].find(m => m.dataset.flno === fl));
+    };
+    for (const [label, inner] of [
+      ['以 <br> 分行', '第1條<br>應依第2條規定申請。<br>第2條<br>真正的第二條內容。'],
+      ['以換行字元分行', '第1條\n應依第2條規定申請。\n第2條\n真正的第二條內容。'],
+      ['條號在 <strong> 內、本文同行', '<strong>第1條</strong>&nbsp;應依第2條規定申請。<br>' +
+        '<strong>第2條</strong>&nbsp;真正的第二條內容。'],
+      ['標題寫法混用（<strong> 與純文字）', '<strong>第1條</strong>&nbsp;應依第2條規定申請。<br>' +
+        '第2條　真正的第二條內容。'],
+    ]) {
+      const html = doc(inner);
+      const t2 = await art(html, '2');
+      ok('全文切條（' + label + '）：第 2 條取到真正的第 2 條', /真正的第二條內容/.test(t2) && !/規定申請/.test(t2),
+         t2.slice(0, 80));
+      const t1 = await art(html, '1');
+      ok('全文切條（' + label + '）：第 1 條本文完整', /應依第2條規定申請/.test(t1), t1.slice(0, 80));
+    }
+    // 條號後不接空白的標題仍要認得（codex review 反例）
+    const ns = doc('第1條 甲。<br>第2條乙。<br>第3條 丙。');
+    let tn = await art(ns, '1');
+    ok('標題後無空白：第 1 條不吞進第 2 條', /甲。/.test(tn) && !/乙/.test(tn), tn.slice(0, 60));
+    tn = await art(ns, '2');
+    ok('標題後無空白：第 2 條取到「乙。」', /乙。/.test(tn) && !/甲|丙/.test(tn), tn.slice(0, 60));
+
+    /* 位在行首、整個元素就是條號的粗體，不一定是標題（codex review 反例）。
+     * 同號候選有兩個時無從判斷，寧可查不到，也不能顯示引用後面的那段文字。 */
+    const dup = doc('<strong>第一百零四條</strong><br><p><strong>第一百零五條</strong>所定之申請事項，依本條辦理。</p>' +
+      '<br><strong>第一百零五條</strong>　真正第一百零五條內容。');
+    const d105 = await art(dup, '105');
+    ok('同號候選不明確時不顯示引用後的文字（第 105 條）', !/所定之申請事項/.test(d105) && /查不到/.test(d105),
+       d105.slice(0, 80));
+    const d104 = await art(dup, '104');
+    ok('分界不明確時第 104 條不顯示混入的內容', !/所定之申請事項/.test(d104) && /查不到/.test(d104),
+       d104.slice(0, 80));
+
+    // 區塊元素的結尾也是分界：<p> 之後緊接的文字另起一行（codex review 第三輪反例）
+    const blk = doc('<p>第1條 甲。</p>第2條 乙。<p>第3條 丙。</p>');
+    let tb = await art(blk, '1');
+    ok('區塊結尾也是分界：第 1 條不吞進其後的第 2 條', /甲。/.test(tb) && !/乙/.test(tb), tb.slice(0, 60));
+    tb = await art(blk, '2');
+    ok('區塊結尾也是分界：第 2 條取到「乙。」', /乙。/.test(tb) && !/甲|丙/.test(tb), tb.slice(0, 60));
+
+    /* 分界改以「已知的行內元素以外一律是分界」判定，不逐一列舉區塊元素（codex review 第四輪反例：<section>）。 */
+    const sec = doc('<section>第1條 甲。</section>第2條 乙。<section>第3條 丙。</section>');
+    let tsec = await art(sec, '1');
+    ok('非行內元素（<section>）的進出都是分界：第 1 條只到「甲。」', /甲。/.test(tsec) && !/乙|丙/.test(tsec), tsec.slice(0, 60));
+    tsec = await art(sec, '2');
+    ok('非行內元素（<section>）之後的第 2 條取到「乙。」', /乙。/.test(tsec) && !/甲|丙/.test(tsec), tsec.slice(0, 60));
+
+    /* 標題比對不可吃掉其後的換行，否則下一行的標題失去行首而被併入前一條（codex review 第四輪反例）。 */
+    const nob = doc('第1條\n第2條 乙。\n第3條 丙。');
+    const tnb = await art(nob, '1');
+    ok('沒有本文的第 1 條不把第 2 條當成本文', !/乙/.test(tnb) && /查不到/.test(tnb), tnb.slice(0, 60));
+    const tnb2 = await art(nob, '2');
+    ok('緊接在無本文標題後的第 2 條照常取得', /乙。/.test(tnb2) && !/丙/.test(tnb2), tnb2.slice(0, 60));
+
+    /* 順序規則：條號沿頁面必須嚴格遞增（codex review 第五輪反例）。
+     * 表格儲存格自成一行，裡面的「第一百零五條」看起來像標題；它夾在第一條與第二條之間，
+     * 只靠順序無法判斷 {一、一百零五} 與 {一、二} 哪個才是標題序列，相關各條一律拒答。 */
+    const tbl5 = '第一條 本辦法之法令依據如下：\n<table><tr><td>民法</td><td>第一百零五條</td><td>意思表示效力。</td></tr></table>' +
+      '\n依上表規定辦理。<br>\n第二條 本辦法自發布日施行。\n';
+    const ord = doc(tbl5);
+    const o105 = await art(ord, '105');
+    ok('表格內的條號不當標題：第 105 條拒答', /查不到/.test(o105) && !/意思表示效力/.test(o105), o105.slice(0, 80));
+    const o1 = await art(ord, '1');
+    ok('順序不明確時第 1 條拒答，不顯示截斷的本文', /查不到/.test(o1) && !/本辦法之法令依據/.test(o1), o1.slice(0, 80));
+    // 對照：同樣有表格，但表格內沒有條號，順序明確，第 1 條完整含表格、第 2 條照常
+    const ctl = doc(tbl5.replace('第一百零五條', '意思表示'));
+    const c1 = await art(ctl, '1');
+    ok('對照：順序明確時第 1 條完整顯示（含表格與表後文字）',
+       /法令依據/.test(c1) && /民法/.test(c1) && /依上表規定辦理/.test(c1) && !/自發布日施行/.test(c1), c1.slice(0, 100));
+    const c2 = await art(ctl, '2');
+    ok('對照：順序明確時第 2 條照常顯示', /自發布日施行/.test(c2) && !/民法/.test(c2), c2.slice(0, 80));
+    // 對照：條號遞增但跳號（中間條文已刪除未列），仍是唯一的遞增序列，照常顯示
+    const gap = doc('第一條 甲。<br>第三條 丙。<br>第三條之一 丙一。<br>第五條 戊。');
+    const g3 = await art(gap, '5');
+    ok('對照：跳號但遞增的標題照常顯示（第 5 條）', /戊。/.test(g3) && !/丙/.test(g3), g3.slice(0, 60));
+
+    /* 同號候選有兩個時，兩者都不能當分界：前一條的結尾因此也不確定（codex review 第三輪反例）。
+     * 第 104 條只顯示「甲。」會漏掉可能屬於它的後半段。 */
+    const dup2 = doc('<strong>第一百零四條</strong><br>甲。\n<p><strong>第一百零五條</strong> 所定之申請事項，依本條辦理。</p>' +
+      '\n<br><strong>第一百零五條</strong>　真正第一百零五條內容。<br><strong>第一百零六條</strong> 丁。');
+    const e104 = await art(dup2, '104');
+    ok('同號候選旁的前一條也拒答（第 104 條）', /查不到/.test(e104) && !/甲。/.test(e104), e104.slice(0, 80));
+    const e105 = await art(dup2, '105');
+    ok('同號候選本身拒答（第 105 條）', /查不到/.test(e105) && !/所定之|真正/.test(e105), e105.slice(0, 80));
+    const e106 = await art(dup2, '106');
+    ok('同號候選之後、分界明確的第 106 條照常顯示', /丁。/.test(e106) && !/真正/.test(e106), e106.slice(0, 80));
+
+    const kcg = F('whole-glrs-kcg.html');
+    const tk = await art(kcg, '2', 'https://outlaw.kcg.gov.tw/LawContent.aspx?id=GL000080');
+    ok('真實全文頁（高雄）第二條', /本辦法之主管機關為本府都市發展局/.test(tk) && !/特訂定本辦法/.test(tk),
+       tk.slice(0, 80));
+
+    console.log('\n\x1b[1m中文條號含「零」\x1b[0m');
+    const row = (h, b) => '<tr><td class="th" scope="row">' + h + '</td><td><div class="ClearCss"><div>' +
+      b + '</div></div></td></tr>';
+    const tbl = '<!DOCTYPE html><html><head><title>南投縣政府主管法規共用系統-法規內容-南投縣測試自治條例</title></head><body>' +
+      '<table id="ctl00_cp_content_tableLawArticleBasic">' + row('第一百零四條', '違反第一百零五條規定者，處罰之。') +
+      row('第一百零五條', '第一百零五條的條文內容。') + row('第一百十五條', '違反第一百十五條規定者亦同。') +
+      '</table></body></html>';
+    const wt = site(tbl, GL, () => tbl);
+    ok('「第一百零五條」等中文條號標題全部標記', wt.document.querySelectorAll('[data-lh-head]').length === 3,
+       '標記 ' + wt.document.querySelectorAll('[data-lh-head]').length + ' 個：' +
+       [...wt.document.querySelectorAll('[data-lh-head]')].map(e => e.dataset.lhHead).join('、'));
+    ok('「第一百零五條」標題的條號為 105',
+       !!wt.document.querySelector('[data-lh-head="105"]'));
+    const t105 = await art(tbl, '105');
+    ok('表格模式取得第一百零五條', /第一百零五條的條文內容/.test(t105) && !/處罰之/.test(t105), t105.slice(0, 80));
+    const blob = doc('第一百零四條<br>違反第一百零五條規定者，處罰之。<br>第一百零五條<br>零號條文的內容。');
+    const t104 = await art(blob, '104');
+    ok('全文模式第一百零四條不吞進第一百零五條', /處罰之/.test(t104) && !/條文內容|零號/.test(t104), t104.slice(0, 80));
+    const t105b = await art(blob, '105');
+    ok('全文模式取得第一百零五條', /零號條文的內容/.test(t105b), t105b.slice(0, 80));
+    /* 條文本身以自己的條號起頭（「第一百零五條的條文內容」）時，行首出現兩個同號候選，
+     * 與引用折到行首無從區分，依「查不到比查錯安全」拒答。 */
+    const self = doc('第一百零四條<br>處罰之。<br>第一百零五條<br>第一百零五條的條文內容。');
+    const s105 = await art(self, '105');
+    ok('條文以自身條號起頭、同號候選兩個時拒答', /查不到/.test(s105) && !/條文內容/.test(s105), s105.slice(0, 80));
+    // 同一情形改用單一換行字元分行（前一條標題吃掉換行時，第二個候選會失去行首而漏判）
+    const selfn = await art(doc('第一百零四條\n處罰之。\n第一百零五條\n第一百零五條的條文內容。'), '105');
+    ok('條文以自身條號起頭（換行字元分行）時同樣拒答', /查不到/.test(selfn) && !/條文內容/.test(selfn), selfn.slice(0, 80));
+  }
+
   console.log('\n\x1b[1m快取\x1b[0m');
   const before = calls.length;
   m3.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));

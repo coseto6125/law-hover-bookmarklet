@@ -184,8 +184,11 @@
              壹:1, 貳:2, 參:3, 肆:4, 伍:5, 陸:6, 柒:7, 捌:8, 玖:9, 拾:10 };
 
   // 中文數字轉阿拉伯（支援 十/百/千，如 七十七、一百二十）
+  function half(s) {
+    return String(s).replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+  }
   function cn2num(s) {
-    s = String(s).replace(/[０-９]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+    s = half(s);
     if (/^\d+$/.test(s)) return parseInt(s, 10);
     var total = 0, section = 0, num = 0;
     for (var i = 0; i < s.length; i++) {
@@ -200,7 +203,10 @@
     return total || null;
   }
 
-  var NUM = '[0-9０-９一二三四五六七八九十百千零壹貳參肆伍陸柒捌玖拾佰仟]+';
+  /* 數字字元集只定義這一次：條號、沿革、解釋字號都由此組出，
+   * 各自手寫時曾漏掉「零」，第一百零五條因此整條查不到。 */
+  var NUMC = '0-9０-９一二三四五六七八九十百千零壹貳參肆伍陸柒捌玖拾佰仟';
+  var NUM = '[' + NUMC + ']+';
   /* 法規名稱可能的結尾字。順序重要：長字尾必須排在短字尾之前，
    * 否則「憲法增修條文」會先被「條文」以外的短字尾切斷。
    *   憲法增修條文 → 中華民國憲法增修條文
@@ -571,37 +577,52 @@
     return fetchText(url).then(function (html) {
       var doc = parseHTML(html);
       /* 沿革條目的呈現方式各站差異極大（元素列、純文字段落、表格），
-       * 用選擇器逐一適配很脆弱。改為對整份文字做切分：
-       * 沿革條目一律是「N. 中華民國…」的形態，直接以此切割最可靠。 */
-      var whole = (doc.body || doc).textContent.replace(/\u00a0/g, ' ');
-      var itemRe = /(^|\s)(\d+)\.\s*(中華民國[\s\S]*?)(?=(?:\s\d+\.\s*中華民國)|$)/g;
-      var texts = [], mm2;
-      while ((mm2 = itemRe.exec(whole)) !== null) {
-        var body = mm2[3].replace(/\s+/g, ' ').trim();
-        if (body.length > 400) body = body.slice(0, 400);   // 避免吃到頁尾雜訊
-        texts.push(mm2[2] + '. ' + body);
+       * 用選擇器逐一適配很脆弱。改為對整份文字做切分。
+       * 地方共用系統的沿革只在這個容器內，限縮範圍可避開表頭的「發文字號：中華民國…」。 */
+      var root = doc.querySelector('#ctl00_cp_content_divLawContentSource') || doc.body;
+      /* <br> 的 textContent 是空字串，地方站以 <br> 分隔條目，不補換行會黏成一筆；
+       * 頁尾要先拿掉，否則最後一筆會吃進頁尾文字。 */
+      [].forEach.call(root.querySelectorAll('br, footer'), function (x) {
+        x.parentNode.replaceChild(doc.createTextNode(x.nodeName === 'BR' ? '\n' : ''), x);
+      });
+      // 全形數字先轉半形，條目起點與日期的判斷才不會因「１１５年」整筆漏掉
+      var whole = half(root.textContent.replace(/[\u00a0\u3000]/g, ' '));
+      /* 條目多為「N. 中華民國○年…」；高雄、南投等站沒有編號，只能靠行首的「中華民國○年」。
+       * 無編號的切法只在找不到編號時才用：條目內文的「並自中華民國○年施行」可能被折到行首。 */
+      var YR = '中華民國(?=\\s*[0-9〇一二三四五六七八九十百零]{1,6}\\s*年)';
+      var starts = [], cut = [new RegExp('(?:^|\\s)\\d+\\.\\s*' + YR, 'g'), new RegExp('(?:^|\\n)[ \\t]*' + YR, 'g')];
+      for (var q = 0; q < 2 && !starts.length; q++) {
+        var mm2;
+        while ((mm2 = cut[q].exec(whole)) !== null) starts.push(mm2.index + mm2[0].search(/\S/));
       }
+      var seg = new RegExp('(?:^|[^全文])第([' + NUMC + '\\s\\-－～~、，,]+?)條(?:\\s*之\\s*(' + NUM + '))?', 'g');
       var list = [], seen = {};
-      for (var i = 0; i < texts.length; i++) {
-        var t = texts[i];
+      for (var i = 0; i < starts.length; i++) {
+        // 全文解析，不截斷：長的條號清單截斷後會失去結尾的「條」而整筆抽不到條號
+        var t = whole.slice(starts[i], starts[i + 1]).replace(/\s+/g, ' ').trim();
         if (seen[t]) continue;
         seen[t] = 1;
-        // 「令修正公布第 40、77-3、77-4、87 條條文」→ 取出條號清單
-        var arts = [];
-        // 注意排除「全文 14 條」這種總數描述，它不是被修正的條號清單
-        var seg = /(?:^|[^全文])第\s*([0-9\-、，,\s]+?)\s*條/g, m2;
+        var c = t.replace(/\s+/g, '');
+        // 「令修正公布第 40、77-3、74～75-1 條條文」→ 個別條號與範圍
+        var arts = [], ranges = [], ua = [], ur = [], m2;
+        seg.lastIndex = 0;
         while ((m2 = seg.exec(t)) !== null) {
-          m2[1].split(/[、，,\s]+/).forEach(function (x) {
-            x = x.trim();
-            if (x && arts.indexOf(x) < 0) arts.push(x);
-          });
+          var sp = splitArts(m2[1]);
+          if (m2[2] && sp.end && cn2num(m2[2])) sp.arts[sp.arts.length - 1] += '-' + cn2num(m2[2]);   // 第 5 條之 1
+          addToks(sp.arts, arts, ranges);
+          addToks(sp.unsure, ua, ur);
         }
         // 中央用中文數字（一百十一年五月十一日），地方多用阿拉伯數字（115年1月23日）
         var dm = /中華民國\s*([0-9〇一二三四五六七八九十百零]{1,6}\s*年\s*[0-9一二三四五六七八九十]{1,3}\s*月\s*[0-9一二三四五六七八九十]{1,4}\s*日)/.exec(t)
               || /中華民國([^總令國]{2,24}?)(?:總統|行政院|國民政府|令|國民大會)/.exec(t);
-        // 全文修正／制定公布時沒有列出個別條號，視為「動到所有條文」
-        var whole = /全文修正|制定公布|全文.{0,4}條|訂定發布|制定/.test(t) && !arts.length;
-        list.push({ text: t, arts: arts, when: dm ? dm[1].trim() : '', whole: whole });
+        /* 不列個別條號的紀錄視為「動到所有條文」，但要分清兩種事件：
+         * 修正公布全文是修法；制定／訂定是條文誕生，把它說成全文修正會讓讀者以為改過。 */
+        var amend = /全文/.test(c) && /修正/.test(c);
+        var all = !arts.length && !ua.length && (amend || (!/修正/.test(c) && /制定|訂定|全文/.test(c)));
+        var bian = /([^公布；，、]{1,4}編)全文/.exec(c);   // 民法分編制定：標出是哪一編
+        list.push({ text: t, arts: arts, ranges: ranges, unsure: ua.length ? { arts: ua, ranges: ur } : null, when: dm ? dm[1].trim() : '', i: list.length,
+          whole: all, kind: all ? (amend ? 'whole' : 'enact') : '',
+          tag: !all ? '' : amend ? T_WHOLE : '（' + (/制定/.test(c) ? '制定' : '訂定') + (bian ? bian[1] : '') + '）' });
       }
       /* 立法院法律系統有歷史條文全文與修法理由，但位於 lis.ly.gov.tw，
        * 中央站的 CSP（connect-src 'self'、frame-src 'self'）禁止跨域取文與內嵌，
@@ -630,30 +651,111 @@
     });
   }
 
-  // 挑出動到指定條號的修法紀錄
   /* 挑出動到指定條號的修法紀錄。
    * 「全文修正」「制定公布」不會列出個別條號，但確實動到每一條，
    * 必須納入，否則像憲法這種只有一次制定公布的法規會顯示「未修正」。
    *
    * 效能：條號上色要對整頁每一條查一次（民法 1439 條），
-   * 線性掃描會是 O(條數 × 沿革筆數)。改為首次呼叫時建索引，之後 O(1)。 */
-  function historyFor(hist, flno) {
+   * 線性掃描會是 O(條數 × 沿革筆數)。改為首次呼叫時建索引，之後 O(1)；
+   * 只有含範圍（74～75-1）的紀錄需要逐筆比對，這類紀錄很少。 */
+  function artKey(x) {
+    var m = /^([^-]+)(?:-(.+))?$/.exec(x), a = m && cn2num(m[1]);
+    if (!a) return null;
+    var b = m[2] && cn2num(m[2]);
+    return b ? a + '-' + b : String(a);
+  }
+  /* 條號清單切成個別條號或範圍（74～75-1）。
+   * 原站以固定寬度折行，換行可能落在數字中間（「117↵6」「334↵-1」），
+   * 也可能吃掉了頓號（「99-1↵101」「993↵994」），兩者在 HTML 裡同樣只是換行加縮排。
+   * 判讀依據是清單遞增排列（20 部法規 341 筆清單無一例外）、合理位數
+   * （條號最大 1222、之X 最大 47）與數字不以 0 開頭。
+   * 一組內 k 個斷行各自可接可拆，窮舉全部 2^k 種讀法（k 超過 6 直接列為不確定）；
+   * 恰好一種成立才採用，否則（「10、11↵12」可讀成 11、12 或 1112，
+   * 「1↵0↵55」可讀成 1055 或 10、55）整組列為不確定，不計入任何條號，交由面板另行說明。 */
+  function splitArts(s) {
+    var gs = s.replace(/－/g, '-').replace(/~/g, '～').split(/[、，,]/);
+    var res = { arts: [], unsure: [], end: true }, prev = [0, 0];
+    function ends(x) {
+      var e = x.split('～').map(artKey);
+      if (!x || /(^|[-～])0/.test(x) || e.length > 2 || !e.every(Boolean)) return null;
+      e = e.map(artPair);
+      return cmpArt(e[0], e[e.length - 1]) <= 0 &&
+        e.every(function (p) { return p[0] < 1e4 && p[1] < 100; }) ? e : null;
+    }
+    function up(a, list) {
+      return list.every(function (e) { var ok = e && cmpArt(a, e[0]) < 0; a = e && e[e.length - 1]; return ok; });
+    }
+    for (var i = 0; i < gs.length; i++) {
+      var fr = gs[i].trim().split(/\s+/), k = fr.length - 1;
+      if (!fr[0]) continue;
+      var nx = k && i + 1 < gs.length && ends(gs[i + 1].replace(/\s+/g, ''));
+      // 第 b 個位元為 1 表示第 b 個斷行要拆開
+      var good = [];
+      for (var mask = 0; k <= 6 && mask < (1 << k); mask++) {
+        var toks = [fr[0]];
+        for (var b = 0; b < k; b++) {
+          if (mask >> b & 1) toks.push(fr[b + 1]); else toks[toks.length - 1] += fr[b + 1];
+        }
+        var es = toks.map(ends);
+        if (up(prev, nx ? es.concat([nx]) : es)) good.push({ toks: toks, es: es });
+      }
+      if (good.length !== 1) {
+        // 不確定：記下所有讀法（都不成立時記下全部片段與整串），供面板說明
+        var alt = good.length ? [] : fr.concat(fr.join(''));
+        good.forEach(function (g) { alt = alt.concat(g.toks); });
+        res.unsure = res.unsure.concat(alt);
+        res.end = false;
+        continue;
+      }
+      res.arts = res.arts.concat(good[0].toks);
+      res.end = true;
+      var le = good[0].es[good[0].es.length - 1];
+      prev = le[le.length - 1];
+    }
+    return res;
+  }
+  function addToks(toks, arts, ranges) {
+    toks.forEach(function (x) {
+      var e = x.split('～').map(artKey);
+      if (e.length === 2 && e[0] && e[1]) ranges.push([artPair(e[0]), artPair(e[1])]);
+      e.forEach(function (k) { if (k && arts.indexOf(k) < 0) arts.push(k); });
+    });
+  }
+  function inRanges(rs, x) {
+    return rs.some(function (g) { return cmpArt(g[0], x) <= 0 && cmpArt(x, g[1]) <= 0; });
+  }
+  function artPair(k) { var p = String(k).split('-'); return [+p[0] || 0, +p[1] || 0]; }
+  // 依（條, 之X）先後比較：75 < 75-1 < 75-2 < 76
+  function cmpArt(a, b) { return a[0] - b[0] || a[1] - b[1]; }
+  function histNamed(hist, flno) {
     if (!hist.byArt) {
-      var idx = {}, all = [];
+      var idx = {}, all = [], rg = [];
       for (var i = 0; i < hist.list.length; i++) {
         var r = hist.list[i];
         if (r.whole) { all.push(r); continue; }
         for (var j = 0; j < r.arts.length; j++) {
           (idx[r.arts[j]] || (idx[r.arts[j]] = [])).push(r);
         }
+        if (r.ranges.length) rg.push(r);
       }
       hist.byArt = idx;
       hist.wholes = all;
+      hist.ranged = rg;
     }
-    var named = hist.byArt[String(flno)];
-    if (!named) return hist.wholes.length ? hist.wholes.slice() : [];
+    var named = hist.byArt[String(flno)] || [], x = artPair(flno);
+    var extra = hist.ranged.filter(function (r) { return named.indexOf(r) < 0 && inRanges(r.ranges, x); });
     // 維持沿革原順序（新到舊）
-    return named.concat(hist.wholes);
+    return extra.length ? named.concat(extra).sort(function (a, b) { return a.i - b.i; }) : named;
+  }
+  /* 回傳確定動到此條的紀錄（個別＋全文）；條號排版不明確、可能涉及此條的紀錄
+   * 另放在 .unsure，只供面板說明，不計入修正次數。 */
+  function historyFor(hist, flno) {
+    var named = histNamed(hist, flno), out = named.concat(hist.wholes), k = String(flno), x = artPair(flno);
+    out.unsure = hist.list.filter(function (r) {
+      var u = r.unsure;
+      return u && named.indexOf(r) < 0 && (u.arts.indexOf(k) >= 0 || inRanges(u.ranges, x));
+    });
+    return out;
   }
 
   var exCache = {};
@@ -691,6 +793,10 @@
   function fetchExplain(kind, no, year) {
     var key = kind + '|' + no + '|' + (year || '');
     if (exCache[key]) return Promise.resolve(exCache[key]);
+    // 回應前再次滑過不重複請求（與條文共用 once 的理由相同）
+    return once('ex|' + key, function () { return fetchExplain_(kind, no, year, key); });
+  }
+  function fetchExplain_(kind, no, year, key) {
     var pre = kind === 'CJ'
       ? findCJ(year, no).then(function (jc) {
           return HOST + '/LawClass/ExContent.aspx?ty=CJ&JC=' + jc +
@@ -703,18 +809,23 @@
       var rows = doc.querySelectorAll('tr, .row');
       for (var i = 0; i < rows.length; i++) {
         var t = rows[i].textContent.replace(/\s+/g, ' ').trim();
-        var m = /^(發文單位|解釋字號|解釋日期|解釋爭點|判決日期|裁判字號)：\s*([\s\S]*)$/.exec(t);
+        // 憲判字頁的欄名是「判決字號」，不是「裁判字號」
+        var m = /^(發文單位|解釋字號|解釋日期|解釋爭點|判決日期|判決字號|裁判字號)：\s*([\s\S]*)$/.exec(t);
         if (m && !kv[m[1]]) kv[m[1]] = m[2].trim();
       }
       var pres = doc.querySelectorAll('.text-pre');
       if (!pres.length) throw new Error('查無此號解釋');
       var main = pres[0].textContent.replace(/\n\s+/g, '\n').trim();
-      var title = kv['解釋字號'] || kv['裁判字號'] ||
-        (kind === 'CJ' ? year + ' 年憲判字第 ' + no + ' 號' : '釋字第 ' + no + ' 號');
-      // 驗證取回的確實是這一號，查不到比查錯安全
-      if (String(title).replace(/\s/g, '').indexOf(String(no) + '號') < 0) {
+      var got = kv['解釋字號'] || kv['判決字號'] || kv['裁判字號'] || '';
+      /* 驗證取回的確實是這一號，查不到比查錯安全。
+       * 號碼要整數相等：子字串比對會讓第 77 號通過第 7 號的檢查；憲判字另須年度相同。
+       * 頁面沒有字號欄時改看 <title>，兩者皆無則不予採信。 */
+      var chk = (got || (doc.querySelector('title') || {}).textContent || '').replace(/\s/g, '');
+      var nm = new RegExp('第(' + NUM + ')號').exec(chk), ym = new RegExp('(' + NUM + ')年').exec(chk);
+      if (!nm || cn2num(nm[1]) !== +no || (kind === 'CJ' && (!ym || cn2num(ym[1]) !== +year))) {
         throw new Error('字號驗證失敗');
       }
+      var title = got || (kind === 'CJ' ? year + ' 年憲判字第 ' + no + ' 號' : '釋字第 ' + no + ' 號');
       var res = {
         title: title, date: kv['解釋日期'] || kv['判決日期'] || '',
         issue: kv['解釋爭點'] || '', text: main,
@@ -728,10 +839,12 @@
 
   /* 條號正規化：各站寫法不一（阿拉伯／中文數字、全形、空白、之X），
    * 統一轉成 "77-2" 這種形式才能比對。 */
+  // 之X 條有兩種寫法：「第 77 條之 2」與「第 77-2 條」，兩者都要認得
+  var FL_SRC = '第\\s*(' + NUM + ')(?:\\s*[-\\u2010-\\u2015\\uff0d]\\s*([0-9０-９]+))?\\s*條(?:\\s*之\\s*(' + NUM + '))?';
+  var FL_RE = new RegExp(FL_SRC);
+  var HEAD_RE = new RegExp('^' + FL_SRC + '$');      // 整段文字就是一個條號標題
   function normFlno(t) {
-    // 之X 條有兩種寫法：「第 77 條之 2」與「第 77-2 條」，兩者都要認得
-    var m = /第\s*([0-9０-９一二三四五六七八九十百千]+)(?:\s*[-\u2010-\u2015\uff0d]\s*([0-9０-９]+))?\s*條(?:\s*之\s*([0-9０-９一二三四五六七八九十百千]+))?/
-      .exec(String(t).replace(/\u3000/g, ' '));
+    var m = FL_RE.exec(String(t).replace(/\u3000/g, ' '));
     if (!m) return null;
     var a = cn2num(m[1]);
     if (!a) return null;
@@ -758,20 +871,82 @@
       return { title: no.textContent.trim(), lines: splitLines(data) };
     }
 
-    // blob 模式：整團文字用條號切
+    /* blob 模式：整團文字用條號切。
+     * 先找出可靠的分界，再查目標條號，兩件事分開：
+     *   候選分界只取「行首」的條號；條文內的引用（「應依第2條規定」）不在行首。
+     *   其後接空白或換行者是確定的標題（實測高雄 11 個標題全是「第二條&nbsp;」）。
+     *   緊接文字者（「第2條乙。」）可能是標題，也可能是折到行首或以粗體起頭的引用
+     *   （「第一百零五條所定之…」），只有條號唯一、且夾在順序相符的前後標題之間才採信。
+     * 目標條號有兩個候選、或條文範圍內夾著未採信的候選，都代表分界不明確：
+     * 寧可查不到，也不顯示可能混入他條的內容。 */
     var blob = doc.querySelector('#ctl00_cp_content_divLawContent08, .law-content, .ClearCss');
     if (blob) {
-      var txt = blob.textContent.replace(/\r/g, '');
-      var re = /第\s*[0-9０-９一二三四五六七八九十百千]+\s*條(?:\s*之\s*[0-9０-９一二三四五六七八九十百千]+)?/g;
-      var marks = [], m;
-      while ((m = re.exec(txt)) !== null) marks.push({ i: m.index, t: m[0], end: re.lastIndex });
-      for (var k = 0; k < marks.length; k++) {
-        if (normFlno(marks[k].t) !== want) continue;
-        var body = txt.slice(marks[k].end, k + 1 < marks.length ? marks[k + 1].i : txt.length);
-        var lines = body.split('\n').map(function (x) { return x.trim(); })
+      /* textContent 不含換行，自行補上，行首判斷才成立。
+       * 區塊元素列舉不完（<section>、<article>、<td>…），因此反過來：
+       * 只有已知的行內元素不算分界，其餘元素（含 <br>）進入與離開時都補換行。
+       * 「<p>第1條 甲。</p>第2條 乙。」的第 2 條因此位在行首。 */
+      var txt = '';
+      (function walk(n) {
+        for (var c = n.firstChild; c; c = c.nextSibling) {
+          if (c.nodeType === 3) { txt += c.nodeValue; continue; }
+          if (c.nodeType !== 1) continue;      // 註解等非元素節點不是分界
+          var blk = !/^(A|ABBR|B|BDI|BDO|CITE|CODE|DFN|EM|FONT|I|KBD|MARK|Q|S|SAMP|SMALL|SPAN|STRONG|SUB|SUP|TIME|U|VAR|WBR)$/.test(c.nodeName);
+          if (blk) txt += '\n';
+          walk(c);
+          if (blk) txt += '\n';
+        }
+      })(blob);
+      txt = txt.replace(/\r/g, ' ');
+      // 比對只到條號本身為止：其後的換行不可吃掉，下一行的標題要靠它判斷行首
+      var re = new RegExp('(^|\\n)(\\s*?)(' + FL_SRC + ')', 'g'), m, cs = [], cnt = {};
+      while ((m = re.exec(txt)) !== null) {
+        var at = m.index + m[1].length + m[2].length, fl = normFlno(m[3]), af = txt.charAt(re.lastIndex);
+        cs.push({ i: at, t: m[3], end: re.lastIndex, no: fl, sure: !af || /\s/.test(af), p: artPair(fl) });
+        cnt[fl] = (cnt[fl] || 0) + 1;
+      }
+      /* 同號候選有兩個以上時，無論其後是否接空白，全部都不當分界：
+       * 不知道哪一個才是標題，前一條的結尾與該條本身都不確定，一律拒答。 */
+      /* 順序規則：條號（含之X）沿頁面必須嚴格遞增。在確定且不重號的候選中求最長遞增鏈，
+       * 只有「每一條最長鏈都包含」的候選才算標題，其餘視為未採信的候選（本條範圍內出現即拒答）。
+       * 例：表格儲存格裡的「第一百零五條」夾在第一條與第二條之間，{一、一百零五} 與 {一、二}
+       * 一樣長，兩者都不確定；第一條的結尾因此不明，寧可拒答也不顯示被截斷的本文。
+       * 判定法：鏈上每個位置恰取一個「L 值」（以該候選結尾的最長鏈長）；候選在某條最長鏈上
+       * 且同一 L 值只有它一個，才必然出現在每一條最長鏈中。 */
+      var sc = cs.filter(function (x) { x.ok = false; return x.sure && cnt[x.no] === 1; });
+      var L = [], R = [], top = 0, lv = {}, a1, b1;
+      for (a1 = 0; a1 < sc.length; a1++) {
+        L[a1] = 1;
+        for (b1 = 0; b1 < a1; b1++) if (cmpArt(sc[b1].p, sc[a1].p) < 0 && L[b1] >= L[a1]) L[a1] = L[b1] + 1;
+        if (L[a1] > top) top = L[a1];
+      }
+      for (a1 = sc.length - 1; a1 >= 0; a1--) {
+        R[a1] = 1;
+        for (b1 = a1 + 1; b1 < sc.length; b1++) if (cmpArt(sc[a1].p, sc[b1].p) < 0 && R[b1] >= R[a1]) R[a1] = R[b1] + 1;
+      }
+      sc.forEach(function (x, q) { if (L[q] + R[q] - 1 === top) lv[L[q]] = (lv[L[q]] || 0) + 1; });
+      sc.forEach(function (x, q) { x.ok = L[q] + R[q] - 1 === top && lv[L[q]] === 1; });
+      for (var k = 0, prev = null; k < cs.length; k++) {
+        var c = cs[k];
+        if (!c.ok && !c.sure) {
+          var nx = null;
+          for (var q = k + 1; q < cs.length && !nx; q++) if (cs[q].ok) nx = cs[q];
+          c.ok = cnt[c.no] === 1 && !!nx && cmpArt(c.p, nx.p) < 0 &&
+            (prev ? cmpArt(prev.p, c.p) < 0 : !txt.slice(0, c.i).trim());
+        }
+        if (c.ok) prev = c;
+      }
+      var hits = cs.filter(function (x) { return x.no === want; });
+      if (hits.length) {
+        var h0 = hits[0], stop = txt.length, bad = hits.length > 1 || !h0.ok;
+        for (var r = cs.indexOf(h0) + 1; r < cs.length; r++) {
+          if (cs[r].ok) { stop = cs[r].i; break; }
+          bad = true;      // 本條範圍內夾著未採信的候選
+        }
+        if (bad) throw new Error('第 ' + want + ' 條在全文中的分段不明確，為免顯示錯誤條文而不顯示');
+        var lines = txt.slice(h0.end, stop).split('\n').map(function (x) { return x.trim(); })
           .filter(Boolean)
           .map(function (x) { return { text: x, top: !/^[一二三四五六七八九十]、/.test(x) }; });
-        if (lines.length) return { title: marks[k].t.trim(), lines: lines };
+        if (lines.length) return { title: h0.t.trim(), lines: lines };
       }
     }
     return null;
@@ -1332,27 +1507,39 @@
   }
 
   function histList(box, h, rec, full, lineCls) {
-    var named = [], wholes = [];
-    for (var i = 0; i < rec.length; i++) (rec[i].whole ? wholes : named).push(rec[i]);
+    var named = [], amend = 0;
+    for (var i = 0; i < rec.length; i++) {
+      if (!rec[i].whole) named.push(rec[i]);
+      else if (rec[i].kind === 'whole') amend++;
+    }
 
     function row(r) {
-      var d = el('div', lineCls, '\u00b7 ' + (r.when || r.text.slice(0, 46)) +
-        (r.whole ? T_WHOLE : ''));
+      var d = el('div', lineCls, '\u00b7 ' + (r.when || r.text.slice(0, 46)) + r.tag);
       if (h.lyUrl) d.appendChild(lyLink(h, r));
       return d;
     }
+    var un = rec.unsure || [];
+    function note() {
+      if (un.length) box.appendChild(el('div', lineCls, '另有 ' + un.length + ' 筆修法紀錄（' +
+        un.map(function (r) { return r.when || r.text.slice(0, 20); }).join('、') +
+        '）的條號清單在原站斷行處無法判讀，無法確認是否包含本條，未計入。'));
+    }
     if (!rec.length) {
       box.appendChild(el('div', lineCls, '沿革中未見此條的修正紀錄，可能自公布後未修正。'));
+      note();
       return;
     }
     if (!named.length) {
-      box.appendChild(el('div', lineCls,
-        '本條未被個別修正過，僅隨全文修正異動 ' + wholes.length + ' 次。'));
-      if (full) wholes.forEach(function (r) { box.appendChild(row(r)); });
+      box.appendChild(el('div', lineCls, amend
+        ? '本條未被個別修正過，僅隨全文修正異動 ' + amend + ' 次。'
+        : '本條未被個別修正過，也未經全文修正，沿革只有制定紀錄。'));
+      note();
+      if (full) rec.forEach(function (r) { box.appendChild(row(r)); });
       return;
     }
     box.appendChild(el('div', lineCls, '本條個別修正 ' + named.length + ' 次' +
-      (full && wholes.length ? '，另隨全文修正 ' + wholes.length + ' 次' : '')));
+      (full && amend ? '，另隨全文修正 ' + amend + ' 次' : '')));
+    note();
 
     var show = full ? rec : named;
     box.appendChild(row(show[0]));
@@ -1850,12 +2037,10 @@
     for (var i = 0; i < heads.length; i++) {
       var el0 = heads[i];
       if (el0.dataset.lhHead) continue;
-      var txt = el0.textContent.replace(/\s+/g, '').trim();
-      var m = /^第([0-9\-]+)條$/.exec(txt);
-      var flno = null;
-      if (m) {
-        flno = m[1];
-      } else {
+      var txt = el0.textContent.replace(/\s+/g, '');
+      // 地方站標題用中文數字（第一百零五條），只認阿拉伯數字會整頁漏標
+      var flno = HEAD_RE.test(txt) ? normFlno(txt) : null;
+      if (!flno) {
         // 全文頁的條號是連結，可直接從 href 取得最精確的條號
         var a = el0.querySelector('a[href*="flno="]');
         if (a) {
@@ -1878,20 +2063,20 @@
   function paintHeads() {
     if (!SELF) return;
     fetchHistory(SELF.pcode).then(function (h) {
-      // 先建索引再迴圈，避免每條各掃一次沿革
       historyFor(h, '');
+      var amend = h.wholes.some(function (r) { return r.kind === 'whole'; });
       var heads = document.querySelectorAll('[data-lh-head]');
       for (var i = 0; i < heads.length; i++) {
         var e0 = heads[i];
-        var named = h.byArt[e0.dataset.lhHead];
-        if (named) {
+        var named = histNamed(h, e0.dataset.lhHead);
+        if (named.length) {
           sty(e0, CLS.headOn);
           e0.dataset.lhMod = named.length;
           e0.setAttribute('title', '本條修正 ' + named.length + ' 次，滑鼠移入查看沿革');
         } else {
           sty(e0, CLS.headOff);
-          e0.setAttribute('title', h.wholes.length
-            ? '本條僅隨全文修正異動，滑鼠移入查看沿革'
+          e0.setAttribute('title', amend ? '本條僅隨全文修正異動，滑鼠移入查看沿革'
+            : h.wholes.length ? '本條自制定後未曾修正，滑鼠移入查看沿革'
             : '沿革中未見此條的修正紀錄');
         }
       }
