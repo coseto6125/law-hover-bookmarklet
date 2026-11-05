@@ -101,7 +101,7 @@ async function main() {
              panel.indexOf(sp.must[flno].replace(/\s+/g, '')) >= 0, panel.slice(0, 80));
         }
         ok('第 ' + flno + ' 條沿革有明確結論',
-           /修正\d+次|未被個別修正過|未見此條的修正紀錄|僅隨全文修正/.test(panel),
+           /修正\d+次|未被個別修正過|未見此條的修正紀錄|僅隨全文修正|沒有可確認修正本條/.test(panel),
            panel.slice(0, 60));
       }
 

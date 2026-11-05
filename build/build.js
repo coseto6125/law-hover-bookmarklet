@@ -51,12 +51,14 @@ if (!minified) {
  * 改用 base64url（'+'→'-'、'/'→'_'），完全避開轉義，解碼時再換回來。 */
 /* 壓縮器用 zopfli：輸出仍是標準 gzip，瀏覽器照樣解壓，但比 zlib level 9 小約 8%
  * （實測 42891 → 39234 bytes，書籤少約 4900 字元）。缺套件時比照 terser：CI 中止，本機退回 zlib。 */
+let packer = 'zopfli';
 async function gzip(buf) {
   try {
     return Buffer.from(await require('@gfx/zopfli').gzipAsync(buf, { numiterations: 15 }));
   } catch (e) {
     if (process.env.CI) { console.error('CI 中必須以 zopfli 壓縮，中止建置：' + e.message); process.exit(1); }
-    console.warn('zopfli 不可用，改用 zlib：' + e.message);
+    console.warn('zopfli 不可用，改用 zlib（書籤會大約 4900 字元）：' + e.message);
+    packer = 'zlib';
     return zlib.gzipSync(buf, { level: 9 });
   }
 }
@@ -136,7 +138,7 @@ fs.writeFileSync(path.join(docs, '_headers'), [
 
 const LIMIT = 64000;   // Chrome 書籤網址實測上限約 64KB
 console.log('bookmarklet 長度：' + url.length + ' 字元' +
-            (minified ? '（terser + gzip）' : '（保守壓縮 + gzip）') +
+            '（' + (minified ? 'terser' : '保守壓縮') + ' + ' + packer + '）' +
             '　餘裕 ' + (LIMIT - url.length) + ' 字元');
 if (url.length > LIMIT) {
   console.error('錯誤：超過書籤長度上限 ' + LIMIT + '，瀏覽器會截斷導致完全失效');

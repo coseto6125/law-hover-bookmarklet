@@ -1536,6 +1536,16 @@ async function run() {
        wholes(fw, fh, '10').length === 2 && wholes(fw, fh, '400').length === 2, wholes(fw, fh, '10').join('、'));
   }
 
+  // 以沿革原文組出沿革頁（新到舊編號），回傳解析結果與依原文找紀錄的函式
+  const histOf = async (pc, texts, body) => {
+    const page = '<html><body>' + texts.map((t, i) => '<div class="row"><div class="col-data text-pre">' + (texts.length - i) + '. ' + t + '</div></div>\n').join('') + '</body></html>';
+    const w = site('<body><h2 id="hlLawName">X</h2>' + (body || '') + '</body>', MOJ(pc), u => /LawHistory/.test(u) ? page : null);
+    const h = await w.__lawhover__.hist(pc);
+    return { w, h, rec: t => h.list.find(r => r.text.replace(/^\d+\.\s*/, '') === t.replace(/\s+/g, ' ').trim()) };
+  };
+  const unsureOf = (w, h, fl) => w.__lawhover__.histFor(h, fl).unsure.map(r => r.when);
+  const js = r => r && JSON.stringify({ whole: r.whole, arts: r.arts, unsure: r.unsure && r.unsure.arts });
+
   console.log('\n\x1b[1m沿革條目的其他修法寫法（全國法規資料庫原文）\x1b[0m');
   {
     // 每筆取自該法規沿革原文（註明 pcode#序號），日期各不相同，逐筆檢查解析結果
@@ -1547,66 +1557,62 @@ async function run() {
       ['D0020001#7 「及」並列', '中華民國七十七年三月十一日總統（77）華總（一）義字第 0880 號令修正公布第 29、33、37 及 45 條條文', ['29', '33', '37', '45']],
       ['K0060003#4 「第 23 條至第 57 條」', '中華民國七十年三月二十三日交通部（70）交郵字第 03861（二）號令修正發布第 23 條至第 57 條條文', ['23', '57']],
       ['J0050011#4 廢止的是解釋函，不是條文', '中華民國六十六年六月二十三日經濟部（66）經法字第 16649  號函廢止第 13 條解釋函', []],
+      ['A0030200#15「修正原第 22、43 條」：舊編號不算', '中華民國六十三年六月十五日監察院（63）監台院議字第1565號公告增訂第19～21條條文並修正原第22、43條條文', ['19', '21']],
+      ['舊式「公布第 5 條條文」後附另一份施行令（合成）', '中華民國三十年一月一日國民政府公布第 5 條條文中華民國三十年二月一日行政院令定自三十年三月一日施行', ['5']],
     ];
     const W = [
       ['H0050001#8 全文修正後附施行令「令發布第 21～23 及 26 條條文定自…施行」', '中華民國九十一年七月二十四日總統華總一義字第 09100144670  號令修正公布全文 26 條；依第 26 條規定：施行日期，由行政院以命令定之中華民國九十一年十二月十日行政院院臺教字第 0910061641 號令發布第 21～23 及 26 條條文定自中華民國九十二年一月一日施行，其餘條文定自中華民國九十二年八月一日施行'],
       ['S0020009#1 「制定公布 14 條」的 14 是條數', '中華民國三十六年十二月二十二日國民政府制定公布 14 條'],
     ];
     const one = '中華民國七十二年八月十日行政院（72）台內字第 14786  號令修正發布 10 條';
-    const all = E.map(e => e[1]).concat(W.map(e => e[1]), [one]);
-    const page = '<html><body>' + all.map((t, i) => '<div class="row"><div class="col-data text-pre">' + (all.length - i) + '. ' + t + '</div></div>\n').join('') + '</body></html>';
-    const hw = site('<body><h2 id="hlLawName">X</h2></body>', MOJ('Z0000003'), u => /LawHistory/.test(u) ? page : null);
-    const hh = await hw.__lawhover__.hist('Z0000003');
-    const rec = t => hh.list.find(r => r.text.replace(/^\d+\.\s*/, '') === t.replace(/\s+/g, ' ').trim());
-    const span = r => { const s = new Set(r.arts); r.ranges.forEach(([a, b]) => { for (let i = a[0]; i <= b[0]; i++) s.add(String(i)); }); return s; };
+    const R = ['中華民國八十年一月一日某部令修正發布第 5 條之 1 至第 7 條條文', '中華民國八十一年一月一日某部令修正發布第 3 點至第 5 點規定'];
+    const x = await histOf('Z0000003', E.map(e => e[1]).concat(W.map(e => e[1]), [one], R));
     for (const [label, t, want] of E) {
-      const r = rec(t), got = r ? [...new Set(r.arts)] : null;
-      ok('沿革解析：' + label, !!r && !r.whole && JSON.stringify(got.slice().sort()) === JSON.stringify(want.slice().sort()), JSON.stringify(got));
+      const r = x.rec(t), got = r ? [...new Set(r.arts)] : null;
+      ok('沿革解析：' + label, !!r && !r.whole && JSON.stringify(got.slice().sort()) === JSON.stringify(want.slice().sort()), js(r));
     }
-    const k = rec(E[5][1]);
-    ok('「第 23 條至第 57 條」涵蓋中間的第 40 條', !!k && span(k).has('40'), k && JSON.stringify(k.ranges));
-    const a2 = rec(E[1][1]);
-    ok('原第 23～30 條的舊條號不算成第 30 條以外的修正（只認新條號 24～31）', !!a2 && span(a2).has('30') && !a2.arts.includes('30'),
-       a2 && JSON.stringify(a2.ranges));
+    ok('「第 23 條至第 57 條」涵蓋中間的第 40 條', named(x.w, x.h, '40').includes('七十年三月二十三日'), named(x.w, x.h, '40').join('、'));
+    ok('原第 23～30 條修正並遞改為第 24～31 條：第 30 條隨新條號範圍算修正', named(x.w, x.h, '30').includes('三十八年六月十一日'),
+       named(x.w, x.h, '30').join('、'));
+    ok('「修正原第 22、43 條」的舊編號列為不確定', unsureOf(x.w, x.h, '43').includes('六十三年六月十五日') && !named(x.w, x.h, '43').includes('六十三年六月十五日'),
+       js(x.rec(E[7][1])));
+    ok('「第 5 條之 1 至第 7 條」涵蓋第 6 條', named(x.w, x.h, '6').includes('八十年一月一日'), named(x.w, x.h, '6').join('、'));
+    ok('「第 3 點至第 5 點」涵蓋第 4 點', named(x.w, x.h, 'p4').includes('八十一年一月一日'), named(x.w, x.h, 'p4').join('、'));
     for (const [label, t] of W) {
-      const r = rec(t);
-      ok('沿革解析：' + label, !!r && r.whole && r.arts.length === 0 && !r.unsure, r && JSON.stringify({ whole: r.whole, arts: r.arts }));
+      const r = x.rec(t);
+      ok('沿革解析：' + label, !!r && r.whole && r.arts.length === 0 && !r.unsure, js(r));
     }
-    const d = rec(one);
-    ok('D0070083#2「修正發布 10 條」分不出第 10 條或共 10 條：列為不確定，不算成第 10 條修正',
-       !!d && !d.whole && d.arts.length === 0 && d.unsure && d.unsure.arts.join() === '10', d && JSON.stringify({ arts: d.arts, unsure: d.unsure }));
+    const d = x.rec(one);
+    ok('D0070083#2「修正發布 10 條」分不出第 10 條或共 10 條：第 1～10 條都列為不確定，不算修正',
+       !!d && !d.whole && d.arts.length === 0 && unsureOf(x.w, x.h, '10').includes('七十二年八月十日') &&
+       unsureOf(x.w, x.h, '5').includes('七十二年八月十日') && !unsureOf(x.w, x.h, '11').includes('七十二年八月十日'), js(d));
   }
   {
-    // 單一數字後接施行說明，仍分不出條號或條數（codex 合成）；只改附表的紀錄（K0070023#6 原文）
-    const B15 = '中華民國一百十一年十二月八日司法院院台廳民三字第 1110035872號令修正發布第 60、61、66、75、97 條條文、第 62 條條文之附式六及第 63 條條文之附圖；其中，第 60、61、66 條條文及第 62 條條文之附式六，自一百十二年一月一日施行';
-    const bw = site('<body><h2 id="hlLawName">X</h2></body>', MOJ('Z0000005'),
-      u => /LawHistory/.test(u) ? '<html><body><div class="row"><div class="col-data text-pre">15. ' + B15 + '</div></div></body></html>' : null);
-    const s0 = (await bw.__lawhover__.hist('Z0000005')).list[0];
+    // 單一數字後接施行說明，仍分不出條號或條數（codex 合成）；只改附件的紀錄（原文）
+    const b = await histOf('Z0000005', ['中華民國一百十一年十二月八日司法院院台廳民三字第 1110035872號令修正發布第 60、61、66、75、97 條條文、第 62 條條文之附式六及第 63 條條文之附圖；其中，第 60、61、66 條條文及第 62 條條文之附式六，自一百十二年一月一日施行']);
+    const s0 = b.h.list[0];
     ok('B0010011#15「第 62 條條文之附式六及第 63 條條文之附圖」：62、63 列為不確定，其餘照常', !!s0 &&
-       s0.arts.join() === '60,61,66,75,97' && s0.unsure && s0.unsure.arts.join() === '62,63', s0 && JSON.stringify({ arts: s0.arts, unsure: s0.unsure }));
+       s0.arts.join() === '60,61,66,75,97' && s0.unsure && s0.unsure.arts.join() === '62,63', js(s0));
     const T = ['中華民國七十二年八月十日行政院令修正發布 10 條，並自發布日施行',
       '中華民國七十八年二月十五日交通部（78）交航發字第 7809 號令修正發布第 3、8、9、75  及 92 條附表',
       '中華民國七十九年一月一日交通部令修正發布第 5 條條文及第 2 條條文之附件',
-      '中華民國九十一年十月十六日內政部令修正發布第 4、6、11 條條文及第 8 條之暫行編制表'];
-    const page = '<html><body>' + T.map((t, i) => '<div class="row"><div class="col-data text-pre">' + (T.length - i) + '. ' + t + '</div></div>\n').join('') + '</body></html>';
-    const w = site('<body><h2 id="hlLawName">X</h2></body>', MOJ('Z0000004'), u => /LawHistory/.test(u) ? page : null);
-    const h = await w.__lawhover__.hist('Z0000004');
-    const r = t => h.list.find(x => x.text.replace(/^\d+\.\s*/, '') === t.replace(/\s+/g, ' ').trim());
-    const a = r(T[0]), b = r(T[1]), c = r(T[2]);
-    ok('「修正發布 10 條，並自發布日施行」仍列為不確定', !!a && a.arts.length === 0 && a.unsure && a.unsure.arts.join() === '10',
-       a && JSON.stringify({ arts: a.arts, unsure: a.unsure }));
-    ok('「第 3、8、9、75 及 92 條附表」只改附表：不算條文修正，列為不確定', !!b && b.arts.length === 0 && b.unsure &&
-       b.unsure.arts.join() === '3,8,9,75,92', b && JSON.stringify({ arts: b.arts, unsure: b.unsure }));
+      '中華民國九十一年十月十六日內政部令修正發布第 4、6、11 條條文及第 8 條之暫行編制表',
+      '中華民國八十五年一月一日某部令修正發布 15 點'];
+    const x = await histOf('Z0000004', T);
+    const [a, bb, c, e, f] = T.map(x.rec);
+    ok('「修正發布 10 條，並自發布日施行」仍列為不確定', !!a && a.arts.length === 0 && unsureOf(x.w, x.h, '10').includes('七十二年八月十日'), js(a));
+    ok('「修正發布 15 點」同樣列為不確定，不算第 15 點修正', !!f && f.arts.length === 0 && unsureOf(x.w, x.h, 'p15').includes('八十五年一月一日') &&
+       !named(x.w, x.h, 'p15').length, js(f));
+    ok('「第 3、8、9、75 及 92 條附表」只改附表：不算條文修正，列為不確定', !!bb && bb.arts.length === 0 && bb.unsure &&
+       bb.unsure.arts.join() === '3,8,9,75,92', js(bb));
     ok('「第 5 條條文及第 2 條條文之附件」：第 5 條算修正，第 2 條列為不確定', !!c && c.arts.join() === '5' && c.unsure &&
-       c.unsure.arts.join() === '2', c && JSON.stringify({ arts: c.arts, unsure: c.unsure }));
-    const e = r(T[3]);
-    ok('H0000075「第 8 條之暫行編制表」列為不確定', !!e && e.arts.join() === '4,6,11' && e.unsure && e.unsure.arts.join() === '8',
-       e && JSON.stringify({ arts: e.arts, unsure: e.unsure }));
-    ok('只有不確定紀錄的條文不算任何個別修正', named(w, h, '75').length === 0 && named(w, h, '5').length === 1,
-       named(w, h, '75').join('、') + ' / ' + named(w, h, '5').join('、'));
+       c.unsure.arts.join() === '2', js(c));
+    ok('H0000075「第 8 條之暫行編制表」列為不確定', !!e && e.arts.join() === '4,6,11' && e.unsure && e.unsure.arts.join() === '8', js(e));
+    ok('只有不確定紀錄的條文不算任何個別修正', named(x.w, x.h, '75').length === 0 && named(x.w, x.h, '5').length === 1,
+       named(x.w, x.h, '75').join('、') + ' / ' + named(x.w, x.h, '5').join('、'));
     // 面板與條號標題：不可說成「未曾修正」或「僅隨全文修正」
-    const pw = site('<body><h2 id="hlLawName">X</h2><div class="law-reg-content"><div class="row"><div class="col-no">第 75 條</div>' +
-      '<div class="col-data">甲。</div></div></div></body>', MOJ('Z0000004'), u => /LawHistory/.test(u) ? page : null);
+    const art75 = '<div class="law-reg-content"><div class="row"><div class="col-no">第 75 條</div><div class="col-data">甲。</div></div></div>';
+    const pw = (await histOf('Z0000004', T, art75)).w;
     await sleep(300);
     const head = pw.document.querySelector('[data-lh-head="75"]');
     ok('只有不確定紀錄的條號標題說明無法確認，不說未曾修正', !!head && /無法確認是否修正本條/.test(head.getAttribute('title')),
@@ -1614,6 +1620,12 @@ async function run() {
     const tp = await hoverOn(pw, head);
     ok('沿革面板說明有紀錄無法確認並未計入', /無法確認是否修正本條/.test(tp) && /只改附表、附件/.test(tp) && /未計入/.test(tp), tp.slice(0, 160));
     ok('有不確定紀錄時，面板不斷言「未被個別修正過」', !/未被個別修正過|可能自公布後未修正/.test(tp) && /沒有可確認修正本條/.test(tp), tp.slice(0, 160));
+    // 同時有全文修正：說明全文修正次數，仍不斷言未被個別修正
+    const ww = (await histOf('Z0000006', [T[1], '中華民國七十年一月一日交通部令修正發布全文 100 條'], art75)).w;
+    await sleep(300);
+    const tw = await hoverOn(ww, ww.document.querySelector('[data-lh-head="75"]'));
+    ok('不確定紀錄加上全文修正：面板寫「全文修正 1 次」，不寫「未被個別修正過」',
+       /沒有可確認修正本條的個別紀錄，全文修正 1 次/.test(tw) && !/未被個別修正過/.test(tw) && /未計入/.test(tw), tw.slice(0, 160));
   }
 
   console.log('\n\x1b[1m外國法規前綴：不以「國」結尾的國名\x1b[0m');
@@ -1754,10 +1766,23 @@ async function run() {
     const qpt = ptMarks(site(nt('<p>一、中央要點規定：「甲。</p><p>二、依第三點辦理。」</p><p>三、本頁標準。</p><p>四、依第二點辦理。</p>'),
       GL('glrs.nantou.gov.tw', 'GL009987'), () => null)).map(x => x.dataset.flno + ':' + x.textContent);
     ok('引號跨越點標題時，引號內的「第三點」不標；引號閉合後照常標記', qpt.join() === 'p2:第二點', qpt.join(' / ') || '（無）');
-    // 效能：同一點內 300 個含「點」的文字節點，前文不可逐節點重讀（原本 O(n²)，300 節點約 4 秒）
+    // 效能：同一點內 300 個含「點」的文字節點，前文不可逐節點重讀（逐節點重讀是 O(n²)，實測 300 節點約 4 秒）
     const many = '<p>一、甲。</p><p>二、乙。</p><p>三、' + Array.from({ length: 300 }, () => '<span>依第二點辦理，' + '文字'.repeat(190) + '</span>').join('') + '</p>';
     const t0 = Date.now(), mp = ptMarks(site(nt(many), GL('glrs.nantou.gov.tw', 'GL009986'), () => null)), dt = Date.now() - t0;
     ok('300 個含點號的節點在 1.5 秒內標完（' + dt + ' ms）', mp.length === 300 && dt < 1500, mp.length + ' 處，' + dt + ' ms');
+    // codex 第四輪與 simplify 審查的合成案例
+    const ws = pm('<p>四、依<a href="#">中央補助要點</a><span>' + ' '.repeat(80) + '</span>第三點辦理。</p>', 'GL009985');
+    ok('規則名與點號之間隔了大量空白，仍看得到規則名，不綁本頁', ws.length === 0, ws.join(' / ') || '（無）');
+    const para = pm('<p>四、申請程序</p><p>第三點所定文件應備齊。</p>', 'GL009984');
+    ok('段首的「第三點」不受上一段結尾的名詞影響', para.join() === 'p3:第三點', para.join(' / ') || '（無）');
+    const bk = pm('<p>附件【申請表】</p><p>依第三點辦理。</p>', 'GL009983');
+    ok('「附件【申請表】」是附件標題，其後不標', bk.length === 0, bk.join(' / ') || '（無）');
+    const sw = site(nt(three + '<p>四、依<a href="#">民法</a><span>第5條</span>辦理。</p>'), GL('glrs.nantou.gov.tw', 'GL009982'), () => null);
+    const s5 = marksOf(sw).filter(x => x.dataset.flno === '5');
+    ok('分點頁上「<a>民法</a><span>第5條</span>」的短節點不綁成本頁第 5 條', !s5.some(x => x.dataset.pcode === 'GL009982'), s5.map(descr).join(' / ') || '（無）');
+    const rw = site(nt(three + '<p>附件一 依民法第五條</p><p>依第三點辦理。</p>'), GL('glrs.nantou.gov.tw', 'GL009981'), () => null);
+    rw.__lawhover__.toggle();
+    ok('附件標題被標記換掉後重按書籤，附件裡的「第三點」仍不標', ptMarks(rw).length === 0, ptMarks(rw).map(descr).join(' / ') || '（無）');
   }
 
   console.log('\n\x1b[1m快取\x1b[0m');
