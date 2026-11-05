@@ -139,7 +139,7 @@ npm run deploy
 未設定時只從 `$CF_ENV_FILE`（預設 `~/enor_agi/e-trending/.env`）讀取 `CF_API_TOKEN` / `CF_ACCOUNT_ID` 兩個值，且只交給 wrangler。
 
 也可直接在 Cloudflare 儀表板接上此 repo 自動部署：
-建置指令 `npm install && CI=1 npm test`，輸出目錄 `docs`。
+建置指令 `npm ci && CI=1 npm test`，輸出目錄 `docs`。
 
 安裝頁含可拖曳的按鈕與手動貼上兩條路徑，`test/dist.js` 會驗證兩者內容一致。
 
