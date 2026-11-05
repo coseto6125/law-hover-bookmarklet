@@ -4,20 +4,17 @@
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
+const { reporter } = require('./wait');
 
 const root = path.join(__dirname, '..');
 const D = f => fs.readFileSync(path.join(root, 'dist', f), 'utf8');
 
-let pass = 0, fail = 0;
-const ok = (name, cond, extra) => {
-  if (cond) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + name); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + name + (extra ? '\n      → ' + extra : '')); }
-};
+const report = reporter('建置產物驗證');
+const { ok } = report;
 
 const raw = D('lawhover.bookmarklet.txt');
 const html = D('install.html');
 const zlib = require('zlib');
-const unescape = s => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<');
 
 console.log('\n\x1b[1mbookmarklet 產物\x1b[0m');
 ok('以 javascript: 開頭', raw.startsWith('javascript:'));
@@ -191,7 +188,4 @@ ok('裸條號自動綁定當前頁 pcode', marks.filter(m => m.dataset.pcode ===
 ok('載入時最多只取一次沿革', netCalls <= 1, '請求數 ' + netCalls);
 ok('未破壞原頁條文連結', d2.window.document.querySelectorAll('a[href*="LawSingle"]').length > 0);
 
-console.log('\n' + (fail === 0
-  ? `\x1b[32m建置產物驗證全部通過：${pass} 項\x1b[0m`
-  : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
-process.exit(fail === 0 ? 0 : 1);
+report.done();

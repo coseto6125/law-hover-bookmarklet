@@ -18,24 +18,36 @@
  * 因此連到版本清單頁，並在提示裡標明公布日——清單頁每一版都是
  * 「修正日／公布日」上下並列，使用者拿公布日就找得到。
  */
+const https = require('https');
+const { constants } = require('crypto');
 const { loadSource } = require('../build/source');
+const { reporter, fetchRetry, UA } = require('./wait');
 
-let pass = 0, fail = 0;
-const ok = (n, c, e) => {
-  if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '\n      → ' + e : '')); }
-};
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120' };
+const report = reporter('立法院版本連結');
+const { ok } = report;
 const src = loadSource().code;
 
-async function get(url) {
-  for (let i = 0; i < 3; i++) {
-    try { return await globalThis.fetch(url, { headers: UA }).then(r => r.text()); }
-    catch (e) { await sleep(1500 * (i + 1)); }
-  }
-  return null;
-}
+/* lis.ly.gov.tw 的 TLS 設定要求舊式重新協商，OpenSSL 3 預設拒絕
+ * （ERR_SSL_UNSAFE_LEGACY_RENEGOTIATION_DISABLED），內建 fetch 因此永遠連不上，
+ * 這支測試的線上段落從沒真正跑過。只對這個測試開 SSL_OP_LEGACY_SERVER_CONNECT。 */
+const lyFetch = (url, init) => new Promise((resolve, reject) => {
+  const req = https.get(url, {
+    secureOptions: constants.SSL_OP_LEGACY_SERVER_CONNECT,
+    headers: init.headers, signal: init.signal,
+  }, res => {
+    const chunks = [];
+    res.on('data', d => chunks.push(d));
+    res.on('end', () => resolve({
+      ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode,
+      text: () => Promise.resolve(Buffer.concat(chunks).toString('utf8')),
+    }));
+    res.on('error', reject);
+  });
+  req.on('error', reject);
+});
+
+// 全部重試失敗回 null（呼叫端以 -1 / 空字串表示取不到）
+const get = url => fetchRetry(url, { fetch: lyFetch, retryNotOk: false, map: r => r.text() }).catch(() => null);
 
 async function main() {
   console.log('\n\x1b[1m程式碼不得用沿革日期組直達版本網址\x1b[0m');
@@ -49,10 +61,10 @@ async function main() {
      '找不到轉址端點');
 
   console.log('\n\x1b[1m線上佐證：公布日組出的網址是空殼\x1b[0m');
-  try { await globalThis.fetch('https://lis.ly.gov.tw/', { headers: UA }); }
+  try { await lyFetch('https://lis.ly.gov.tw/', { headers: UA }); }
   catch (e) {
-    console.log('\x1b[33m略過線上驗證：無法連線（' + e.message + '）\x1b[0m');
-    return done();
+    report.skip('線上驗證無法連線（' + e.message + '）');
+    return report.done();
   }
 
   const V = d => 'https://lis.ly.gov.tw/lglawc/lawsingle?^01158' + d + '^00000000000';
@@ -90,14 +102,7 @@ async function main() {
      pairs.length > 0 && same.length === 0,
      same.length + ' 筆相同');
 
-  done();
-}
-
-function done() {
-  console.log(fail === 0
-    ? '\n\x1b[32m立法院版本連結全部通過：' + pass + ' 項\x1b[0m'
-    : '\n\x1b[31m通過 ' + pass + '，失敗 ' + fail + '\x1b[0m');
-  process.exit(fail === 0 ? 0 : 1);
+  report.done();
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

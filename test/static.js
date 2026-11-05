@@ -9,13 +9,11 @@ const fs = require('fs');
 const path = require('path');
 const acorn = require('acorn');
 const walk = require('acorn-walk');
+const { reporter } = require('./wait');
 
 const root = path.join(__dirname, '..');
-let pass = 0, fail = 0;
-const ok = (n, c, e) => {
-  if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '\n      → ' + e : '')); }
-};
+const report = reporter('靜態檢查');
+const { ok } = report;
 
 // 瀏覽器與標準內建物件
 const GLOBALS = new Set([
@@ -110,7 +108,4 @@ console.log('\n\x1b[1m建置產物同樣檢查\x1b[0m');
   }
 }
 
-console.log('\n' + (fail === 0
-  ? `\x1b[32m靜態檢查全部通過：${pass} 項\x1b[0m`
-  : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
-process.exit(fail === 0 ? 0 : 1);
+report.done();

@@ -7,15 +7,12 @@
  * 手寫的 100 部字典實測有 264 例這種切錯，改收錄官方完整清單後歸零。
  * 這支測試把該性質固定下來，避免日後為了縮短書籤而裁減字典。
  */
-const fs = require('fs');
-const path = require('path');
-const { loadSource, root } = require('../build/source');
+const { loadSource } = require('../build/source');
+const { reporter } = require('./wait');
+const { lawMarks } = require('./dom');
 
-let pass = 0, fail = 0;
-const ok = (name, cond, extra) => {
-  if (cond) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + name); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + name + (extra ? '\n      → ' + extra : '')); }
-};
+const report = reporter('法規名字典');
+const { ok } = report;
 
 const names = loadSource().names;
 
@@ -29,7 +26,12 @@ ok('已去除制定日註記', !names.some(n => /（[^）]*\d{2,3}\.\d{2}\.\d{2}
    JSON.stringify(names.filter(n => /\d{2,3}\.\d{2}\.\d{2}/.test(n)).slice(0, 3)));
 
 /* 核心性質：對每一部法規，套上常見的引用前綴後，最長後綴匹配都要還原出
- * 完整的原名，不能被字典裡某個較短的名稱截走。 */
+ * 完整的原名，不能被字典裡某個較短的名稱截走。
+ *
+ * 注意：這個迴圈只是「字典資料」的檢查，用最簡單的最長後綴匹配驗證字典本身
+ * 收錄完整（1300 多部 × 21 個前綴，逐一建 jsdom 頁面太慢）。它不代表出貨程式
+ * 的行為；出貨的 matchKnown（含外國國名防護與 REAL_LAW_NAMES）由下方
+ * 「實際引用句」與「地方法規」兩段，直接把原始碼注入 jsdom 頁面來驗證。 */
 console.log('\n\x1b[1m最長匹配不被短名吃掉（全 ' + names.length + ' 部 × 常見前綴）\x1b[0m');
 const PREFIXES = ['違反', '依', '依據', '按', '適用', '準用', '觸犯', '不受', '應受',
   '但應受', '參照', '援引', '詳見', '另見', '惟', '其', '並', '或', '及', '與', '暨'];
@@ -58,9 +60,13 @@ const CASES = [
   ['依強制汽車責任保險法第七條', '強制汽車責任保險法'],
   ['承租人違反民法第四百四十三條', '民法']
 ];
+/* 以出貨程式碼在 jsdom 頁面上標記，取第一個標記的法規名。 */
+const nameOf = text => {
+  const ms = lawMarks('測試法', 'X', '<p>' + text + '</p>');
+  return ms.length ? ms[0].dataset.name : '';
+};
 for (const [text, want] of CASES) {
-  let best = '';
-  for (const k of byLen) { if (text.replace(/第.*$/, '').endsWith(k)) { best = k; break; } }
+  const best = nameOf(text);
   ok('「' + text + '」→ ' + want, best === want, '實得「' + best + '」');
 }
 
@@ -74,13 +80,8 @@ const LOCAL = [
   '臺中市公園管理自治條例', '新北市河川管理自治條例'
 ];
 for (const n of LOCAL) {
-  const raw = '違反' + n;
-  let best = '';
-  for (const k of byLen) { if (raw.endsWith(k)) { best = k; break; } }
+  const best = nameOf('違反' + n + '第一條規定');
   ok(n + ' 未被誤命中', best === '' || best === n, '誤命中「' + best + '」');
 }
 
-console.log(fail === 0
-  ? '\n\x1b[32m法規名字典全部通過：' + pass + ' 項\x1b[0m'
-  : '\n\x1b[31m通過 ' + pass + '，失敗 ' + fail + '\x1b[0m');
-process.exit(fail === 0 ? 0 : 1);
+report.done();

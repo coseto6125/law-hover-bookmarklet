@@ -106,20 +106,35 @@ script-src 'nonce-...' 'strict-dynamic'; object-src 'none'
 ```bash
 npm install           # 測試需要 jsdom；瀏覽器驗證需要 playwright
 node build/build.js   # 產生 dist/lawhover.bookmarklet.txt 與 dist/install.html
-npm test              # 全部測試
+npm test              # 離線測試（含建置）：static、lawnames、run、csp、dist
+npm run test:all      # 全部測試：離線 + guide、mobile、live、pcode、history、ly、browser、sample
 ```
+
+單獨執行：`npm run test:browser`、`test:mobile`、`test:guide`、`test:live`、`test:pcode`、
+`test:history`、`test:ly`、`test:sample`、`test:names`。
+
+略過不算通過：沒有 playwright、無法啟動 Chromium 或連不上站台時，測試以**退出碼 77** 結束，
+`test:all` 因此不會在零項瀏覽器檢查下顯示成功。確實要在這類環境執行時，設 `ALLOW_SKIP=1` 讓略過回傳 0。
 
 各測試檔用途：
 
 | 檔案 | 驗證對象 | 需要網路 |
 |---|---|---|
+| `test/static.js` | 靜態檢查：用到但未定義的識別子（原始碼與壓縮後） | 否 |
+| `test/lawnames.js` | 法規名字典品質，與出貨的名稱比對在 jsdom 中的結果 | 否 |
 | `test/run.js` | 原始碼行為，用真實頁面 fixture | 否 |
 | `test/csp.js` | CSP 相容性，攔截所有 inline style 寫入 | 否 |
 | `test/dist.js` | 建置產物，含安裝頁兩個安裝路徑一致性 | 否 |
+| `test/guide.js` | 安裝頁引導動畫（真實 Chromium，開本機檔案） | 否，需 playwright |
+| `test/mobile.js` | 跨平台：桌機、手機、平板與觸控／滑鼠判斷（真實 Chromium） | 部分 |
 | `test/live.js` | 打包版對線上站台端到端 | 是 |
-| `test/pcode.js` | 18 部法規的名稱→pcode 對照 | 是 |
-| `test/history.js` | 18 部法規的沿革解析稽核 | 是 |
+| `test/pcode.js` | 多部法規的名稱→pcode 對照 | 是 |
+| `test/history.js` | 多部法規的沿革解析稽核 | 是 |
+| `test/lylink.js` | 立法院版本連結：不得用公布日組直達網址，並線上佐證原因 | 部分 |
 | `test/browser.js` | 真實 Chrome，含回報流程與多頁型 | 是 |
+| `test/sample.js` | 固定抽樣的跨站台抽查：沿革面板與引用面板內容比對 | 是 |
+
+共用工具在 `test/wait.js`（等待條件、回報與退出碼、重試抓取、啟動瀏覽器）與 `test/dom.js`（jsdom 離線頁面）。
 
 建置會同時輸出到兩處：
 
@@ -154,10 +169,10 @@ npm run deploy
 | 隱私 | 所有請求皆同源、無第三方網域 |
 | 快取 | 同條再查不重複請求 |
 
-線上端到端（`test/live.js`，18 項）涵蓋四個情境：建築法裸條號取文、
+線上端到端（`test/live.js`）涵蓋四個情境：建築法裸條號取文、
 跨法規具名引用（土地法，需經搜尋）、換一部法規確認未寫死、不存在條號的失敗行為。
 
-沿革稽核（`test/history.js`）對 18 部法規逐一驗證解析結果，
+沿革稽核（`test/history.js`）對多部法規逐一驗證解析結果，
 比對原始沿革條目數、條號抽取率、日期抽取率與反查正確性。
 此稽核找出兩種原本只在建築法上測不到的情形：
 
@@ -166,13 +181,13 @@ npm run deploy
 2. **分編立法的法規用不同端點**。民法分為總則、債、物權等 5 編，
    立法院入口是 `LawRedirectLY.aspx?pcode=` 而非 `LawRedirect.ashx?CODE=`。
 
-名稱對照驗證（`test/pcode.js`，20 項）對 18 部法規實打線上搜尋。此項先前只在
+名稱對照驗證（`test/pcode.js`）對多部法規實打線上搜尋。此項先前只在
 建築法與土地法上驗過就當作完成，擴大抽查後發現「刑法」（官方全名為中華民國刑法）、
 「都市計畫法臺灣省施行細則」（名稱帶括號註記）、
 「建築技術規則建築設計施工編」（以「編」結尾，原本連辨識都沒辨識到）三種失敗，
 已全數修正。
 
-真實瀏覽器驗證（`test/browser.js`，27 項）在 Chromium 中以**使用者點擊書籤的實際路徑**執行。
+真實瀏覽器驗證（`test/browser.js`）在 Chromium 中以**使用者點擊書籤的實際路徑**執行。
 
 這個區別很重要：頁面自身設定 `location.href='javascript:...'` 會被 CSP 的 `script-src` 擋下，
 但使用者點擊書籤屬於瀏覽器發起的導覽，豁免於 CSP。前者實測會失敗（標記 0 處、

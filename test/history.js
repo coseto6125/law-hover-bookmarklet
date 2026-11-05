@@ -7,12 +7,12 @@
  *   2. 分編立法的法規（民法）用 LawRedirectLY.aspx 而非 LawRedirect.ashx
  * 需要網路；離線時明確略過而非假性通過。
  */
-const UA={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120'};
 const {JSDOM}=require('jsdom');
+const {reporter,sleep,UA}=require('./wait');
 const fs=require('fs');
 // 用建置時同一份注入邏輯，確保測到的就是實際出貨的程式碼。
 const code = require('../build/source').loadSource().code;
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const report=reporter('沿革稽核');   // 只用於略過碼；本檔以法規數計，摘要自行輸出
 
 const LAWS=[
  ['A0000001','中華民國憲法'],['B0000001','民法'],['C0000001','中華民國刑法'],
@@ -25,7 +25,7 @@ const LAWS=[
 
 (async()=>{
   try{ await fetch('https://law.moj.gov.tw/',{headers:UA}); }
-  catch(e){ console.log('\x1b[33m略過：無法連線至 law.moj.gov.tw\x1b[0m'); process.exit(0); }
+  catch(e){ report.bail('無法連線至 law.moj.gov.tw'); }
   console.log('\n\x1b[1m沿革解析跨法規稽核（'+LAWS.length+' 部）\x1b[0m');
   let total=0,parsed=0,noRec=0,issues=[];
   for(const [pcode,name] of LAWS){

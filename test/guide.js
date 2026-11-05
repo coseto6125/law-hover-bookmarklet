@@ -5,21 +5,14 @@
  */
 const fs = require('fs');
 const path = require('path');
+const { reporter, launchOrSkip } = require('./wait');
 
 const root = path.join(__dirname, '..');
-let pass = 0, fail = 0;
-const ok = (n, c, e) => {
-  if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '\n      → ' + e : '')); }
-};
+const report = reporter('引導動畫驗證');
+const { ok } = report;
 
 async function main() {
-  let chromium;
-  try { ({ chromium } = require('playwright')); }
-  catch (e) { console.log('\x1b[33m略過：未安裝 playwright\x1b[0m'); process.exit(0); }
-  let browser;
-  try { browser = await chromium.launch(); }
-  catch (e) { console.log('\x1b[33m略過：無法啟動 Chromium\x1b[0m'); process.exit(0); }
+  const { browser } = await launchOrSkip(report);
 
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errs = [];
@@ -203,9 +196,6 @@ async function main() {
   ok('範例含多處引用（含釋字）', cites >= 5, '共 ' + cites + ' 處');
 
   await browser.close();
-  console.log('\n' + (fail === 0
-    ? `\x1b[32m引導動畫驗證全部通過：${pass} 項\x1b[0m`
-    : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
-  process.exit(fail === 0 ? 0 : 1);
+  report.done();
 }
 main().catch(e => { console.error(e); process.exit(1); });

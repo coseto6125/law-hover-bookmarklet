@@ -2,18 +2,16 @@
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
+const { reporter, sleep } = require('./wait');
+const { pageMarks, lawMarks } = require('./dom');
 
 const root = path.join(__dirname, '..');
 const F = f => fs.readFileSync(path.join(root, 'test/fixtures', f), 'utf8');
-const sleep = ms => new Promise(r => setTimeout(r, ms));
 // 用建置時同一份注入邏輯，確保測到的就是實際出貨的程式碼。
 const code = require('../build/source').loadSource().code;
 
-let pass = 0, fail = 0;
-const ok = (name, cond, extra) => {
-  if (cond) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + name); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + name + (extra ? '\n      → ' + extra : '')); }
-};
+const report = reporter('');
+const { ok } = report;
 
 // 假的同源 fetch：把 URL 對應到 fixture
 const routes = [
@@ -177,14 +175,7 @@ async function run() {
   {
     /* 原本只靠前綴黑名單修剪左邊界，會把前一段文字吃進法規名，
      * 導致真實引用完全查不到。以下三句取自站上現行條文。 */
-    const nameOf = (txt, self) => {
-      const d = new JSDOM('<body><h2 id="hlLawName">' + self + '</h2><p>' + txt + '</p></body>',
-        { url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=X',
-          runScripts: 'outside-only', pretendToBeVisual: true });
-      d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
-      d.window.eval(code);
-      return [...d.window.document.querySelectorAll('[data-flno]')].map(x => x.dataset.name);
-    };
+    const nameOf = (txt, self) => lawMarks(self, 'X', '<p>' + txt + '</p>').map(x => x.dataset.name);
     const cases = [
       ['第一百六十四條及民法第九百零八條規定', '公司法', '民法'],
       ['行政機關依中央法規標準法第七條規定', '行政程序法', '中央法規標準法'],
@@ -206,14 +197,7 @@ async function run() {
   {
     /* 「人口販運防制法第三十二條、第三十三條」的後半段仍屬該法。
      * 若一律綁成本頁法規，會顯示完全錯誤的條文，這是最危險的一種錯誤。 */
-    const mk = (txt, lawName, pcode) => {
-      const d = new JSDOM('<body><h2 id="hlLawName">' + lawName + '</h2><p>' + txt + '</p></body>',
-        { url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=' + pcode,
-          runScripts: 'outside-only', pretendToBeVisual: true });
-      d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
-      d.window.eval(code);
-      return [...d.window.document.querySelectorAll('[data-flno]')];
-    };
+    const mk = (txt, lawName, pcode) => lawMarks(lawName, pcode, '<p>' + txt + '</p>');
 
     let ms = mk('犯人口販運防制法第三十二條、第三十三條之行為者。', '中華民國刑法', 'C0000001');
     ok('連續條號沿用前一部法規（不誤綁本法）',
@@ -269,14 +253,7 @@ async function run() {
 
   console.log('\n\x1b[1m多組別名與跨段落前指（第三輪 review 的 critical）\x1b[0m');
   {
-    const mk = (law, pc, html) => {
-      const d = new JSDOM('<body><h2 id="hlLawName">' + law + '</h2>' + html + '</body>',
-        { url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=' + pc,
-          runScripts: 'outside-only', pretendToBeVisual: true });
-      d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
-      d.window.eval(code);
-      return [...d.window.document.querySelectorAll('[data-flno]')];
-    };
+    const mk = lawMarks;
 
     /* 同一部法規可定義多組別名，只記第一組會讓「本條例」也指向「本法」的法規。
      * 各類所得扣繳率標準同時定義所得稅法與臺灣地區與大陸地區人民關係條例。 */
@@ -547,14 +524,7 @@ async function run() {
     /* SUFFIX 含單字元的「法」，若要求名稱前段至少 2 字，
      * 「民法」「刑法」「憲法」這類 2 字法規名會完全比對不到，
      * 接著被裸條號規則綁成本頁法規，顯示完全不相干的條文且無提示。 */
-    const mk = (txt, law, pc) => {
-      const d = new JSDOM('<body><h2 id="hlLawName">' + law + '</h2><p>' + txt + '</p></body>',
-        { url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=' + pc,
-          runScripts: 'outside-only', pretendToBeVisual: true });
-      d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
-      d.window.eval(code);
-      return [...d.window.document.querySelectorAll('[data-flno]')];
-    };
+    const mk = (txt, law, pc) => lawMarks(law, pc, '<p>' + txt + '</p>');
 
     // 公司法第 192 條的真實原句
     let ms = mk('民法第十五條之二及第八十五條之規定，對於第一項行為能力，不適用之。',
@@ -577,12 +547,7 @@ async function run() {
 
   console.log('\n\x1b[1m自指詞與前指詞（第二輪 review 的 critical）\x1b[0m');
   {
-    const mk = (html, url) => {
-      const d = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
-      d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
-      d.window.eval(code);
-      return [...d.window.document.querySelectorAll('[data-flno]')];
-    };
+    const mk = pageMarks;
 
     /* 子法寫「○○法（以下簡稱本法）」時，「本法」指母法而非本頁。
      * 綁成本頁會顯示施行細則自己的條文，內容完全不同。 */
@@ -617,14 +582,7 @@ async function run() {
     /* 官方法規名可達 34 字以上。具名比對失敗時，裸條號規則會把內部的
      * 「第3條」綁成本頁法規，顯示出條號正確但法規完全錯誤的條文。 */
     const LONG = '營造業承攬工程造價限額工程規模範圍申報淨值及一定期間承攬總額認定辦法';
-    const mk2 = txt => {
-      const d = new JSDOM('<body><h2 id="hlLawName">測試法</h2><p>' + txt + '</p></body>',
-        { url: 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=X',
-          runScripts: 'outside-only', pretendToBeVisual: true });
-      d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
-      d.window.eval(code);
-      return [...d.window.document.querySelectorAll('[data-flno]')];
-    };
+    const mk2 = txt => lawMarks('測試法', 'X', '<p>' + txt + '</p>');
     let ms = mk2('依「' + LONG + '」第3條規定。');
     ok('引號內的 34 字法規名可正確辨識',
        ms.length === 1 && ms[0].dataset.name === LONG, ms.map(m => m.dataset.name).join());
@@ -1519,10 +1477,7 @@ async function run() {
      !added.some(u => /LawSingle/.test(u)),
      added.join(' | '));
 
-  console.log('\n' + (fail === 0
-    ? `\x1b[32m全部通過：${pass} 項\x1b[0m`
-    : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
-  process.exit(fail === 0 ? 0 : 1);
+  report.done();
 }
 
 run().catch(e => { console.error(e); process.exit(1); });

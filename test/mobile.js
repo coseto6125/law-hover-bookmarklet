@@ -6,24 +6,16 @@
  *   因此不需要分手機版/桌面版書籤。
  */
 const fs = require('fs');
-const { panelReady, injected } = require('./wait');
+const { panelReady, injected, reporter, launchOrSkip } = require('./wait');
 const path = require('path');
 const root = path.join(__dirname, '..');
 const url = fs.readFileSync(path.join(root, 'dist/lawhover.bookmarklet.txt'), 'utf8');
 
-let pass = 0, fail = 0;
-const ok = (n, c, e) => {
-  if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '\n      → ' + e : '')); }
-};
+const report = reporter('跨平台驗證');
+const { ok } = report;
 
 async function main() {
-  let chromium, devices;
-  try { ({ chromium, devices } = require('playwright')); }
-  catch (e) { console.log('\x1b[33m略過：未安裝 playwright\x1b[0m'); process.exit(0); }
-  let browser;
-  try { browser = await chromium.launch(); }
-  catch (e) { console.log('\x1b[33m略過：無法啟動 Chromium\x1b[0m'); process.exit(0); }
+  const { devices, browser } = await launchOrSkip(report);
 
   /* 觸控與滑鼠要逐次判斷（review 發現）：有觸控螢幕的筆電用滑鼠操作時，
    * 原本整頁當成觸控裝置：滑鼠移開面板不關、點條號連結被攔下不跳頁；
@@ -108,9 +100,11 @@ async function main() {
 
   try { await globalThis.fetch('https://law.moj.gov.tw/'); }
   catch (e) {
-    // 只略過線上案例；前面離線案例的失敗不能被吞掉
-    console.log('\x1b[33m略過線上案例：無法連線\x1b[0m（離線案例 通過 ' + pass + '，失敗 ' + fail + '）');
-    await browser.close(); process.exit(fail === 0 ? 0 : 1);
+    // 只略過線上案例；前面離線案例的失敗不能被吞掉，略過也不算通過（退出碼 77）
+    await browser.close();
+    report.skip('線上案例無法連線');
+    console.log('（離線案例 通過 ' + report.pass + '，失敗 ' + report.fail + '）');
+    return report.done();
   }
 
   const CASES = [
@@ -268,9 +262,6 @@ async function main() {
   }
 
   await browser.close();
-  console.log('\n' + (fail === 0
-    ? `\x1b[32m跨平台驗證全部通過：${pass} 項\x1b[0m`
-    : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
-  process.exit(fail === 0 ? 0 : 1);
+  report.done();
 }
 main().catch(e => { console.error(e); process.exit(1); });

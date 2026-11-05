@@ -5,27 +5,17 @@
  * 由瀏覽器實際強制 CSP，並監聽 securitypolicyviolation 事件。
  */
 const fs = require('fs');
-const { until, panelReady, injected } = require('./wait');
+const { until, panelReady, injected, reporter, launchOrSkip } = require('./wait');
 const path = require('path');
 
 const root = path.join(__dirname, '..');
 const bookmarklet = fs.readFileSync(path.join(root, 'dist/lawhover.bookmarklet.txt'), 'utf8');
-const code = decodeURIComponent(bookmarklet.slice('javascript:'.length));
 
-let pass = 0, fail = 0;
-const ok = (n, c, e) => {
-  if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '\n      → ' + e : '')); }
-};
+const report = reporter('真實瀏覽器驗證');
+const { ok } = report;
 
 async function main() {
-  let chromium;
-  try { ({ chromium } = require('playwright')); }
-  catch (e) { console.log('\x1b[33m略過：未安裝 playwright\x1b[0m'); process.exit(0); }
-
-  let browser;
-  try { browser = await chromium.launch(); }
-  catch (e) { console.log('\x1b[33m略過：無法啟動 Chromium（' + e.message.split('\n')[0] + '）\x1b[0m'); process.exit(0); }
+  const { browser } = await launchOrSkip(report);
 
   const page = await browser.newPage();
 
@@ -45,7 +35,7 @@ async function main() {
 
   const URL = 'https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109';
   try { await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 45000 }); }
-  catch (e) { console.log('\x1b[33m略過：無法連線（' + e.message.split('\n')[0] + '）\x1b[0m'); await browser.close(); process.exit(0); }
+  catch (e) { await browser.close(); report.bail('無法連線（' + e.message.split('\n')[0] + '）'); }
 
   console.log('\n\x1b[1m真實 Chromium · 執行 bookmarklet\x1b[0m');
   const cspHeader = await page.evaluate(() => {
@@ -142,14 +132,34 @@ async function main() {
 
   console.log('\n\x1b[1m重複點擊書籤（使用者每頁都要點一次）\x1b[0m');
   {
-    const before = await page.evaluate(() => document.querySelectorAll('[data-flno]').length);
+    /* 第二次點擊若沒被 window.__lawhover__ 的防重入檢查擋下，會整段重跑：
+     * 以新物件覆蓋 window.__lawhover__、再建一個面板。重跑是非同步發生的，
+     * 而此時第一次的標記早已存在，injected() 會立刻返回，斷言就跑在重跑之前，
+     * 測試永遠是綠的（曾實測拿掉防重入檢查仍通過 3 次中的 2 次）。
+     * 所以改用會被重跑破壞的哨兵：
+     *   - 把既有實例的 toggle 換成計數版。有防重入時第二次點擊必走 toggle()；
+     *     沒有時 toggle 永遠不會被呼叫，等待逾時即失敗（確定性，不靠時機）。
+     *   - 記下既有實例的參照，重跑會以新物件覆蓋它。
+     *   - 觸發後再等一段固定時間，讓任何遲到的重跑有機會發生，才數標記與面板。 */
+    const before = await page.evaluate(() => {
+      const lh = window.__lawhover__;
+      window.__lhRef = lh;
+      window.__lhToggles = 0;
+      const orig = lh.toggle;
+      lh.toggle = function () { window.__lhToggles++; return orig.apply(this, arguments); };
+      return document.querySelectorAll('[data-flno]').length;
+    });
     try { await cdp.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
-    await injected(page, { timeout: 20000 });
+    const reached = await until(page, () => window.__lhToggles > 0, null, { timeout: 20000 });
+    await page.waitForTimeout(1500);
     const after = await page.evaluate(() => ({
       marks: document.querySelectorAll('[data-flno]').length,
       panels: [...document.body.children]
         .filter(n => /^lh-[a-z0-9]+-p$/.test(String(n.className || '').split(' ')[0])).length,
+      sameInstance: window.__lawhover__ === window.__lhRef,
     }));
+    ok('再次點擊交給既有實例處理（防重入生效）', reached && after.sameInstance,
+       'toggle 呼叫=' + reached + ' 實例未被覆蓋=' + after.sameInstance);
     ok('再次點擊不會重複標記', after.marks === before, before + ' → ' + after.marks);
     ok('再次點擊不會重複建立面板', after.panels === 1, '面板數 ' + after.panels);
   }
@@ -556,10 +566,7 @@ async function main() {
   }
 
   await browser.close();
-  console.log('\n' + (fail === 0
-    ? `\x1b[32m真實瀏覽器驗證全部通過：${pass} 項\x1b[0m`
-    : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
-  process.exit(fail === 0 ? 0 : 1);
+  report.done();
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

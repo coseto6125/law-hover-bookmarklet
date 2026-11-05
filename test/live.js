@@ -5,18 +5,15 @@
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
+const { reporter, UA, fetchRetry } = require('./wait');
 
 const root = path.join(__dirname, '..');
 const decoded = decodeURIComponent(
   fs.readFileSync(path.join(root, 'dist/lawhover.bookmarklet.txt'), 'utf8').slice('javascript:'.length)
 );
 
-let pass = 0, fail = 0;
-const ok = (n, c, e) => {
-  if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '\n      → ' + e : '')); }
-};
-const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120' };
+const report = reporter('線上端到端');
+const { ok } = report;
 
 // 在 jsdom 中架設一個真的會連線的 fetch，並記錄所有請求
 function attachRealFetch(window, log) {
@@ -27,9 +24,15 @@ function attachRealFetch(window, log) {
   };
 }
 
-function hover(window, mark, ms) {
+// 等到面板不再顯示「查詢中」。固定秒數在線上站變慢時（例如 test:all 連跑之後）會誤判失敗。
+async function hover(window, mark, ms) {
   mark.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));
-  return new Promise(r => setTimeout(r, ms || 6000));
+  const end = Date.now() + (ms || 30000);
+  while (Date.now() < end) {
+    const t = panelText(window);
+    if (t && !t.includes('查詢中')) return;
+    await new Promise(r => setTimeout(r, 200));
+  }
 }
 function panelText(window) {
   const p = [...window.document.body.children].find(n => {
@@ -42,17 +45,8 @@ function panelText(window) {
 async function loadPage(url) {
   /* law.moj.gov.tw 偶發 ETIMEDOUT（IPv6 連線嘗試逾時），單次失敗會讓整支測試
    * 誤報為程式錯誤。重試三次以區分「真的壞了」與「網路抖一下」。 */
-  let html = null, lastErr = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      html = await globalThis.fetch(url, { headers: UA }).then(r => r.text());
-      break;
-    } catch (e) {
-      lastErr = e;
-      await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-    }
-  }
-  if (html === null) throw lastErr;
+  // 只重試連線失敗，收到回應就收下（與原行為相同）；全部失敗時丟出最後一次例外。
+  const html = await fetchRetry(url, { backoff: 2000, retryNotOk: false, map: r => r.text() });
   /* 維持 outside-only：dangerously 會連站台自己的 jQuery 等腳本一起跑，
    * 在 jsdom 下大量報錯而淹沒測試結果。 */
   const dom = new JSDOM(html, { url, runScripts: 'outside-only', pretendToBeVisual: true });
@@ -97,7 +91,7 @@ async function loadPage(url) {
 
 async function main() {
   try { await globalThis.fetch('https://law.moj.gov.tw/', { headers: UA }); }
-  catch (e) { console.log('\x1b[33m略過：無法連線至 law.moj.gov.tw（' + e.message + '）\x1b[0m'); process.exit(0); }
+  catch (e) { report.bail('無法連線至 law.moj.gov.tw（' + e.message + '）'); }
 
   /* --- 情境一：建築法全文頁，裸條號取文 --- */
   console.log('\n\x1b[1m情境一 · 建築法全文頁（裸條號）\x1b[0m');
@@ -129,7 +123,7 @@ async function main() {
      mLand ? mLand.dataset.name + ' ' + mLand.dataset.flno : '未找到');
   if (mLand) {
     const before = a.log.length;
-    await hover(a.window, mLand, 9000);
+    await hover(a.window, mLand);
     const tL = panelText(a.window);
     ok('經同源搜尋取得土地法條文', !!tL && tL.length > 40 && !tL.includes('查不到條文'),
        (tL || '（無面板）').slice(0, 90));
@@ -148,7 +142,7 @@ async function main() {
   const selfB = marksB.filter(m => m.dataset.pcode === 'D0070118');
   ok('裸條號綁定該頁自己的 pcode（非寫死建築法）', selfB.length > 0, '自指 ' + selfB.length + ' 處');
   if (selfB.length) {
-    await hover(b.window, selfB[0], 7000);
+    await hover(b.window, selfB[0]);
     const tB = panelText(b.window);
     ok('取回該法規條文成功', !!tB && !tB.includes('查不到條文'), (tB || '（無面板）').slice(0, 80));
   }
@@ -158,7 +152,7 @@ async function main() {
   const c = await loadPage('https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109');
   const target = [...c.window.document.querySelectorAll('[data-flno]')].find(m => m.dataset.pcode);
   target.dataset.flno = '9999';
-  await hover(c.window, target, 7000);
+  await hover(c.window, target);
   const tc = panelText(c.window);
   ok('不存在的條號不顯示任何條文內容', !!tc && tc.includes('查不到'), (tc || '（無面板）').slice(0, 80));
   ok('並說明原因', !!tc && tc.includes('查不到比查錯安全'), (tc || '').slice(0, 90));
@@ -173,10 +167,7 @@ async function main() {
   ok('無任何開發者伺服器或第三方網域',
      !all.some(u => /vercel|herokuapp|cloudflare|analytics|googleapis/i.test(u)));
 
-  console.log('\n' + (fail === 0
-    ? `\x1b[32m線上端到端全部通過：${pass} 項\x1b[0m`
-    : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
-  process.exit(fail === 0 ? 0 : 1);
+  report.done();
 }
 
 main().catch(e => { console.error(e); process.exit(1); });

@@ -4,19 +4,14 @@
  * 導致在 law.moj.gov.tw 上所有樣式被擋（使用者實測回報）。
  * 這支測試以真實站台的 CSP 為準，攔截所有會被擋下的操作並讓測試失敗。
  */
-const fs = require('fs');
-const path = require('path');
 const { JSDOM } = require('jsdom');
+const { reporter } = require('./wait');
 
-const root = path.join(__dirname, '..');
 // 用建置時同一份注入邏輯，確保測到的就是實際出貨的程式碼。
 const src = require('../build/source').loadSource().code;
 
-let pass = 0, fail = 0;
-const ok = (n, c, e) => {
-  if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '\n      → ' + e : '')); }
-};
+const report = reporter('CSP 相容性');
+const { ok } = report;
 
 // law.moj.gov.tw 2026-08 實測政策（節錄關鍵指令）
 const NONCE = 'DdT5d4EHgE6SDYemZe+2OA==';
@@ -181,7 +176,4 @@ console.log('\n\x1b[1m樣式表被擋時的備援（最壞情況）\x1b[0m');
   ok('備援模式下面板仍建立且套用 class', !!p, p ? p.className : '未找到');
 }
 
-console.log('\n' + (fail === 0
-  ? `\x1b[32mCSP 相容性全部通過：${pass} 項\x1b[0m`
-  : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
-process.exit(fail === 0 ? 0 : 1);
+report.done();

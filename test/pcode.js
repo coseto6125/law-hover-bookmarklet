@@ -7,37 +7,16 @@
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
+const { reporter, sleep, fetchRetry, UA } = require('./wait');
 
-const root = path.join(__dirname, '..');
 // 用建置時同一份注入邏輯，確保測到的就是實際出貨的程式碼。
 const src = require('../build/source').loadSource().code;
-const UA = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120' };
-const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // 對政府站台節流，並重試偶發的網路失敗（實測會出現 400 與 fetch failed）
-let lastReq = 0;
-async function politeFetch(url, tries) {
-  tries = tries || 3;
-  for (let i = 0; i < tries; i++) {
-    const wait = 1200 - (Date.now() - lastReq);
-    if (wait > 0) await sleep(wait);
-    lastReq = Date.now();
-    try {
-      const r = await globalThis.fetch(String(url), { headers: UA });
-      if (r.ok) return r;
-      if (i === tries - 1) return r;
-    } catch (e) {
-      if (i === tries - 1) throw e;
-    }
-    await sleep(1500 * (i + 1));
-  }
-}
+const politeFetch = url => fetchRetry(url, { minGap: 1200 });
 
-let pass = 0, fail = 0;
-const ok = (n, c, e) => {
-  if (c) { pass++; console.log('  \x1b[32m✓\x1b[0m ' + n); }
-  else { fail++; console.log('  \x1b[31m✗\x1b[0m ' + n + (e ? '\n      → ' + e : '')); }
-};
+const report = reporter('pcode 對照');
+const { ok } = report;
 
 // 期望值來自全國法規資料庫實際查證
 const CASES = [
@@ -135,7 +114,7 @@ async function resolve(w, name) {
 
 async function main() {
   try { await globalThis.fetch('https://law.moj.gov.tw/', { headers: UA }); }
-  catch (e) { console.log('\x1b[33m略過：無法連線（' + e.message + '）\x1b[0m'); process.exit(0); }
+  catch (e) { report.bail('無法連線（' + e.message + '）'); }
 
   console.log('\n\x1b[1m法規名稱 → pcode（線上實測 ' + CASES.length + ' 部）\x1b[0m');
   /* 每個案例都用全新環境：書籤內部有條文快取與請求去重（once），
@@ -162,10 +141,7 @@ async function main() {
        !r.pcode, '誤配到 ' + r.pcode);
   }
 
-  console.log('\n' + (fail === 0
-    ? `\x1b[32mpcode 對照全部通過：${pass} 項\x1b[0m`
-    : `\x1b[31m通過 ${pass}，失敗 ${fail}\x1b[0m`));
-  process.exit(fail === 0 ? 0 : 1);
+  report.done();
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
