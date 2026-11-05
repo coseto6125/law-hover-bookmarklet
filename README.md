@@ -134,12 +134,12 @@ npm test              # 全部測試
 npm run deploy
 ```
 
-`deploy.sh` 會重新建置再上傳，確保線上安裝頁與原始碼同步。
+`deploy.sh` 會先跑 `npm test`（含建置；terser 壓縮失敗即中止），通過才以 wrangler 4.156.0 上傳，確保線上安裝頁與原始碼同步。
 憑證取自 `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` 環境變數，
-未設定時會嘗試讀取 `$CF_ENV_FILE`（預設 `~/enor_agi/e-trending/.env`）。
+未設定時只從 `$CF_ENV_FILE`（預設 `~/enor_agi/e-trending/.env`）讀取 `CF_API_TOKEN` / `CF_ACCOUNT_ID` 兩個值，且只交給 wrangler。
 
 也可直接在 Cloudflare 儀表板接上此 repo 自動部署：
-建置指令 `node build/build.js`，輸出目錄 `docs`。
+建置指令 `npm install && CI=1 npm test`，輸出目錄 `docs`。
 
 安裝頁含可拖曳的按鈕與手動貼上兩條路徑，`test/dist.js` 會驗證兩者內容一致。
 

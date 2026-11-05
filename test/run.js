@@ -1352,6 +1352,8 @@ async function run() {
     const diag = dlg && dlg.querySelectorAll('textarea')[1];
     const opts = dlg ? [...dlg.querySelectorAll('[class*="-opt"]')] : [];
     ok('回報對話框帶入診斷資訊', diag && /網址: /.test(diag.value), diag && diag.value.slice(0, 40));
+    // 對話框結構一變就要明確失敗，不能讓後面的檢查無聲跳過
+    ok('回報對話框有兩個問題類型選項', opts.length === 2, opts.length + ' 個');
     if (diag && opts.length === 2) {
       diag.value = '（使用者刪掉網址與瀏覽器）';
       opts[0].click();

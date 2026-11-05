@@ -1709,7 +1709,6 @@
       kind = k;
       optA.setAttribute('data-on', k === 'missing' ? '1' : '0');
       optB.setAttribute('data-on', k === 'wrong' ? '1' : '0');
-      // 診斷資訊只在開啟時帶入一次；換類型時重產會把使用者刪掉的網址等資訊加回去
       send.disabled = false;
     }
     optA.addEventListener('click', function () { pick('missing'); });
@@ -1734,6 +1733,7 @@
     r3.appendChild(lbl3);
     var diag = document.createElement('textarea');
     sty(diag, CLS.diag);
+    // 只在開啟時帶入一次；換問題類型時重產會把使用者刪掉的網址等資訊加回去
     diag.value = pageDiag(ctx);
     r3.appendChild(diag);
     r3.appendChild(el('div', CLS.note, '不含你正在瀏覽的公文內容，只有網址與標記結果。'));
@@ -1756,6 +1756,7 @@
         inner.insertBefore(manual, f);
       }
       manual.value = full; manual.select();
+      manual.setSelectionRange(0, full.length);   // iOS 需要這一步
     }
     function body() {
       return [
