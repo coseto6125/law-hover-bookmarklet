@@ -278,7 +278,7 @@ async function main() {
         return {
           // 標題行與紀錄行共用同一 class，只數以「·」開頭的紀錄行
           rows: [...q.querySelectorAll('[class*="-hi"]')]
-            .filter(e => e.offsetParent !== null && /^\s*·/.test(e.textContent)).length,
+            .filter(e => e.checkVisibility({ visibilityProperty: true }) && /^\s*·/.test(e.textContent)).length,
           toggle: !!(q.textContent.match(/展開其餘 \d+ 筆/)),
           collapse: /收合/.test(q.textContent),
         };
@@ -528,18 +528,23 @@ async function main() {
     const pg = await browser.newPage();
     await pg.addInitScript(() => {
       window.__csp = []; window.__err = [];
-      document.addEventListener('securitypolicyviolation', e => window.__csp.push(e.violatedDirective));
+      // 站方自己的 js（如首頁 jQuery 寫 inline 事件屬性）觸發的違規與書籤無關，且可能晚於 load 才發生
+      document.addEventListener('securitypolicyviolation', e => {
+        if (!/^https:\/\/law\.moj\.gov\.tw\/.+\.js$/.test(e.sourceFile)) window.__csp.push(e.violatedDirective);
+      });
       window.addEventListener('error', e => window.__err.push(String(e.message)));
     });
     try {
-      await pg.goto(t.u, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      await pg.goto(t.u, { waitUntil: 'load', timeout: 30000 });
+      // HTML 解析期的違規沒有 sourceFile，以書籤執行前的數量為基準排除
+      const base = await pg.evaluate(() => [window.__csp.length, window.__err.length]);
       const c2 = await pg.context().newCDPSession(pg);
       try { await c2.send('Page.navigate', { url: bookmarklet }); } catch (e) {}
       await injected(pg, { timeout: 20000 });
-      const r = await pg.evaluate(() => ({
+      const r = await pg.evaluate(([c, e]) => ({
         marks: document.querySelectorAll('[data-flno]').length,
-        csp: window.__csp.length, err: window.__err.length,
-      }));
+        csp: window.__csp.length - c, err: window.__err.length - e,
+      }), base);
       const good = (t.exact !== undefined ? r.marks === t.exact : r.marks >= t.min) &&
                    r.csp === 0 && r.err === 0;
       ok(t.n, good, '標記=' + r.marks + ' CSP違規=' + r.csp + ' JS錯誤=' + r.err);

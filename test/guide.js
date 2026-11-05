@@ -177,7 +177,8 @@ async function main() {
       document.querySelectorAll('body *').forEach(e => {
         if (!e.textContent.trim() || e.children.length) return;
         const cs = getComputedStyle(e);
-        if (cs.display === 'none' || cs.visibility === 'hidden' || !e.offsetParent) return;
+        // offsetParent 對 position:fixed 元素恆為 null，不能拿來判斷可見
+        if (!e.checkVisibility({ visibilityProperty: true })) return;
         const fg = rgb(cs.color); if (!fg) return;
         const bg = opaque(e), l1 = lum(fg), l2 = lum(bg);
         const r = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
