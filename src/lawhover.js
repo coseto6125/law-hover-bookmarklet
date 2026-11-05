@@ -6,8 +6,8 @@
   if (window.__lawhover__) { window.__lawhover__.toggle(); return; }
 
   var HOST = location.origin;
-  var LC = HOST + '/LawClass/';     // 中央站路徑前綴，出現 5 次
-  var ENC = encodeURIComponent;     // 出現 8 次
+  var LC = HOST + '/LawClass/';     // 中央站路徑前綴
+  var ENC = encodeURIComponent;
   var T_HIST = '查看完整沿革';
   var T_WHOLE = '（全文修正）';
 
@@ -21,16 +21,17 @@
    *   selfLaw()   取出本頁法規的識別碼與名稱
    *   articleUrl  組出單一條文的網址
    *   searchUrl   由法規名稱搜尋的網址
-   *   pickId      從搜尋結果頁取出法規識別碼
-   *   parse       從條文頁解析出條號與內容
-   *   history     沿革頁網址（沒有則為 null）
+   *   headSel     條號標題的選擇器（掃描時排除，並標出沿革）
+   *   resultSel   搜尋結果頁中指向法規的連結選擇器
+   *   idRe        從結果連結的 href 取出法規識別碼（第 1 組）
+   *   historyUrl  沿革頁網址
+   *   wholePage   articleUrl 回傳全文、需自行挑條時為 true（選填）
    */
   var SITES = [
     {
       id: 'moj',
       name: '全國法規資料庫',
       match: /(^|\.)law\.moj\.gov\.tw$/,
-      idParam: 'pcode',
       headSel: '.col-no',
       resultSel: 'a[href*="pcode="]',
       idRe: /pcode=([A-Z0-9]+)/i,
@@ -52,7 +53,6 @@
       id: 'taipei',
       name: '臺北市法規查詢系統',
       match: /(^|\.)laws\.gov\.taipei$/,
-      idParam: 'FL',
       headSel: '.col-no',
       // 臺北搜尋結果連到 /Law/LawSearch/LawInformation/FL039973
       resultSel: 'a[href*="LawInformation/"]',
@@ -458,7 +458,6 @@
    * frame-src 'self' 也禁止 iframe，兩者實測皆被擋。
    * 但 www.ly.gov.tw/Pages/ashx/LawRedirect.ashx?CODE=xxxxx 是公開網址，
    * 會列出該法律所有版本的連結，使用者可另開分頁查看，不需登入或 session。 */
-  var HOST_LY = 'https://lis.ly.gov.tw';
   var LY_REDIRECT = 'https://www.ly.gov.tw/Pages/ashx/LawRedirect.ashx?CODE=';
   var errLog = [];       // 供回報使用的錯誤記錄（僅記錄本工具自身的失敗）
   function logErr(kind, detail) {
@@ -472,9 +471,9 @@
   /* 取回文字內容，含重試。
    * 實測原站偶發 fetch failed 與 HTTP 400；公司網路經 proxy 時更常見。
    * 重試兩次、間隔遞增，避免使用者看到不必要的「查不到」。
-   * 4xx（除 408/429）為明確拒絕，不重試。
+   * 其餘 4xx（除 400/408/429）為明確拒絕，不重試。
    */
-  // 取回並解析為 DOM，7 處 fetch 有 5 處需要，合併省去重複
+  // 取回並解析為 DOM
   function fetchDoc(url) { return fetchText(url).then(parseHTML); }
 
   function fetchText(url, attempt) {
@@ -551,13 +550,13 @@
     var url = SITE.searchUrl(name);
     if (!url) return Promise.reject(new Error('本站不支援跨法規查詢，請於該法規頁面使用'));
     return fetchDoc(url).then(function (doc) {
-      var rows = doc.querySelectorAll(SITE.resultSel || 'a[href*="pcode="]');
+      var rows = doc.querySelectorAll(SITE.resultSel);
       var best = null, bestScore = 0;
       for (var i = 0; i < rows.length; i++) {
         var href = rows[i].getAttribute('href') || '';
         // 英譯版是另一套內容，條號對不上，必須排除
         if (/\/ENG\//i.test(href)) continue;
-        var m = (SITE.idRe || /pcode=([A-Z0-9]+)/i).exec(href);
+        var m = SITE.idRe.exec(href);
         if (!m) continue;
         var sc = scoreCandidate(rows[i].textContent.trim(), name);
         if (sc > bestScore) { bestScore = sc; best = m[1]; if (sc === 100) break; }
@@ -577,10 +576,8 @@
     return once('hist|' + pcode, function () { return fetchHistory_(pcode); });
   }
   function fetchHistory_(pcode) {
-    var url = SITE.historyUrl ? SITE.historyUrl(pcode) : null;
-    if (!url) return Promise.reject(new Error('本站未提供沿革'));
-    return fetchText(url).then(function (html) {
-      var doc = parseHTML(html);
+    var url = SITE.historyUrl(pcode);
+    return fetchDoc(url).then(function (doc) {
       /* 沿革條目的呈現方式各站差異極大（元素列、純文字段落、表格），
        * 用選擇器逐一適配很脆弱。改為對整份文字做切分。
        * 地方共用系統的沿革只在這個容器內，限縮範圍可避開表頭的「發文字號：中華民國…」。 */
@@ -629,9 +626,7 @@
           whole: all, kind: all ? (amend ? 'whole' : 'enact') : '',
           tag: !all ? '' : amend ? T_WHOLE : '（' + (/制定/.test(c) ? '制定' : '訂定') + (bian ? bian[1] : '') + '）' });
       }
-      /* 立法院法律系統有歷史條文全文與修法理由，但位於 lis.ly.gov.tw，
-       * 中央站的 CSP（connect-src 'self'、frame-src 'self'）禁止跨域取文與內嵌，
-       * 實測 fetch 與 iframe 皆被擋。因此只能提供連結讓使用者另開分頁。
+      /* 立法院只能提供連結（跨域限制見 LY_REDIRECT 的說明）。
        * 沿革頁本身就有「立法歷程」連結，可取出法律編號 CODE。 */
       /* 立法院入口有兩種格式（實測 18 部法規歸納）：
        *   多數：ly.gov.tw/Pages/ashx/LawRedirect.ashx?CODE=01158
@@ -639,10 +634,6 @@
        *     民法分為總則、債、物權等 5 編，各有自己的 CODE，
        *     故導向中央站的選擇頁，由使用者挑要看哪一編。 */
       var lyCode = null, lyUrl = null;
-      /* 立法院版本網址由三段組成：識別碼^日期碼^保留段。
-       * 同一部法規的識別碼固定，日期碼為「法律編號+民國年月日」，
-       * 因此只要取得一次識別碼，就能組出跳到任一版本的網址。
-       * 識別碼需由轉址頁取得，這裡先記下 code，實際取用時再抓。 */
       var lyA = doc.querySelector('a[href*="LawRedirect.ashx"]');
       if (lyA) {
         var cm = /CODE=(\d+)/.exec(lyA.getAttribute('href') || '');
@@ -651,7 +642,7 @@
       if (!lyUrl && doc.querySelector('a[href*="LawRedirectLY.aspx"]')) {
         lyUrl = HOST + '/LawClass/LawRedirectLY.aspx?pcode=' + pcode;
       }
-      histCache[pcode] = { url: url, list: list, lyCode: lyCode, lyUrl: lyUrl, lyKey: null };
+      histCache[pcode] = { url: url, list: list, lyCode: lyCode, lyUrl: lyUrl };
       return histCache[pcode];
     });
   }
@@ -776,7 +767,8 @@
     function scanPage() {
       if (page > 6) throw new Error('清單中找不到此號憲判字');
       var url = HOST + '/Law/LawSearchJudge.aspx?ty=B5&set=0&page=' + page + '&psize=20';
-      return fetchText(url).then(function (html) {
+      // 以清單頁為單位合併請求：不同號的憲判字同時查詢時共用同一頁
+      return once('cjp|' + page, function () { return fetchText(url); }).then(function (html) {
         var re = /ExContent\.aspx\?ty=CJ&(?:amp;)?JC=([A-Z0-9]+)&(?:amp;)?JNO=(\d+)&(?:amp;)?JYEAR=(\d+)/g, m;
         var found = null, any = false;
         while ((m = re.exec(html)) !== null) {
@@ -1072,7 +1064,7 @@
     row: PFX + 'row', opt: PFX + 'opt', ta: PFX + 'ta', btn: PFX + 'btn',
     btnP: PFX + 'btnp', dgf: PFX + 'dgf', lbl: PFX + 'lbl', diag: PFX + 'dg2',
     rptLink: PFX + 'rl', hist: PFX + 'hs', histI: PFX + 'hi',
-    headMark: PFX + 'hm', headOn: PFX + 'ho', headOff: PFX + 'hf'
+    headMark: PFX + 'hm', headOn: PFX + 'ho', headOff: PFX + 'hf', sp: PFX + 'sp'
   };
 
   var RULES = [
@@ -1088,6 +1080,7 @@
       'box-shadow:0 8px 28px rgba(0,0,0,.18);padding:14px 16px;text-align:left;color:#1a1a1a;' +
       'font:14px/1.75 system-ui,"Noto Sans TC","Microsoft JhengHei",sans-serif}',
     '.' + CLS.hide + '{display:none !important}',
+    '.' + CLS.sp + '{flex:1}',
     /* 複製退路用的暫時 textarea：需可被選取，故不能 display:none */
     '.' + CLS.hidTa + '{position:fixed;top:0;left:0;width:1px;height:1px;' +
       'padding:0;border:0;opacity:0;pointer-events:none}',
@@ -1395,7 +1388,7 @@
     return fallback();
   }
 
-  /* 複製按鈕：三處都在做「複製→改文字→還原」，抽成一個。 */
+  /* 複製按鈕：「複製→改文字→還原」。 */
   function copyLink(text, getText) {
     return link(text, { fn: function () {
       var self = this;
@@ -1444,8 +1437,6 @@
     /* 修法紀錄：條號標題與條文引用兩邊都要有。
      * 讀到某條引用時同樣需要知道「這條後來改過沒有」，
      * 拿今天的條文對照當年的函釋是會誤讀的。 */
-    /* 修法紀錄：條號標題與條文引用兩邊都要有。
-     * 讀到某條引用時同樣需要知道「這條後來改過沒有」。 */
     if (art.pcode && hit.flno) {
       var hbox = el('div', CLS.hist);
       hbox.appendChild(el('div', CLS.histI, '查詢修法紀錄…'));
@@ -1508,13 +1499,6 @@
     ]);
   }
 
-  /* 條號標題（第 N 條）的沿革面板。
-   * 這是使用者最自然會滑過去的位置：想知道「這條改過沒有」時，
-   * 視線本來就在條號上，不必先找到某個引用。 */
-  /* 沿革清單。條號面板與條文面板都要列修法紀錄，差別只在
-   *   full=true  完整列出（條號面板，不必同時放條文）
-   *   full=false 只顯示最新一筆，其餘摺疊（條文面板空間有限）
-   * 抽成一個函式，避免兩處各自演化而不一致。 */
   /* 為什麼不做「直達該版本」的連結。
    *
    * 立法院版本網址是 /lglawc/lawsingle?^{lyCode}{民國年月日}00^0…，
@@ -1531,11 +1515,9 @@
    *
    * 查不到比查錯安全：連到版本清單頁，讓使用者自己點正確的那一版。
    * 若日後能取得修正日（例如立法院開放資料），才有條件做直達。 */
-  function lyUrlFor(h) { return h.lyUrl; }
-
   function lyLink(h, r) {
     return link('立法院查此版', {
-      href: lyUrlFor(h), open: 'ly',
+      href: h.lyUrl, open: 'ly',
       /* 清單頁每一版都是「修正日（連結）／公布日」上下兩行並列，
        * 所以使用者拿沿革的公布日就找得到，不必自己換算。 */
       title: r.when ? '另開立法院版本清單，找標示「' + r.when + '公布」的那一列'
@@ -1543,6 +1525,10 @@
     });
   }
 
+  /* 沿革清單。條號面板與條文面板都要列修法紀錄，差別只在
+   *   full=true  完整列出（條號面板，不必同時放條文）
+   *   full=false 只顯示最新一筆，其餘摺疊（條文面板空間有限）
+   * 抽成一個函式，避免兩處各自演化而不一致。 */
   function histList(box, h, rec, full, lineCls) {
     var named = [], amend = 0;
     for (var i = 0; i < rec.length; i++) {
@@ -1599,6 +1585,9 @@
     }
   }
 
+  /* 條號標題（第 N 條）的沿革面板。
+   * 這是使用者最自然會滑過去的位置：想知道「這條改過沒有」時，
+   * 視線本來就在條號上，不必先找到某個引用。 */
   function renderHistory(box, lawName, flno, h, rec) {
     box.appendChild(el('div', CLS.head,
       (lawName ? lawName + ' ' : '') + '第 ' + flno + ' 條　修正沿革'));
@@ -1607,7 +1596,7 @@
     box.appendChild(body);
     footer(box, [
       link(T_HIST, { href: h.url }),
-      h.lyUrl ? link('立法院法律系統', { href: lyUrlFor(h), open: 'ly' }) : null
+      h.lyUrl ? link('立法院法律系統', { href: h.lyUrl, open: 'ly' }) : null
     ]);
   }
 
@@ -1621,7 +1610,8 @@
       ',left=' + Math.round((screen.availWidth - w) / 2) +
       ',top=' + Math.round((screen.availHeight - ht) / 2) +
       ',scrollbars=yes,resizable=yes');
-    if (!win) window.open(this.href, '_blank', 'noopener');
+    if (win) { try { win.opener = null; } catch (e) {} }
+    else window.open(this.href, '_blank', 'noopener');
   }
 
   function renderMsg(box, msg, sub, report) {
@@ -1661,8 +1651,7 @@
     }
     var L = [];
     L.push('網址: ' + location.href);
-    var self0 = (typeof SELF !== 'undefined' && SELF) ? SELF : null;
-    L.push('本頁法規: ' + (self0 ? self0.name + ' (' + self0.pcode + ')' : '(非法規全文頁)'));
+    L.push('本頁法規: ' + (SELF ? SELF.name + ' (' + SELF.pcode + ')' : '(非法規全文頁)'));
     L.push('標記總數: ' + marks.length);
     L.push('瀏覽器: ' + navigator.userAgent);
     L.push('時間: ' + new Date().toISOString());
@@ -1680,6 +1669,7 @@
     return L.join('\n');
   }
 
+  var KIND = { wrong: '資料顯示錯誤', missing: '沒有顯示資料' };
   var dlgEl = null;
   function openReport(ctx) {
     ctx = ctx || {};
@@ -1703,8 +1693,8 @@
       wrapT.appendChild(d);
       node.appendChild(wrapT);
     }
-    fillOpt(optA, '沒有顯示資料', '該標記的沒被標記，或滑過去顯示「查不到條文」。');
-    fillOpt(optB, '資料顯示錯誤', '有顯示條文，但內容不是這一條，或項次標錯。');
+    fillOpt(optA, KIND.missing, '該標記的沒被標記，或滑過去顯示「查不到條文」。');
+    fillOpt(optB, KIND.wrong, '有顯示條文，但內容不是這一條，或項次標錯。');
     function pick(k) {
       kind = k;
       optA.setAttribute('data-on', k === 'missing' ? '1' : '0');
@@ -1760,7 +1750,7 @@
     }
     function body() {
       return [
-        '問題類型：' + (kind === 'wrong' ? '資料顯示錯誤' : kind === 'missing' ? '沒有顯示資料' : '(未選)'),
+        '問題類型：' + (KIND[kind] || '(未選)'),
         '',
         '出問題的法條文句：',
         ta.value || '(未填)',
@@ -1781,7 +1771,7 @@
       setTimeout(function () { copy.textContent = '複製內容'; }, 2200);
     });
     send.addEventListener('click', function () {
-      var subj = '[法條懸停] ' + (kind === 'wrong' ? '資料顯示錯誤' : '沒有顯示資料');
+      var subj = '[法條懸停] ' + (KIND[kind] || '(未選)');
       var href = 'mailto:' + REPORT_TO + '?subject=' + encodeURIComponent(subj) +
                  '&body=' + encodeURIComponent(body());
       /* mailto 過長會被瀏覽器截斷，故改為「複製到剪貼簿 + 短 mailto」。
@@ -1801,9 +1791,7 @@
     });
     cancel.addEventListener('click', closeReport);
     f.appendChild(copy);
-    var sp = el('span'); sp.setAttribute('data-sp', '1');
-    css_flex(sp);
-    f.appendChild(sp);
+    f.appendChild(el('span', CLS.sp));
     f.appendChild(cancel); f.appendChild(send);
     inner.appendChild(f);
 
@@ -1812,14 +1800,6 @@
     document.body.appendChild(dlgEl);
     if (kind) pick(kind);
     setTimeout(function () { ta.focus(); }, 60);
-  }
-  // 這個間隔元素需要 flex:1，但不能用 inline style，改掛一次性規則
-  function css_flex(node) {
-    var c = PFX + 'sp';
-    node.classList.add(c);
-    if (sheet && !css_flex.done) {
-      try { sheet.insertRule('.' + c + '{flex:1}', sheet.cssRules.length); css_flex.done = true; } catch (e) {}
-    }
   }
   function closeReport() {
     if (dlgEl && dlgEl.parentNode) dlgEl.parentNode.removeChild(dlgEl);
@@ -1840,6 +1820,11 @@
     return { pcode: r.id, name: r.name };
   }
   var SELF = selfLaw();
+
+  // 無字尾沿用 pc；接上「施行細則」後是另一部法規，剛好是本頁時才帶本頁代碼
+  function pcodeFor(name, tail, pc) {
+    return !tail ? pc : (SELF && name === SELF.name ? SELF.pcode : null);
+  }
 
   // 收集一段文字中的所有引用（具名優先，其餘位置再找裸條號）
   function collect(text) {
@@ -1936,7 +1921,7 @@
         // 前指詞（同法/該法）指向前文最近的具名引用，於下方 sort 後統一解析
         name: isAna ? null : tgtName,
         // 接上「施行細則」後是另一部法規；剛好是本頁時仍帶本頁代碼
-        pcode: isAna ? null : (tgt ? (tail ? (SELF && tgtName === SELF.name ? SELF.pcode : null) : tgt.pcode) : null),
+        pcode: isAna || !tgt ? null : pcodeFor(tgtName, tail, tgt.pcode),
         word: selfWord || anaWord, tail: tail, parent: parent, noSelf: anaWord === '其',
         ana: isAna,
         flno: m[4] ? tiao + '-' + cn2num(m[4]) : String(tiao),
@@ -2020,15 +2005,15 @@
 
     hits.sort(function (a, b) { return a.start - b.start; });
 
-    /* 前指詞（同法/該法）指向前文最近的具名引用。
-     * 找不到前文可指時退回本頁法規，但不可直接綁定，否則會顯示別部法的條文。 */
     /* 「同法施行細則」這類前指詞帶字尾，指向的是另一部法規；
      * 接上字尾後剛好是本頁時仍帶本頁代碼。 */
     var bindTo = function (h, nm, pc) {
       h.parent = nm;
       h.name = nm + (h.tail || '');
-      h.pcode = !h.tail ? pc : (SELF && h.name === SELF.name ? SELF.pcode : null);
+      h.pcode = pcodeFor(h.name, h.tail, pc);
     };
+    /* 前指詞（同法/該法）指向前文最近的具名引用。
+     * 找不到前文可指時退回本頁法規，但不可直接綁定，否則會顯示別部法的條文。 */
     for (var ai = 0; ai < hits.length; ai++) {
       if (!hits[ai].ana) continue;
       var ref = null;
@@ -2089,7 +2074,7 @@
    * 條號標題顯示沿革；條文內的引用照舊顯示條文，職責分開。 */
   function markArticleHeads() {
     if (!SELF) return 0;
-    var heads = document.querySelectorAll(SITE.headSel || '.col-no');
+    var heads = document.querySelectorAll(SITE.headSel);
     var n = 0;
     for (var i = 0; i < heads.length; i++) {
       var el0 = heads[i];
@@ -2152,7 +2137,7 @@
         if (p.dataset && (p.dataset.flno || p.dataset.ex)) return NodeFilter.FILTER_REJECT;
         // 條號標題由 markArticleHeads 負責顯示沿革，不可再當成條文引用
         if (p.dataset && p.dataset.lhHead) return NodeFilter.FILTER_REJECT;
-        if (SITE.headSel && p.closest && p.closest(SITE.headSel)) return NodeFilter.FILTER_REJECT;
+        if (p.closest && p.closest(SITE.headSel)) return NodeFilter.FILTER_REJECT;
         if (panel.contains(p)) return NodeFilter.FILTER_REJECT;
         return NodeFilter.FILTER_ACCEPT;
       }
@@ -2167,8 +2152,7 @@
    *   1. 立刻顯示「查詢中」，讓使用者知道有反應
    *   2. 取資料
    *   3. 成功則渲染，失敗則說明原因並提供回報入口
-   * 抽成 dispatch 後，新增型態只要多一個分支。 */
-  /* 懸停分派。
+   * 抽成 dispatch 後，新增型態只要多一個分支。
    * 競態防護：快速掃過多個標記時，較早發出的請求可能較晚回來，
    * 覆蓋掉使用者當前指向的內容，導致在 A 條旁看到 B 條的內文
    * （codex review 實測：先顯示第 2 條，180ms 後被第 1 條覆蓋）。
@@ -2245,7 +2229,11 @@
     dispatch(t, t.dataset.name + ' 第 ' + t.dataset.flno + ' 條',
       function () {
         return (t.dataset.pcode ? Promise.resolve(t.dataset.pcode) : findPcode(t.dataset.name))
-          .then(function (pc) { return fetchArticle(pc, t.dataset.flno); });
+          .then(function (pc) {
+            // 沿革與條文並行請求；renderArticle 稍後再呼叫會共用同一個進行中的請求
+            fetchHistory(pc).catch(function () {});
+            return fetchArticle(pc, t.dataset.flno);
+          });
       },
       function (box, art) { renderArticle(box, art, hit); },
       { msg: '查不到條文', kind: '查不到條文', name: t.dataset.name,

@@ -782,10 +782,10 @@ async function run() {
     });
     const w = dom.window;
     let n = 0;
-    w.fetch = () => { n++; return Promise.reject(new Error('fetch failed')); };
+    w.fetch = u => { if (/LawSingle/.test(u)) n++; return Promise.reject(new Error('fetch failed')); };
     w.eval(code);
     const mk = [...w.document.querySelectorAll('[data-flno]')].find(m => m.dataset.pcode);
-    // 裸條號免搜尋，因此請求數即為單一端點的重試次數
+    // 裸條號免搜尋，只數條文端點（沿革與條文並行請求，各自重試）
     mk.dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
     await new Promise(r => setTimeout(r, 3500));
     const pn = [...w.document.body.children].find(x => {
@@ -827,7 +827,7 @@ async function run() {
       new d1.window.MouseEvent('mouseover', { bubbles: true })));
     await sleep(600);
     ok('三個條號共用一次全文下載',
-       calls.length === 1, '請求 ' + calls.length + ' 次：' + calls.join(', '));
+       calls.filter(u => /LawArticleContent/.test(u)).length === 1, '請求 ' + calls.length + ' 次：' + calls.join(', '));
 
     // 失敗後不能被去重機制卡住，必須能重試
     const d2 = mk();
@@ -1376,6 +1376,36 @@ async function run() {
     }
   }
 
+  console.log('\n\x1b[1m回報表單：問題類型字樣與間隔元素（重構前後須一致）\x1b[0m');
+  {
+    const w = pageOf('建築法', 'D0070109', '<p>依第5條規定。</p>');
+    const fab = [...w.document.body.children].find(n => /-fab$/.test(String(n.className || '').split(' ')[0]));
+    fab.click();
+    const dlg = [...w.document.body.children].find(n => /-dlg$/.test(String(n.className || '').split(' ')[0]));
+    const opts = [...dlg.querySelectorAll('[class*="-opt"]')];
+    const btn = re => [...dlg.querySelectorAll('button')].find(b => re.test(b.textContent));
+    // 未選類型時複製（jsdom 無剪貼簿，內容落到手動框）
+    btn(/複製內容/).click(); await sleep(30);
+    const manual = dlg.querySelectorAll('textarea')[2];
+    ok('未選類型時內容寫「(未選)」', manual && /問題類型：\(未選\)/.test(manual.value), manual && manual.value.slice(0, 30));
+    const hrefs = [];
+    w.open = h => { hrefs.push(h); };
+    const want = [['沒有顯示資料', 0], ['資料顯示錯誤', 1]];
+    for (const [label, i] of want) {
+      opts[i].click();
+      [...dlg.querySelectorAll("button")].pop().click();   // 「用 Email 回報」是最後一顆
+      const h = hrefs[hrefs.length - 1] || '';
+      const subj = decodeURIComponent((/subject=([^&]*)/.exec(h) || [])[1] || '');
+      const body = decodeURIComponent((/body=([^&]*)/.exec(h) || [])[1] || '');
+      ok('選「' + label + '」時主旨正確', subj === '[法條懸停] ' + label, subj);
+      ok('選「' + label + '」時內文正確', body.indexOf('問題類型：' + label) === 0, body.slice(0, 30));
+    }
+    const sp = dlg.querySelector('[class$="-sp"]');
+    const rules = [...w.document.querySelectorAll('style')].flatMap(s => [...s.sheet.cssRules].map(r => r.cssText));
+    ok('間隔元素有 flex:1 的樣式規則', !!sp && rules.some(r => r.indexOf('.' + sp.className) >= 0 && /flex:\s*1/.test(r)),
+       sp && sp.className);
+  }
+
   console.log('\n\x1b[1m不支援的網站重複點書籤不累積（review 發現）\x1b[0m');
   {
     const d = new JSDOM('<body><p>依建築法第7條規定</p></body>',
@@ -1390,6 +1420,93 @@ async function run() {
     ok('提示只留一個', n(/-t$/) === 1, n(/-t$/) + ' 個');
     ok('第二次以後仍顯示不支援提示', d.window.document.body.textContent.includes('本工具僅在法規網站上運作'));
     ok('書籤狀態已設定（count 為 0）', !!d.window.__lawhover__ && d.window.__lawhover__.count() === 0);
+  }
+
+  console.log('\n\x1b[1m立法院視窗不留 opener、沿革與條文並行、憲判字清單併發\x1b[0m');
+  {
+    // 1. 立法院視窗：window.open 回傳的視窗不可保有 opener（reverse tabnabbing）
+    const w = site('<body><h2 id="hlLawName">建築法</h2><p>依第77條之2規定。</p></body>', MOJ('D0070109'),
+      u => /LawHistory/.test(u) ? F('history-D0070109.html') : /LawSingle/.test(u) ? F('single-77-2.html') : null);
+    const opened = [];
+    w.open = (href, name) => { const o = { opener: w, href, name }; opened.push(o); return o; };
+    await hoverOn(w, w.document.querySelector('[data-flno]'), 600);
+    const lyA = [...w.document.querySelectorAll('a')].find(a => /立法院查此版/.test(a.textContent));
+    ok('條文面板有立法院連結', !!lyA);
+    if (lyA) {
+      lyA.click();
+      ok('立法院視窗開出一個', opened.length === 1 && opened[0].name === 'lawhover_ly', opened.length + ' 個');
+      ok('立法院視窗的 opener 已清除', opened[0] && opened[0].opener === null, opened[0] && String(opened[0].opener));
+      // 視窗被攔截（null）時退回一般開啟，不可拋錯
+      opened.length = 0;
+      const sw = [];
+      w.open = (href, name, f) => { sw.push([name, f]); return null; };
+      lyA.click();
+      ok('視窗被攔截時退回 _blank + noopener', sw.length === 2 && sw[1][0] === '_blank' && sw[1][1] === 'noopener',
+         JSON.stringify(sw));
+      // opener 不可寫入（例外）時不可中斷
+      w.open = () => ({ get opener() { return 1; }, set opener(v) { throw new Error('唯讀'); } });
+      let thrown = null;
+      try { lyA.click(); } catch (e) { thrown = e; }
+      ok('opener 設定失敗不拋錯', thrown === null, thrown && thrown.message);
+    }
+
+    // 2. 沿革請求不等條文：條文慢回應時，沿革請求已先發出
+    const w2 = site('<body><h2 id="hlLawName">建築法</h2><p>依第77條之2規定。</p></body>', MOJ('D0070109'), () => null);
+    const log = [];
+    let release;
+    const gate = new Promise(r => { release = r; });
+    w2.fetch = u => {
+      u = String(u); log.push(u);
+      if (/LawSingle/.test(u)) return gate.then(() => ({ ok: true, status: 200, text: () => Promise.resolve(F('single-77-2.html')) }));
+      if (/LawHistory/.test(u)) return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(F('history-D0070109.html')) });
+      return Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+    };
+    w2.document.querySelector('[data-flno]').dispatchEvent(new w2.MouseEvent('mouseover', { bubbles: true }));
+    await sleep(100);
+    ok('條文未回應前沿革請求已發出', log.some(u => /LawHistory/.test(u)), log.join(' | '));
+    release(); await sleep(400);
+    ok('沿革只請求一次（與條文面板共用）', log.filter(u => /LawHistory/.test(u)).length === 1, log.join(' | '));
+    ok('條文面板仍顯示修法紀錄', /修正|修法紀錄/.test(panelOf(w2)), panelOf(w2).slice(0, 80));
+
+    // 沿革失敗不影響條文顯示，且不產生未處理的 rejection
+    const w3 = site('<body><h2 id="hlLawName">建築法</h2><p>依第77條之2規定。</p></body>', MOJ('D0070109'),
+      u => /LawSingle/.test(u) ? F('single-77-2.html') : null);
+    const t3 = await hoverOn(w3, w3.document.querySelector('[data-flno]'), 3500);
+    ok('沿革 404 時條文照常顯示', /條文|室內裝修/.test(t3) && !/查不到條文/.test(t3), t3.slice(0, 80));
+
+    // 3. 憲判字清單頁：並發懸停不重複掃描
+    const listHtml = '<a href="ExContent.aspx?ty=CJ&amp;JC=AAA1&amp;JNO=6&amp;JYEAR=115">x</a>' +
+      '<a href="ExContent.aspx?ty=CJ&amp;JC=BBB2&amp;JNO=1&amp;JYEAR=114">y</a>';
+    const cjSite = () => {
+      const wc = site('<body><h2 id="hlLawName">建築法</h2><p>依115年憲判字第6號判決，另114年憲判字第1號判決。</p></body>',
+        MOJ('D0070109'), () => null);
+      const reqs = [];
+      wc.fetch = u => {
+        u = String(u); reqs.push(u);
+        const body = /LawSearchJudge/.test(u) ? listHtml : /ExContent/.test(u) ? F('explain-CJ-115-6.html') : null;
+        return new Promise(r => setTimeout(() => r(body == null
+          ? { ok: false, status: 404, text: () => Promise.resolve('') }
+          : { ok: true, status: 200, text: () => Promise.resolve(body) }), 80));
+      };
+      return { wc, reqs };
+    };
+    {
+      const { wc, reqs } = cjSite();
+      const m = [...wc.document.querySelectorAll('[data-ex]')];
+      ok('標記到兩則憲判字', m.length === 2, m.length + ' 則');
+      m[0].dispatchEvent(new wc.MouseEvent('mouseover', { bubbles: true }));
+      m[0].dispatchEvent(new wc.MouseEvent('mouseover', { bubbles: true }));
+      await sleep(600);
+      ok('同一則憲判字並發懸停只掃一次清單', reqs.filter(u => /LawSearchJudge/.test(u)).length === 1, reqs.join(' | '));
+    }
+    {
+      const { wc, reqs } = cjSite();
+      const m = [...wc.document.querySelectorAll('[data-ex]')];
+      m[0].dispatchEvent(new wc.MouseEvent('mouseover', { bubbles: true }));
+      m[1].dispatchEvent(new wc.MouseEvent('mouseover', { bubbles: true }));
+      await sleep(600);
+      ok('兩則不同憲判字並發時同一清單頁只抓一次', reqs.filter(u => /LawSearchJudge/.test(u)).length === 1, reqs.join(' | '));
+    }
   }
 
   console.log('\n\x1b[1m快取\x1b[0m');
