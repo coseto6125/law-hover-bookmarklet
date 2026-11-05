@@ -1403,9 +1403,13 @@ async function run() {
          JSON.stringify(sw));
       // opener 不可寫入（例外）時不可中斷
       w.open = () => ({ get opener() { return 1; }, set opener(v) { throw new Error('唯讀'); } });
-      let thrown = null;
-      try { lyA.click(); } catch (e) { thrown = e; }
-      ok('opener 設定失敗不拋錯', thrown === null, thrown && thrown.message);
+      // click handler 的例外不會拋到 click() 外，jsdom 只以 window 的 error 事件回報
+      const thrown = [];
+      const onErr = e => { thrown.push(e.error || e.message); e.preventDefault(); };
+      w.addEventListener('error', onErr);
+      lyA.click();
+      w.removeEventListener('error', onErr);
+      ok('opener 設定失敗不拋錯', thrown.length === 0, thrown.map(e => e && e.message || e).join(' | '));
     }
 
     // 2. 沿革請求不等條文：條文慢回應時，沿革請求已先發出
@@ -1532,6 +1536,86 @@ async function run() {
        wholes(fw, fh, '10').length === 2 && wholes(fw, fh, '400').length === 2, wholes(fw, fh, '10').join('、'));
   }
 
+  console.log('\n\x1b[1m沿革條目的其他修法寫法（全國法規資料庫原文）\x1b[0m');
+  {
+    // 每筆取自該法規沿革原文（註明 pcode#序號），日期各不相同，逐筆檢查解析結果
+    const E = [
+      ['G0350011#10 廢止', '中華民國九十六年十二月二十六日財政部台財關字第 09605506570號令發布廢止第 9  條條文', ['9']],
+      ['A0030199#2 「增訂 23 條」省略「第」；原條號不算、新條號算', '中華民國三十八年六月十一日總統令修正公布第 9、13、17、18、22條條文；增訂 23 條條文；原第 23～30 條條文修正並遞改為第 24～31  條條文', ['9', '13', '17', '18', '22', '23', '24', '31']],
+      ['A0030199#4 遞改後的新條號', '中華民國四十年九月二十六日總統令修正公布第 9 條條文；增訂第 31條條文；原第 31 條條文遞改為第 32 條條文', ['9', '31', '32']],
+      ['A0030187#5 修正下達', '中華民國九十八年三月二十六日司法院院台廳民一字第 0980007179 號函修正下達第 6  條條文', ['6']],
+      ['D0020001#7 「及」並列', '中華民國七十七年三月十一日總統（77）華總（一）義字第 0880 號令修正公布第 29、33、37 及 45 條條文', ['29', '33', '37', '45']],
+      ['K0060003#4 「第 23 條至第 57 條」', '中華民國七十年三月二十三日交通部（70）交郵字第 03861（二）號令修正發布第 23 條至第 57 條條文', ['23', '57']],
+      ['J0050011#4 廢止的是解釋函，不是條文', '中華民國六十六年六月二十三日經濟部（66）經法字第 16649  號函廢止第 13 條解釋函', []],
+    ];
+    const W = [
+      ['H0050001#8 全文修正後附施行令「令發布第 21～23 及 26 條條文定自…施行」', '中華民國九十一年七月二十四日總統華總一義字第 09100144670  號令修正公布全文 26 條；依第 26 條規定：施行日期，由行政院以命令定之中華民國九十一年十二月十日行政院院臺教字第 0910061641 號令發布第 21～23 及 26 條條文定自中華民國九十二年一月一日施行，其餘條文定自中華民國九十二年八月一日施行'],
+      ['S0020009#1 「制定公布 14 條」的 14 是條數', '中華民國三十六年十二月二十二日國民政府制定公布 14 條'],
+    ];
+    const one = '中華民國七十二年八月十日行政院（72）台內字第 14786  號令修正發布 10 條';
+    const all = E.map(e => e[1]).concat(W.map(e => e[1]), [one]);
+    const page = '<html><body>' + all.map((t, i) => '<div class="row"><div class="col-data text-pre">' + (all.length - i) + '. ' + t + '</div></div>\n').join('') + '</body></html>';
+    const hw = site('<body><h2 id="hlLawName">X</h2></body>', MOJ('Z0000003'), u => /LawHistory/.test(u) ? page : null);
+    const hh = await hw.__lawhover__.hist('Z0000003');
+    const rec = t => hh.list.find(r => r.text.replace(/^\d+\.\s*/, '') === t.replace(/\s+/g, ' ').trim());
+    const span = r => { const s = new Set(r.arts); r.ranges.forEach(([a, b]) => { for (let i = a[0]; i <= b[0]; i++) s.add(String(i)); }); return s; };
+    for (const [label, t, want] of E) {
+      const r = rec(t), got = r ? [...new Set(r.arts)] : null;
+      ok('沿革解析：' + label, !!r && !r.whole && JSON.stringify(got.slice().sort()) === JSON.stringify(want.slice().sort()), JSON.stringify(got));
+    }
+    const k = rec(E[5][1]);
+    ok('「第 23 條至第 57 條」涵蓋中間的第 40 條', !!k && span(k).has('40'), k && JSON.stringify(k.ranges));
+    const a2 = rec(E[1][1]);
+    ok('原第 23～30 條的舊條號不算成第 30 條以外的修正（只認新條號 24～31）', !!a2 && span(a2).has('30') && !a2.arts.includes('30'),
+       a2 && JSON.stringify(a2.ranges));
+    for (const [label, t] of W) {
+      const r = rec(t);
+      ok('沿革解析：' + label, !!r && r.whole && r.arts.length === 0 && !r.unsure, r && JSON.stringify({ whole: r.whole, arts: r.arts }));
+    }
+    const d = rec(one);
+    ok('D0070083#2「修正發布 10 條」分不出第 10 條或共 10 條：列為不確定，不算成第 10 條修正',
+       !!d && !d.whole && d.arts.length === 0 && d.unsure && d.unsure.arts.join() === '10', d && JSON.stringify({ arts: d.arts, unsure: d.unsure }));
+  }
+  {
+    // 單一數字後接施行說明，仍分不出條號或條數（codex 合成）；只改附表的紀錄（K0070023#6 原文）
+    const B15 = '中華民國一百十一年十二月八日司法院院台廳民三字第 1110035872號令修正發布第 60、61、66、75、97 條條文、第 62 條條文之附式六及第 63 條條文之附圖；其中，第 60、61、66 條條文及第 62 條條文之附式六，自一百十二年一月一日施行';
+    const bw = site('<body><h2 id="hlLawName">X</h2></body>', MOJ('Z0000005'),
+      u => /LawHistory/.test(u) ? '<html><body><div class="row"><div class="col-data text-pre">15. ' + B15 + '</div></div></body></html>' : null);
+    const s0 = (await bw.__lawhover__.hist('Z0000005')).list[0];
+    ok('B0010011#15「第 62 條條文之附式六及第 63 條條文之附圖」：62、63 列為不確定，其餘照常', !!s0 &&
+       s0.arts.join() === '60,61,66,75,97' && s0.unsure && s0.unsure.arts.join() === '62,63', s0 && JSON.stringify({ arts: s0.arts, unsure: s0.unsure }));
+    const T = ['中華民國七十二年八月十日行政院令修正發布 10 條，並自發布日施行',
+      '中華民國七十八年二月十五日交通部（78）交航發字第 7809 號令修正發布第 3、8、9、75  及 92 條附表',
+      '中華民國七十九年一月一日交通部令修正發布第 5 條條文及第 2 條條文之附件',
+      '中華民國九十一年十月十六日內政部令修正發布第 4、6、11 條條文及第 8 條之暫行編制表'];
+    const page = '<html><body>' + T.map((t, i) => '<div class="row"><div class="col-data text-pre">' + (T.length - i) + '. ' + t + '</div></div>\n').join('') + '</body></html>';
+    const w = site('<body><h2 id="hlLawName">X</h2></body>', MOJ('Z0000004'), u => /LawHistory/.test(u) ? page : null);
+    const h = await w.__lawhover__.hist('Z0000004');
+    const r = t => h.list.find(x => x.text.replace(/^\d+\.\s*/, '') === t.replace(/\s+/g, ' ').trim());
+    const a = r(T[0]), b = r(T[1]), c = r(T[2]);
+    ok('「修正發布 10 條，並自發布日施行」仍列為不確定', !!a && a.arts.length === 0 && a.unsure && a.unsure.arts.join() === '10',
+       a && JSON.stringify({ arts: a.arts, unsure: a.unsure }));
+    ok('「第 3、8、9、75 及 92 條附表」只改附表：不算條文修正，列為不確定', !!b && b.arts.length === 0 && b.unsure &&
+       b.unsure.arts.join() === '3,8,9,75,92', b && JSON.stringify({ arts: b.arts, unsure: b.unsure }));
+    ok('「第 5 條條文及第 2 條條文之附件」：第 5 條算修正，第 2 條列為不確定', !!c && c.arts.join() === '5' && c.unsure &&
+       c.unsure.arts.join() === '2', c && JSON.stringify({ arts: c.arts, unsure: c.unsure }));
+    const e = r(T[3]);
+    ok('H0000075「第 8 條之暫行編制表」列為不確定', !!e && e.arts.join() === '4,6,11' && e.unsure && e.unsure.arts.join() === '8',
+       e && JSON.stringify({ arts: e.arts, unsure: e.unsure }));
+    ok('只有不確定紀錄的條文不算任何個別修正', named(w, h, '75').length === 0 && named(w, h, '5').length === 1,
+       named(w, h, '75').join('、') + ' / ' + named(w, h, '5').join('、'));
+    // 面板與條號標題：不可說成「未曾修正」或「僅隨全文修正」
+    const pw = site('<body><h2 id="hlLawName">X</h2><div class="law-reg-content"><div class="row"><div class="col-no">第 75 條</div>' +
+      '<div class="col-data">甲。</div></div></div></body>', MOJ('Z0000004'), u => /LawHistory/.test(u) ? page : null);
+    await sleep(300);
+    const head = pw.document.querySelector('[data-lh-head="75"]');
+    ok('只有不確定紀錄的條號標題說明無法確認，不說未曾修正', !!head && /無法確認是否修正本條/.test(head.getAttribute('title')),
+       head && head.getAttribute('title'));
+    const tp = await hoverOn(pw, head);
+    ok('沿革面板說明有紀錄無法確認並未計入', /無法確認是否修正本條/.test(tp) && /只改附表、附件/.test(tp) && /未計入/.test(tp), tp.slice(0, 160));
+    ok('有不確定紀錄時，面板不斷言「未被個別修正過」', !/未被個別修正過|可能自公布後未修正/.test(tp) && /沒有可確認修正本條/.test(tp), tp.slice(0, 160));
+  }
+
   console.log('\n\x1b[1m外國法規前綴：不以「國」結尾的國名\x1b[0m');
   {
     for (const [pre, law] of [['新加坡', '公司法'], ['歐盟', '個人資料保護法'], ['歐洲聯盟', '消費者保護法'], ['越南', '勞動基準法'],
@@ -1640,6 +1724,40 @@ async function run() {
     ok('懸停點號引用不另抓條文頁', !added0.some(u => /LawContent\.aspx/.test(u)), added0.join(' | '));
     ok('沿革抓不到時仍顯示本頁該點，並說明沿革查詢失敗', /三、補助標準如下/.test(tc) && /每案新臺幣一萬元/.test(tc) &&
        !/四、違反/.test(tc) && /沿革查詢失敗/.test(tc), tc.slice(0, 140));
+
+    // 點號不可綁錯：附件、跨元素的規則名、引述他規則的引號（codex review 合成案例）
+    const three = '<p>一、本要點依某法訂定之。</p><p>二、補助對象。</p><p>三、補助標準。</p>';
+    const pm = (body, id) => ptMarks(site(nt(three + body), GL('glrs.nantou.gov.tw', id), () => null)).map(x => x.dataset.flno + ':' + x.textContent);
+    const att = pm('<p>附件一 申請表</p><p>依第三點辦理。</p>', 'GL009996');
+    ok('附件裡的「第三點」不綁本文第三點', att.length === 0, att.join(' / ') || '（無）');
+    const cross = pm('<p>四、依<a href="#">中央補助要點</a>第三點辦理；另依<span>本要點</span>第二點。</p>', 'GL009995');
+    ok('規則名在前一個元素（<a>中央補助要點</a>第三點）不綁本頁；<span>本要點</span>第二點照常標記',
+       cross.join() === 'p2:第二點', cross.join(' / ') || '（無）');
+    const quote = pm('<p>四、中央補助要點規定：「符合第三點者得申請補助。」申請者應符合第二點。</p>', 'GL009994');
+    ok('引號內引述其他規則的「第三點」不標；引號外的「第二點」照常標記', quote.join() === 'p2:第二點', quote.join(' / ') || '（無）');
+    const brk = pm('<p>四、依下列規定辦理：<br>第三點所定標準。</p>', 'GL009993');
+    ok('<br> 換行後行首的「第三點」照常標記', brk.join() === 'p3:第三點', brk.join(' / ') || '（無）');
+    // 引號跨 <br>、開頭引號在 80 字以外的前一個元素（codex 複審合成）
+    const qbr = pm('<p>四、中央補助要點規定：「<br>符合第三點者得申請。」</p>', 'GL009992');
+    ok('引號跨 <br> 時，引號內的「第三點」仍不標', qbr.length === 0, qbr.join(' / ') || '（無）');
+    const qlong = pm('<p>四、中央補助要點規定：<span>「' + '申請者應備妥文件，'.repeat(12) + '</span>並符合第三點。」</p>', 'GL009991');
+    ok('開頭引號在很遠的前一個元素，引號內的「第三點」仍不標', qlong.length === 0, qlong.join(' / ') || '（無）');
+    // 附件與本文在同一個文字節點（以換行分隔）：附件之前的引用照常標記
+    const one = ptMarks(site(nt('<pre>一、依第三點辦理。\n二、申請者。\n三、補助標準。\n附件一\n依第三點辦理。</pre>'),
+      GL('glrs.nantou.gov.tw', 'GL009990'), () => null)).map(x => x.dataset.flno + ':' + x.textContent);
+    ok('附件與本文同一節點：只標附件之前的「第三點」', one.join() === 'p3:第三點', one.join(' / ') || '（無）');
+    const body = pm('<p>四、申請文件如下：</p><p>附件應由申請人簽名。</p><p>違反第三點者不予補助。</p>', 'GL009989');
+    ok('正文的「附件應由申請人簽名」不是附件標題，其後照常標記', body.join() === 'p3:第三點', body.join(' / ') || '（無）');
+    const att1 = pm('<p>附件一申請表</p><p>依第三點辦理。</p>', 'GL009988');
+    ok('「附件一申請表」（編號後緊接名稱）是附件標題，其後不標', att1.length === 0, att1.join(' / ') || '（無）');
+    // 引號跨越點標題（codex 第三輪合成）
+    const qpt = ptMarks(site(nt('<p>一、中央要點規定：「甲。</p><p>二、依第三點辦理。」</p><p>三、本頁標準。</p><p>四、依第二點辦理。</p>'),
+      GL('glrs.nantou.gov.tw', 'GL009987'), () => null)).map(x => x.dataset.flno + ':' + x.textContent);
+    ok('引號跨越點標題時，引號內的「第三點」不標；引號閉合後照常標記', qpt.join() === 'p2:第二點', qpt.join(' / ') || '（無）');
+    // 效能：同一點內 300 個含「點」的文字節點，前文不可逐節點重讀（原本 O(n²)，300 節點約 4 秒）
+    const many = '<p>一、甲。</p><p>二、乙。</p><p>三、' + Array.from({ length: 300 }, () => '<span>依第二點辦理，' + '文字'.repeat(190) + '</span>').join('') + '</p>';
+    const t0 = Date.now(), mp = ptMarks(site(nt(many), GL('glrs.nantou.gov.tw', 'GL009986'), () => null)), dt = Date.now() - t0;
+    ok('300 個含點號的節點在 1.5 秒內標完（' + dt + ' ms）', mp.length === 300 && dt < 1500, mp.length + ' 處，' + dt + ' ms');
   }
 
   console.log('\n\x1b[1m快取\x1b[0m');

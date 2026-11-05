@@ -209,6 +209,22 @@ async function main() {
   const cites = await page.evaluate(() => document.querySelectorAll('.cite').length);
   ok('範例含多處引用（含釋字）', cites >= 5, '共 ' + cites + ' 處');
 
+  console.log('\n\x1b[1m停用 JavaScript 仍可安裝\x1b[0m');
+  {
+    const ctx = await browser.newContext({ javaScriptEnabled: false });
+    const np = await ctx.newPage();
+    await np.goto('file://' + path.join(root, 'docs/index.html'), { waitUntil: 'domcontentloaded' });
+    await np.click('details.manual summary');
+    const r = await np.evaluate(() => ({
+      href: document.getElementById('dragBtn').getAttribute('href'),
+      tip: document.querySelector('details.manual').innerText,
+    }));
+    const raw = fs.readFileSync(path.join(root, 'dist/lawhover.bookmarklet.txt'), 'utf8');
+    ok('拖曳鈕 href 不靠程式即為完整網址', r.href === raw);
+    ok('手動欄位空白時提示改用右鍵複製連結', r.tip.includes('複製連結網址'), r.tip.slice(0, 80));
+    await ctx.close();
+  }
+
   await browser.close();
   report.done();
 }

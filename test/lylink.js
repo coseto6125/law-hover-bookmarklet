@@ -61,7 +61,8 @@ async function main() {
      '找不到轉址端點');
 
   console.log('\n\x1b[1m線上佐證：公布日組出的網址是空殼\x1b[0m');
-  try { await lyFetch('https://lis.ly.gov.tw/', { headers: UA }); }
+  // 探測也要有逾時：對方接受連線卻不結束回應時，才會走到 skip 而不是卡住
+  try { await lyFetch('https://lis.ly.gov.tw/', { headers: UA, signal: AbortSignal.timeout(15000) }); }
   catch (e) {
     report.skip('線上驗證無法連線（' + e.message + '）');
     return report.done();

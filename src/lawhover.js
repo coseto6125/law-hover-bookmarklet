@@ -577,17 +577,18 @@
    *   行政院公告「第 77-3 條第 6 項所列屬『財政部』之權責事項…改由…管轄」
    *   施行令「令發布第 51-5 條定自…施行」、「依第 55 條規定：施行日期，由行政院定之」
    *   「但修正前…第 19～22 條之刪除，自公布日施行」、勘誤與更正
-   * 因此只從修法動詞起算：動詞（可接公布／發布／通過，含「修發布」「修正公」等原站錯字）之後
-   * 緊接「第」（中間只容「名稱及」「並遞改為」），一直到分號、句號、冒號、
-   * 下一個「中華民國○年」（附帶的另一份公文）、公告、「依」或「除」為止。
-   * 沒有修法動詞的「公布第 101 條條文」（舊沿革寫法）也算，但其中提到施行或停用的是施行令。 */
+   * 因此只從修法動詞起算：動詞（修正、增訂、刪除、廢止、遞改為、改為…，可接公布／發布／通過／下達，
+   * 含「修發布」「修正公」等原站錯字）之後緊接「第」或數字（中間只容「名稱及」「並遞改為」），
+   * 一直到分號、句號、冒號、下一個「中華民國○年」（附帶的另一份公文）、公告、「依」或「除」為止。
+   * 「原第 31 條遞改為第 32 條」只算新條號 32：舊條號 31 是另一條。
+   * 沒有修法動詞的「公布第 101 條條文」（舊沿革寫法）也算，但子句裡提到施行或停用的是施行令。 */
   var spc = function (w) { return w.split('').join('\\s?'); };
-  var RE_AMD = new RegExp('(?:(?:' + ['修正', '增訂', '刪除', '增列', '制定', '訂定', '修定'].map(spc).join('|') +
-    '|修(?=\\s?發))(?:\\s?(?:[公發](?:\\s?布)?|通\\s?過))?|[公發]\\s?布)' +
-    '(?=\\s?(?:' + spc('名稱') + '\\s?[及、]?)?(?:並\\s?)?(?:' + spc('遞改為') + ')?\\s?第)' +
+  var RE_AMD = new RegExp('(?:(?:' + ['修正', '增訂', '刪除', '廢止', '增列', '制定', '訂定', '修定', '遞改為', '遞移為', '改為'].map(spc).join('|') +
+    '|修(?=\\s?發))(?:\\s?(?:[公發](?:\\s?布)?|通\\s?過|下\\s?達))?|[公發]\\s?布)' +
+    '(?=\\s?(?:' + spc('名稱') + '\\s?[及、]?)?(?:並\\s?)?(?:' + spc('遞改為') + ')?\\s?[第\\d])' +
     '(?:(?!' + spc('中華民國') + '|' + spc('公告') + '|依|[^刪\\s]除)[^；;。：:])*', 'g');
   // 條號或點號清單：「第 40、77-3、74～75-1 條」「第 3、6、7 點」
-  var RE_SEG = new RegExp('(?:^|[^全文])第([' + NUMC + '\\s\\-－～~、，,]+?)([條點])(?:\\s*之\\s*(' + NUM + '))?', 'g');
+  var RE_SEG = new RegExp('(?:^|[^全文])第([' + NUMC + '\\s\\-－～~、，,及]+?)([條點])(?:\\s*之\\s*(' + NUM + '))?(?!\\s?解\\s?釋)', 'g');   // 「廢止第 13 條解釋函」廢的是函
   var RE_BIAN = new RegExp('([^公布；，、]{1,4}編)全文(' + NUM + ')條', 'g');   // 「親屬編全文 171 條」
   /* 取得法規沿革，並挑出提到指定條號的修法紀錄。
    * 原站沒有「歷史條文」功能（LawOldVer 等端點皆回 400），
@@ -628,12 +629,31 @@
         var c = t.replace(/\s+/g, '');
         // 「令修正公布第 40、77-3、74～75-1 條條文」→ 個別條號與範圍；點號加 p 前綴，與條號分開
         var arts = [], ranges = [], ua = [], ur = [], m2;
-        var amt = (t.match(RE_AMD) || []).filter(function (x) { return !/^[公發]/.test(x) || !/施\s?行|停\s?用/.test(x); }).join('；');
+        var amt = [], ma;
+        RE_AMD.lastIndex = 0;
+        while ((ma = RE_AMD.exec(t)) !== null) {
+          var x = ma[0];
+          /* 施行令看整個子句：比對在「中華民國」就停，
+           * 「令發布第 21～23 及 26 條條文定自中華民國九十二年…施行」的「施行」在比對之外 */
+          if (/^[公發]/.test(x) && /施\s?行|停\s?用/.test(t.slice(ma.index).split(/[；;。]/)[0])) continue;
+          /* 「修正發布 12 條」只有一個數字時分不出是第 12 條還是共 12 條
+           * （D0070083 全部就是 10 條、修正發布 10 條），列為不確定 */
+          var one = /^修\s?正\s?[公發]\s?布\s?(\d+(?:-\d+)?)\s?條/.exec(x);
+          if (one) { addToks([one[1]], ua, ur, ''); x = x.slice(one[0].length); }
+          /* 「增訂 23 條條文」省略了「第」：補上再切。只限增刪、改號與修正公布之後，且整筆不提全文：
+           * 「制定公布 14 條」「全文修正 10 條」的數字是條數，不是條號。「第 4 條至第 21 條」是範圍。 */
+          // 「原 76、77 條改為 79、80 條」的「改為」可能在比對中間，同樣補上
+          if (!/全文/.test(c)) x = x.replace(/(^(?:增\s?[訂列]|刪\s?除|廢\s?止|修\s?正\s?[公發]\s?布)[^第\d]*|改\s?為\s?)(?=\d)/g, '$1第');
+          amt.push(x.replace(/條\s?(?:條\s?文\s?)?至\s?第/g, '～'));
+        }
+        amt = amt.join('；');
         RE_SEG.lastIndex = 0;
         while ((m2 = RE_SEG.exec(amt)) !== null) {
           var sp = splitArts(m2[1]), u = m2[2] === '點' ? 'p' : '';
           if (m2[3] && sp.end && cn2num(m2[3])) sp.arts[sp.arts.length - 1] += '-' + cn2num(m2[3]);   // 第 5 條之 1
-          addToks(sp.arts, arts, ranges, u);
+          // 「第 3、8 條附表」「第 62 條條文之附式六」只改了附件，不能說本文改過：列為不確定
+          var att = /^\s?(?:條\s?文\s?)?(?:之\s?)?(?:附\s?[表件圖錄式]|(?:暫\s?行\s?)?編\s?制\s?表)/.test(amt.slice(RE_SEG.lastIndex));
+          addToks(sp.arts, att ? ua : arts, att ? ur : ranges, u);
           addToks(sp.unsure, ua, ur, u);
         }
         // 中央用中文數字（一百十一年五月十一日），地方多用阿拉伯數字（115年1月23日）
@@ -716,7 +736,7 @@
    * 恰好一種成立才採用，否則（「10、11↵12」可讀成 11、12 或 1112，
    * 「1↵0↵55」可讀成 1055 或 10、55）整組列為不確定，不計入任何條號，交由面板另行說明。 */
   function splitArts(s) {
-    var gs = s.replace(/－/g, '-').replace(/~/g, '～').split(/[、，,]/);
+    var gs = s.replace(/－/g, '-').replace(/~/g, '～').split(/[、，,及]/);
     var res = { arts: [], unsure: [], end: true }, prev = [0, 0];
     function ends(x) {
       var e = x.split('～').map(artKey);
@@ -1029,13 +1049,14 @@
   var RE_CHAP = new RegExp('^(?:[壹貳參肆伍陸柒捌玖拾]+、|第\\s*' + NUM + '\\s*[章節編])');
   var RE_ENUM = /^(?:[（(][一二三四五六七八九十0-9０-９]+[）)]|[0-9０-９]+\s*[.、．])/;
   function points(doc) {
-    var root = null, pts = [], cur = null, i, m;
+    var root = null, pts = [], cur = null, stop = null, i, m;
     for (i = 0; i < PT_ROOT.length && !root; i++) root = doc.querySelector(PT_ROOT[i]);
     var ls = root ? blockLines(root) : [];
     for (i = 0; i < ls.length; i++) {
       var x = ls[i].t.replace(/\s+/g, ' ').trim(), ln = cur && cur.lines[cur.lines.length - 1];
       if (!x) continue;
-      if (/^附[表件錄圖]/.test(x)) break;
+      // 附件標題（「附件一申請表」「附表：」「附件 申請表」），不含「附件應由申請人簽名」這類正文
+      if (/^附[表件錄圖式](?:[一二三四五六七八九十0-9０-９]|$|[\s：:、（(])/.test(x)) { stop = ls[i]; break; }
       if (RE_CHAP.test(x)) { cur = null; continue; }
       if (/^[一二三四五六七八九十百]+之[一二三四五六七八九十]+、/.test(x)) return null;   // 「三之一、」：不支援，整頁不認點
       if ((m = RE_PT_HEAD.exec(x))) {
@@ -1048,6 +1069,9 @@
       else cur.lines.push({ text: x, top: !RE_ENUM.test(x) });
     }
     pts.root = root;
+    /* 附件起點：之後的「第三點」是附件自己的編號或引用，不是本文。
+     * 附件可能與本文同在一個文字節點（以換行分隔），先切開，讓起點落在節點開頭 */
+    pts.stop = stop && (stop.off ? stop.node.splitText(stop.off) : stop.node);
     return pts.length > 1 ? pts : null;
   }
 
@@ -1648,16 +1672,17 @@
     function note() {
       if (un.length) box.appendChild(el('div', lineCls, '另有 ' + un.length + ' 筆修法紀錄（' +
         un.map(function (r) { return r.when || r.text.slice(0, 20); }).join('、') +
-        '）的條號清單在原站斷行處無法判讀，無法確認是否包含本' + u + '，未計入。'));
+        '）無法確認是否修正本' + u + '（原站寫法有歧義，或只改附表、附件），未計入。'));
     }
     if (!rec.length) {
-      box.appendChild(el('div', lineCls, '沿革中未見此' + u + '的修正紀錄，可能自公布後未修正。'));
+      box.appendChild(el('div', lineCls, un.length ? '沒有可確認修正本' + u + '的紀錄。' : '沿革中未見此' + u + '的修正紀錄，可能自公布後未修正。'));
       note();
       return;
     }
     if (!named.length) {
-      box.appendChild(el('div', lineCls, amend
-        ? '本' + u + '未被個別修正過，僅隨全文修正異動 ' + amend + ' 次。'
+      // 有不確定紀錄時不能斷言「未被個別修正過」
+      box.appendChild(el('div', lineCls, un.length ? '沒有可確認修正本' + u + '的個別紀錄' + (amend ? '，全文修正 ' + amend + ' 次。' : '。')
+        : amend ? '本' + u + '未被個別修正過，僅隨全文修正異動 ' + amend + ' 次。'
         : '本' + u + '未被個別修正過，也未經全文修正，沿革只有制定紀錄。'));
       note();
       if (full) rec.forEach(function (r) { box.appendChild(row(r)); });
@@ -1935,20 +1960,38 @@
   var RE_PT_REF = new RegExp('第\\s*(' + NUM + ')\\s*點' + TAIL, 'g');
   var RE_PT_SELF = /本(?:要點|規定|須知|原則|計畫|基準|規範|注意事項|辦法|規則|標準)$/;
   var RE_PT_OK = /(?:^|[^\u4e00-\u9fa5」』）)】A-Za-z0-9０-９]|[依及與或暨至除有於受合反理用符附現減照按如經並且以就對述])$/;
+  function net(s, a, b) { return s.split(a).length - s.split(b).length; }
+  /* 點號判斷用的脈絡，scan 時依文件順序走過本文一次建好（逐節點回頭讀前文是 O(n²)）：
+   *   pre：前 80 字。規則名可能在前一個元素（「<a>中央補助要點</a>第三點」）
+   *   q、q2：此節點之前未閉合的「、『 數。引號可跨行、跨元素、跨點
+   * 附件起點之後的節點不收，標記時視為不在本文。 */
+  function ptPrep() {
+    var w = document.createTreeWalker(PTS.root, NodeFilter.SHOW_TEXT), n, pre = '', q = 0, q2 = 0, map = new Map();
+    while ((n = w.nextNode()) && !(PTS.stop && (PTS.stop === n || PTS.stop.compareDocumentPosition(n) & 4))) {
+      var v = n.nodeValue;
+      map.set(n, { pre: pre, q: q, q2: q2 });
+      pre = (pre + v).slice(-80);
+      q = Math.max(0, q + net(v, '「', '」'));
+      q2 = Math.max(0, q2 + net(v, '『', '』'));
+    }
+    return map;
+  }
   // 從 end 往前數 n 個非空白字元，回傳其起點
   function back(text, end, n) {
     while (n > 0 && end > 0) if (/\S/.test(text.charAt(--end))) n--;
     return end;
   }
-  function pointHits(text, hits) {
+  function pointHits(text, hits, ctx) {
     var m, skipTo = -1;
     RE_PT_REF.lastIndex = 0;
     while ((m = RE_PT_REF.exec(text)) !== null) {
       var s1 = m.index, e1 = s1 + m[0].length, n1 = cn2num(m[1]);
       // 原站折行可能落在詞中間（「本辦↵法第一點」），判斷前先去掉空白，再依非空白字數倒回原文位置
-      var pre = text.slice(0, s1).replace(/\s+/g, ''), bare = pre.replace(/」$/, ''), at = s1, w;
+      var lead = text.slice(0, s1), pre = (ctx.pre + lead).replace(/\s+/g, ''), bare = pre.replace(/」$/, ''), at = s1, w;
       if (skipTo >= 0 && listGap(text.slice(skipTo, s1))) { skipTo = e1; continue; }
       skipTo = -1;
+      // 引號內是引述的文字（「中央補助要點規定：『符合第三點者…』」），點號屬於被引的規則，不標
+      if (ctx.q + net(lead, '「', '」') > 0 || ctx.q2 + net(lead, '『', '』') > 0) continue;
       if (SELF.name && bare.slice(-SELF.name.length) === SELF.name) {
         at = back(text, s1, pre.length - bare.length + SELF.name.length);
         if (text.charAt(at - 1) === '「') at--;
@@ -1967,7 +2010,8 @@
   }
 
   /* 收集一段文字中的所有引用（具名優先，其餘位置再找裸條號）。
-   * pt：文字在本頁分點的內文裡，才找「第N點」（頁面上的沿革欄等不是規則本文）。 */
+   * pt：文字在本頁分點的內文裡時是 ptPrep() 建的脈絡，才找「第N點」
+   * （頁面上的沿革欄等不是規則本文）；否則為 false。 */
   function collect(text, pt) {
     var hits = [], m;
     // 具名規則放棄的範圍：裸條號規則也不可接手，否則會綁成本頁法規
@@ -2124,7 +2168,7 @@
         });
       }
     }
-    if (pt) pointHits(text, hits);
+    if (pt) pointHits(text, hits, pt);
     // 司法院解釋：憲判字需先比對（含年度），避免被釋字規則誤切
     var mm;
     RE_CJ.lastIndex = 0;
@@ -2181,10 +2225,11 @@
     return out;
   }
 
+  var ptMap = null;
   function markTextNode(node) {
     var text = node.nodeValue;
     // 快速過濾：不含這些關鍵字的文字節點一律略過，省下正則成本
-    var pt = !!PTS && text.indexOf('點') >= 0 && PTS.root.contains(node);
+    var pt = ptMap && text.indexOf('點') >= 0 && ptMap.get(node);
     if (text.indexOf('條') < 0 && text.indexOf('釋字') < 0 && text.indexOf('憲判字') < 0 && !pt) return;
     var hits = collect(text, pt);
     if (!hits.length) return;
@@ -2278,9 +2323,12 @@
           e0.dataset.lhMod = named.length;
           e0.setAttribute('title', '本' + u + '修正 ' + named.length + ' 次，滑鼠移入查看沿革');
         } else {
+          // 只改附表或條號有歧義的紀錄不算修正，但也不能說「未曾修正」
+          var hf = historyFor(h, fl), nu = hf.unsure.length;
           sty(e0, CLS.headOff);
-          e0.setAttribute('title', amend ? '本' + u + '僅隨全文修正異動，滑鼠移入查看沿革'
-            : historyFor(h, fl).length ? '本' + u + '自制定後未曾修正，滑鼠移入查看沿革'
+          e0.setAttribute('title', nu ? '有 ' + nu + ' 筆修法紀錄無法確認是否修正本' + u + '，滑鼠移入查看沿革'
+            : amend ? '本' + u + '僅隨全文修正異動，滑鼠移入查看沿革'
+            : hf.length ? '本' + u + '自制定後未曾修正，滑鼠移入查看沿革'
             : '沿革中未見此' + u + '的修正紀錄');
         }
       }
@@ -2290,8 +2338,9 @@
   function scan(root) {
     var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode: function (n) {
-        // 最短的有效引用是「民法第5條」共 5 字，門檻不可高於 5
-        if (!n.nodeValue || n.nodeValue.length < 5) return NodeFilter.FILTER_REJECT;
+        /* 最短的有效引用是「民法第5條」共 5 字，門檻不可高於 5；
+         * 分點的頁面還有「<span>本要點</span>第二點」這類 3 字的點號節點 */
+        if (!n.nodeValue || n.nodeValue.length < (PTS ? 3 : 5)) return NodeFilter.FILTER_REJECT;
         var p = n.parentNode;
         if (!p) return NodeFilter.FILTER_REJECT;
         var tag = p.nodeName;
@@ -2306,6 +2355,7 @@
     });
     var nodes = [], n;
     while ((n = walker.nextNode())) nodes.push(n);
+    ptMap = PTS && ptPrep();
     nodes.forEach(markTextNode);
   }
 
