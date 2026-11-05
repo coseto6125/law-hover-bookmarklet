@@ -19,6 +19,7 @@
     "test:mobile": "npm run build && node test/mobile.js"
   },
   "devDependencies": {
+    "@gfx/zopfli": "1.0.15",
     "acorn": "^8.18.0",
     "acorn-walk": "^8.3.5",
     "jsdom": "^24.0.0",

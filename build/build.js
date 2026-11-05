@@ -49,7 +49,20 @@ if (!minified) {
  * 不內嵌未壓縮的備援版本：那會讓網址反而變長。 */
 /* base64 的 '+' 在網址中要轉義成 %2B（3 倍長度），數量不少。
  * 改用 base64url（'+'→'-'、'/'→'_'），完全避開轉義，解碼時再換回來。 */
-const gz = zlib.gzipSync(Buffer.from(code, 'utf8'), { level: 9 })
+/* 壓縮器用 zopfli：輸出仍是標準 gzip，瀏覽器照樣解壓，但比 zlib level 9 小約 8%
+ * （實測 42891 → 39234 bytes，書籤少約 4900 字元）。缺套件時比照 terser：CI 中止，本機退回 zlib。 */
+async function gzip(buf) {
+  try {
+    return Buffer.from(await require('@gfx/zopfli').gzipAsync(buf, { numiterations: 15 }));
+  } catch (e) {
+    if (process.env.CI) { console.error('CI 中必須以 zopfli 壓縮，中止建置：' + e.message); process.exit(1); }
+    console.warn('zopfli 不可用，改用 zlib：' + e.message);
+    return zlib.gzipSync(buf, { level: 9 });
+  }
+}
+
+(async () => {
+const gz = (await gzip(Buffer.from(code, 'utf8')))
   .toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
 /* 降級：瀏覽器不支援 DecompressionStream 時，載入器以 alert 明確告知，不靜默失敗。
  * DecompressionStream 自 Chrome 80 / Firefox 113 / Safari 16.4 起支援，
@@ -131,3 +144,4 @@ if (url.length > LIMIT) {
 }
 if (url.length > LIMIT * 0.9) console.warn('警告：已用掉 90% 額度，新增功能前需先精簡');
 console.log('已產生 dist/ 與 docs/（GitHub Pages）');
+})().catch(e => { console.error(e); process.exit(1); });
