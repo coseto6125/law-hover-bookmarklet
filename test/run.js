@@ -1251,6 +1251,145 @@ async function run() {
     ok('條文以自身條號起頭（換行字元分行）時同樣拒答', /查不到/.test(selfn) && !/條文內容/.test(selfn), selfn.slice(0, 80));
   }
 
+  /* 以下各段為 0d95fdf 之後 review 實測找到的錯誤，每段都先寫成失敗的測試再修。 */
+  const marksOf = w => [...w.document.querySelectorAll('[data-flno],[data-ex]')];
+  const descr = m => m.textContent + '→' + m.dataset.name + ' ' + m.dataset.flno + (m.dataset.pcode ? '[本頁]' : '');
+  const pageOf = (law, pc, html) => site('<body><h2 id="hlLawName">' + law + '</h2>' + html + '</body>', MOJ(pc), () => null);
+
+  console.log('\n\x1b[1m外國法規前綴（review 發現）\x1b[0m');
+  {
+    /* 國名前綴原本只擋「刑法」「憲法」「民法」，其他字典法規名直接取字尾：
+     * 「依日本民事訴訟法第一條」被標成我國民事訴訟法第一條。 */
+    let w = pageOf('刑事訴訟法', 'C0010001', '<p>依日本民事訴訟法第一條規定辦理。</p>');
+    let ms = marksOf(w);
+    ok('「日本民事訴訟法」不被當成我國民事訴訟法', !ms.some(m => m.dataset.name === '民事訴訟法'),
+       ms.map(descr).join(' / ') || '（無）');
+    w = pageOf('刑事訴訟法', 'C0010001', '<p>依德國行政程序法第五條規定。</p>');
+    ms = marksOf(w);
+    ok('「德國行政程序法」不被當成我國行政程序法', !ms.some(m => m.dataset.name === '行政程序法'),
+       ms.map(descr).join(' / ') || '（無）');
+    /* 字典名稱以「本法」結尾（教育基本法）時，國名前綴不可讓它退化成自指詞「本法」而綁本頁 */
+    w = pageOf('刑事訴訟法', 'C0010001', '<p>參照日本教育基本法第一條規定。</p>');
+    ms = marksOf(w);
+    ok('「日本教育基本法」不被當成我國教育基本法，也不綁本頁',
+       !ms.some(m => m.dataset.name === '教育基本法' || m.dataset.pcode), ms.map(descr).join(' / ') || '（無）');
+    // 6751e1f 的豁免：我國、本國、中華民國
+    for (const pre of ['我國', '本國', '中華民國']) {
+      w = pageOf('刑事訴訟法', 'C0010001', '<p>依' + pre + '民事訴訟法第一條規定辦理。</p>');
+      ms = marksOf(w);
+      ok('「' + pre + '民事訴訟法」仍是我國民事訴訟法', ms.some(m => m.dataset.name === '民事訴訟法' && m.dataset.flno === '1'),
+         ms.map(descr).join(' / ') || '（無）');
+    }
+    w = pageOf('刑事訴訟法', 'C0010001', '<p>依民事訴訟法第一條規定辦理。</p>');
+    ms = marksOf(w);
+    ok('沒有國名前綴時照常標記', ms.some(m => m.dataset.name === '民事訴訟法'), ms.map(descr).join(' / ') || '（無）');
+  }
+
+  console.log('\n\x1b[1m新北市本頁法規的具名引用（review 發現）\x1b[0m');
+  {
+    /* 新北市網址用 fcode= 而非 pcode=；原本只認 pcode，具名引用本頁法規時一律回「本站不支援跨法規查詢」。 */
+    const NT = 'https://web.law.ntpc.gov.tw/Scripts/FLAWDAT0202.aspx?fcode=F0001';
+    const page = '<!DOCTYPE html><html><head><title>新北市道路管理自治條例</title></head><body>' +
+      '<h2>新北市道路管理自治條例</h2><table><tr><td class="col-th">第 5 條</td>' +
+      '<td class="col-td">本條例所稱道路，指供公眾通行之道路。</td></tr></table>' +
+      '<p>違反新北市道路管理自治條例第五條規定者。</p>' +
+      '<p>依新北市道路管理自治條例施行細則第五條辦理。</p></body></html>';
+    const w = site(page, NT, u => /FLAWDAT0202\.aspx\?fcode=F0001/.test(u) ? page : null);
+    const named = marksOf(w).find(m => m.dataset.name === '新北市道路管理自治條例');
+    const txt = await hoverOn(w, named);
+    ok('具名引用本頁法規時取得本頁條文', /本條例所稱道路/.test(txt) && !/不支援/.test(txt), txt.slice(0, 60));
+    const other = marksOf(w).find(m => m.dataset.name === '新北市道路管理自治條例施行細則');
+    const t2 = await hoverOn(w, other);
+    ok('名稱只是包含本頁法規名時不當成本頁', !/本條例所稱道路/.test(t2) && /查不到/.test(t2), t2.slice(0, 60));
+  }
+
+  console.log('\n\x1b[1m具名規則放棄的範圍不吞前面的裸條號（review 發現）\x1b[0m');
+  {
+    /* 「所定辦法第三條」的「辦法」是泛稱，查不到；但原本放棄範圍涵蓋整段比對，
+     * 前面的「第五條」「第六條」也一併不標。 */
+    const cases = [
+      ['違反第五條或依第六條所定辦法第三條規定者，處罰之。', ['第五條→建築法 5[本頁]', '第六條→建築法 6[本頁]']],
+      ['依第五條規定之辦法第三條辦理。', ['第五條→建築法 5[本頁]']],
+      // 之X 條號也是左邊界：原本切成「一所定辦法」，第五條之一整個不見
+      ['依第五條之一所定辦法第三條辦理。', ['第五條之一→建築法 5-1[本頁]']],
+      ['依第五條第二項所定辦法第三條辦理。', ['第五條第二項→建築法 5[本頁]']],
+    ];
+    for (const [txt, want] of cases) {
+      const got = marksOf(pageOf('建築法', 'D0070109', '<p>' + txt + '</p>')).map(descr);
+      ok('「' + txt.slice(0, 16) + '…」標記 ' + want.join('、'), JSON.stringify(got) === JSON.stringify(want),
+         got.join(' / ') || '（無）');
+    }
+  }
+
+  console.log('\n\x1b[1m面板關閉後，查詢結果不可再開啟面板（review 發現）\x1b[0m');
+  {
+    /* 滑出標記後面板已關，慢回來的查詢結果（成功或 404）把面板重新打開，
+     * 顯示「查不到條文」且不會再自動關閉。 */
+    for (const ok200 of [false, true]) {
+      const d = new JSDOM('<body><h2 id="hlLawName">建築法</h2><p>依第77條之2規定辦理。</p></body>',
+        { url: MOJ('D0070109'), runScripts: 'outside-only', pretendToBeVisual: true });
+      const w = d.window;
+      w.fetch = () => new Promise(r => setTimeout(() => r(ok200
+        ? { ok: true, status: 200, text: () => Promise.resolve(F('single-77-2.html')) }
+        : { ok: false, status: 404, text: () => Promise.resolve('') }), 500));
+      w.eval(code);
+      const mk = w.document.querySelector('[data-flno]');
+      mk.dispatchEvent(new w.MouseEvent('mouseover', { bubbles: true }));
+      await sleep(30);
+      mk.dispatchEvent(new w.MouseEvent('mouseout', { bubbles: true }));
+      await sleep(900);
+      const p = panelOf(w);
+      ok('滑出後慢回來的' + (ok200 ? '條文' : '404') + '不重開面板', p === '', p.slice(0, 40));
+    }
+  }
+
+  console.log('\n\x1b[1m回報表單保留使用者的修改（review 發現）\x1b[0m');
+  {
+    const w = pageOf('建築法', 'D0070109', '<p>依第5條規定。</p>');
+    const fab = [...w.document.body.children].find(n => /-fab$/.test(String(n.className || '').split(' ')[0]));
+    fab.click();
+    const dlg = [...w.document.body.children].find(n => /-dlg$/.test(String(n.className || '').split(' ')[0]));
+    const diag = dlg && dlg.querySelectorAll('textarea')[1];
+    const opts = dlg ? [...dlg.querySelectorAll('[class*="-opt"]')] : [];
+    ok('回報對話框帶入診斷資訊', diag && /網址: /.test(diag.value), diag && diag.value.slice(0, 40));
+    if (diag && opts.length === 2) {
+      diag.value = '（使用者刪掉網址與瀏覽器）';
+      opts[0].click();
+      ok('選問題類型不覆蓋使用者改過的診斷資訊', diag.value === '（使用者刪掉網址與瀏覽器）', diag.value.slice(0, 40));
+      opts[1].click();
+      ok('改選另一種類型也不覆蓋', diag.value === '（使用者刪掉網址與瀏覽器）', diag.value.slice(0, 40));
+      /* jsdom 沒有剪貼簿，複製必定失敗：整份內容改放到另一個框讓使用者手動選取，
+       * 診斷框保留使用者的修改，之後的輸出也以使用者當下的修改為準（codex review 發現） */
+      const copy = [...dlg.querySelectorAll('button')].find(b => /複製內容/.test(b.textContent));
+      copy.click(); await sleep(30);
+      ok('複製失敗後診斷框仍是使用者的修改', diag.value === '（使用者刪掉網址與瀏覽器）', diag.value.slice(0, 40));
+      diag.value = '（使用者又改過）';
+      copy.click(); await sleep(30);
+      const manual = dlg.querySelectorAll('textarea')[2];
+      const full = manual ? manual.value : '';
+      const nDiag = full.split('--- 診斷資訊 ---').length - 1;
+      ok('複製失敗兩次，手動複製的內容只有一份診斷資訊', nDiag === 1, '出現 ' + nDiag + ' 次');
+      ok('再次複製時用的是使用者最新的修改', /使用者又改過/.test(full) && !/使用者刪掉網址/.test(full),
+         full.slice(0, 80));
+    }
+  }
+
+  console.log('\n\x1b[1m不支援的網站重複點書籤不累積（review 發現）\x1b[0m');
+  {
+    const d = new JSDOM('<body><p>依建築法第7條規定</p></body>',
+      { url: 'https://example.com/', runScripts: 'outside-only', pretendToBeVisual: true });
+    d.window.fetch = () => Promise.resolve({ ok: false, status: 404, text: () => Promise.resolve('') });
+    for (let i = 0; i < 3; i++) d.window.eval(code);
+    const kids = [...d.window.document.body.children].map(n => String(n.className || '').split(' ')[0]);
+    const n = re => kids.filter(c => re.test(c)).length;
+    const st = d.window.document.querySelectorAll('style').length;
+    ok('點三次只有一張樣式表', st === 1, st + ' 張');
+    ok('不建立條文面板', n(/-p$/) === 0, n(/-p$/) + ' 個');
+    ok('提示只留一個', n(/-t$/) === 1, n(/-t$/) + ' 個');
+    ok('第二次以後仍顯示不支援提示', d.window.document.body.textContent.includes('本工具僅在法規網站上運作'));
+    ok('書籤狀態已設定（count 為 0）', !!d.window.__lawhover__ && d.window.__lawhover__.count() === 0);
+  }
+
   console.log('\n\x1b[1m快取\x1b[0m');
   const before = calls.length;
   m3.dispatchEvent(new window.MouseEvent('mouseover', { bubbles: true }));

@@ -24,8 +24,94 @@ async function main() {
   let browser;
   try { browser = await chromium.launch(); }
   catch (e) { console.log('\x1b[33m略過：無法啟動 Chromium\x1b[0m'); process.exit(0); }
+
+  /* 觸控與滑鼠要逐次判斷（review 發現）：有觸控螢幕的筆電用滑鼠操作時，
+   * 原本整頁當成觸控裝置：滑鼠移開面板不關、點條號連結被攔下不跳頁；
+   * 觸控點外部關閉後，還在路上的查詢回來又把面板打開。
+   * 以路由回應假頁面，不需連線。 */
+  console.log('\n\x1b[1m觸控與滑鼠逐次判斷（離線，review 發現）\x1b[0m');
+  {
+    const fx = fs.readFileSync(path.join(root, 'test/fixtures/single-77-2.html'), 'utf8');
+    const PAGE = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>' +
+      '<h2 id="hlLawName">建築法</h2><div class="col-no"><a href="#jump">第 5 條</a></div>' +
+      '<p style="margin:40px">違反建築法第七十七條之二規定者處罰之。</p><div style="height:900px"></div></body></html>';
+    const open = async (opt, art) => {
+      const ctx = await browser.newContext(Object.assign({ viewport: { width: 1200, height: 800 } }, opt));
+      await ctx.route('https://law.moj.gov.tw/**', async r => {
+        const u = r.request().url();
+        if (/LawAll\.aspx/.test(u)) return r.fulfill({ contentType: 'text/html; charset=utf-8', body: PAGE });
+        if (/LawSingle\.aspx/.test(u) && art) {
+          await new Promise(s => setTimeout(s, art.delay));
+          return art.ok ? r.fulfill({ contentType: 'text/html; charset=utf-8', body: fx }) : r.fulfill({ status: 404, body: '' });
+        }
+        return r.fulfill({ status: 404, body: '' });
+      });
+      const p = await ctx.newPage();
+      await p.goto('https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=D0070109');
+      const cdp = await ctx.newCDPSession(p);
+      try { await cdp.send('Page.navigate', { url }); } catch (e) {}
+      await injected(p, { timeout: 10000 });
+      return { ctx, p };
+    };
+    const vis = p => p.evaluate(() => {
+      const q = [...document.body.children].find(n => {
+        const c = String(n.className || '').split(' ');
+        return /-p$/.test(c[0] || '') && !c.some(y => /-hide$/.test(y));
+      });
+      return q ? q.textContent.replace(/\s+/g, ' ').slice(0, 40) : '';
+    });
+    const center = async (p, sel) => { const b = await (await p.$(sel)).boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+
+    // 觸控筆電以滑鼠操作
+    let { ctx, p } = await open({ hasTouch: true }, { delay: 0, ok: true });
+    let [x, y] = await center(p, '[data-flno]');
+    await p.mouse.move(x, y); await p.waitForTimeout(400);
+    ok('觸控筆電：滑鼠移入顯示面板', !!(await vis(p)));
+    await p.mouse.move(1100, 700); await p.waitForTimeout(700);
+    const away = await vis(p);
+    ok('觸控筆電：滑鼠移開後面板關閉', !away, away);
+    [x, y] = await center(p, '[data-lh-head] a');
+    await p.mouse.click(x, y); await p.waitForTimeout(300);
+    const hash = await p.evaluate(() => location.hash);
+    ok('觸控筆電：滑鼠點條號連結照常跳轉', hash === '#jump', 'hash=' + JSON.stringify(hash));
+    await ctx.close();
+
+    // 滑鼠點面板以外的地方立即關閉（不必等移出的延遲）
+    ({ ctx, p } = await open({}, { delay: 0, ok: true }));
+    [x, y] = await center(p, '[data-flno]');
+    await p.mouse.move(x, y); await p.waitForTimeout(400);
+    await p.mouse.click(1100, 700); await p.waitForTimeout(60);
+    const clicked = await vis(p);
+    ok('滑鼠點外部立即關閉面板', !clicked, clicked);
+    await ctx.close();
+
+    // 真正的觸控：點標記顯示、點條號不跳頁
+    ({ ctx, p } = await open({ hasTouch: true, isMobile: true }, { delay: 0, ok: true }));
+    await p.tap('[data-flno]'); await p.waitForTimeout(400);
+    ok('觸控：點標記顯示面板', /77-2/.test(await vis(p)), await vis(p));
+    await p.tap('[data-lh-head] a'); await p.waitForTimeout(300);
+    ok('觸控：點條號顯示面板而不跳頁', await p.evaluate(() => location.hash) === '');
+    await p.touchscreen.tap(300, 700); await p.waitForTimeout(300);
+    ok('觸控：點外部關閉面板', !(await vis(p)));
+    await ctx.close();
+
+    // 觸控點外部關閉後，慢回來的查詢不可重開面板（成功與 404 都要擋）
+    for (const okRes of [false, true]) {
+      ({ ctx, p } = await open({ hasTouch: true, isMobile: true }, { delay: 900, ok: okRes }));
+      await p.tap('[data-flno]'); await p.waitForTimeout(150);
+      await p.touchscreen.tap(300, 700); await p.waitForTimeout(1500);
+      const v = await vis(p);
+      ok('觸控：點外部關閉後，慢回來的' + (okRes ? '條文' : '404') + '不重開面板', !v, v);
+      await ctx.close();
+    }
+  }
+
   try { await globalThis.fetch('https://law.moj.gov.tw/'); }
-  catch (e) { console.log('\x1b[33m略過：無法連線\x1b[0m'); await browser.close(); process.exit(0); }
+  catch (e) {
+    // 只略過線上案例；前面離線案例的失敗不能被吞掉
+    console.log('\x1b[33m略過線上案例：無法連線\x1b[0m（離線案例 通過 ' + pass + '，失敗 ' + fail + '）');
+    await browser.close(); process.exit(fail === 0 ? 0 : 1);
+  }
 
   const CASES = [
     ['Windows 桌機', { viewport: { width: 1280, height: 800 },

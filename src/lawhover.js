@@ -370,8 +370,9 @@
    *   否則「中華民國憲法增修條文」會被切成「文」）
    *   標點、連接詞、動詞
    * 取最後一個邊界之後的部分作為法規名。 */
+  // 「第五條之一」整個是邊界，否則「依第五條之一所定辦法」會切成「一所定辦法」
   var HARD_EDGE = new RegExp(
-    '(?:第\\s*' + NUM + '\\s*[條項款目]|[、，,；;。．：:（）()「」『』《》〈〉\\s]|' +
+    '(?:第\\s*' + NUM + '\\s*[條項款目](?:\\s*之\\s*' + NUM + ')?|[、，,；;。．：:（）()「」『』《》〈〉\\s]|' +
     '及|或|與|暨|準用|適用|規定|所稱|依據|依照|按照|依|按)', 'g');
   /* 常見法規的完整名稱。
    * 字元邊界規則無法區分「及／與」是句子連接詞還是法規名的一部分
@@ -395,19 +396,23 @@
   var IS_KNOWN = {};
   for (var ki0 = 0; ki0 < KNOWN.length; ki0++) IS_KNOWN[KNOWN[ki0]] = true;
 
-  /* 先以已知法規名做最長後綴匹配；命中即為明確的左邊界。 */
-  function matchKnown(raw) {
+  /* 已知法規名的最長後綴，不論前面接什麼。 */
+  function longestKnown(raw) {
     var best = '';
     for (var i = 0; i < KNOWN.length; i++) {
       var k = KNOWN[i];
       if (k.length > best.length && raw.length >= k.length &&
           raw.slice(-k.length) === k) best = k;
     }
-    /* 「刑法」「憲法」是我國法規的通稱，前面接國名時是外國法規
-     *（「日本刑法」「德國憲法」），不可當成我國的刑法（codex review 實測）。 */
-    var lead = raw.slice(0, raw.length - best.length);
-    if (REAL_LAW_NAMES.indexOf(best) >= 0 && RE_FOREIGN.test(lead) && !RE_DOMESTIC.test(lead)) return '';
     return best;
+  }
+  /* 先以已知法規名做最長後綴匹配；命中即為明確的左邊界。
+   * 前面接國名時是外國法規（「日本刑法」「德國憲法」「日本民事訴訟法」），
+   * 不可當成我國同名法規；字典裡每一部都適用，不只通稱（codex review 實測）。 */
+  function matchKnown(raw) {
+    var best = longestKnown(raw);
+    var lead = raw.slice(0, raw.length - best.length);
+    return RE_FOREIGN.test(lead) && !RE_DOMESTIC.test(lead) ? '' : best;
   }
 
   var RE_ENDS_LAW = new RegExp(SUFFIX + '$');
@@ -533,15 +538,15 @@
   }
   function findPcode_(name) {
     if (pcodeCache[name]) return Promise.resolve(pcodeCache[name]);
-    // 本頁若就是該法規，直接用網址上的 pcode，免一次搜尋
-    var self = /pcode=([A-Z0-9]+)/i.exec(location.search);
-    var h1 = document.querySelector('#hlLawName, .table-list .h3, h2');
-    /* 名稱要與本頁標題相符，不可只是包含：施行細則頁的標題含有母法名稱，
+    /* 本頁若就是該法規，直接用本頁代碼，免一次搜尋。
+     * 用各站自己的 selfLaw：只認網址的 pcode= 時，新北市（fcode=）的具名本頁引用
+     * 會落到不支援搜尋而查不到（review 實測）。
+     * 名稱要與本頁標題相符，不可只是包含：施行細則頁的標題含有母法名稱，
      * 用「包含」會把母法的引用抓成本頁條文（sonnet review 實測
      * 勞工保險條例施行細則頁上的「勞工保險條例第三條」顯示細則第三條）。 */
-    if (self && h1 && scoreCandidate(h1.textContent.trim(), name) > 0) {
-      pcodeCache[name] = self[1];
-      return Promise.resolve(self[1]);
+    if (SELF && scoreCandidate(SELF.name, name) > 0) {
+      pcodeCache[name] = SELF.pcode;
+      return Promise.resolve(SELF.pcode);
     }
     var url = SITE.searchUrl(name);
     if (!url) return Promise.reject(new Error('本站不支援跨法規查詢，請於該法規頁面使用'));
@@ -1244,6 +1249,34 @@
   function show(el) { el.classList.remove(CLS.hide); }
   function hide(el) { el.classList.add(CLS.hide); }
 
+  /* 不支援的網站：只顯示提示，不建面板、不掛事件。
+   * 必須在建立面板與事件之前返回，並設定 __lawhover__：否則每點一次書籤
+   * 就多一張樣式表、一個面板與一組 document 事件（review 實測點三次累積三份）。 */
+  if (!SITE) {
+    var warn = null;
+    var unsupported = function () {
+      // 在不支援的網站上點書籤，必須講清楚而不是靜默無反應；重複點只留一個提示
+      if (warn && warn.parentNode) warn.remove();
+      warn = el('div', CLS.toast);
+      var wb = el('div', CLS.toastIn);
+      wb.appendChild(el('span', CLS.toastDot, '!'));
+      var wm = el('span');
+      wm.appendChild(el('span', null, '本工具僅在法規網站上運作'));
+      /* 支援範圍要如實列出。原本只寫「全國法規資料庫、臺北市」，
+       * 會讓其他 21 縣市的使用者誤以為自己的縣市不支援。 */
+      wm.appendChild(el('span', CLS.toastSub,
+        ' · 目前支援：全國法規資料庫，以及全台 22 縣市的地方法規系統'));
+      wb.appendChild(wm);
+      warn.appendChild(wb);
+      document.body.appendChild(warn);
+      var w0 = warn;
+      setTimeout(function () { if (w0.parentNode) w0.remove(); }, 4200);
+    };
+    unsupported();
+    window.__lawhover__ = { toggle: unsupported, count: function () { return 0; } };
+    return;
+  }
+
   /* ---------- 面板 ---------- */
   var panel = sty(document.createElement('div'), CLS.panel, CLS.hide);
   document.body.appendChild(panel);
@@ -1251,7 +1284,11 @@
   var hideTimer = null;
   panel.addEventListener('mouseenter', function () { clearTimeout(hideTimer); });
   panel.addEventListener('mouseleave', scheduleHide);
-  function scheduleHide() { hideTimer = setTimeout(function () { hide(panel); }, 250); }
+  function scheduleHide() { hideTimer = setTimeout(closePanel, 250); }
+  /* 關閉面板也要作廢還在路上的查詢（見 dispatch 的 hoverSeq）：
+   * 否則慢回來的條文或 404 會把已關的面板重新打開，且不會再自動關閉（review 實測）。 */
+  var hoverSeq = 0;
+  function closePanel() { hoverSeq++; clearTimeout(hideTimer); hide(panel); }
 
   /* 面板定位。
    * 優先顯示在標記下方；下方放不下且上方空間足夠時才往上翻。
@@ -1672,7 +1709,7 @@
       kind = k;
       optA.setAttribute('data-on', k === 'missing' ? '1' : '0');
       optB.setAttribute('data-on', k === 'wrong' ? '1' : '0');
-      diag.value = pageDiag(ctx);
+      // 診斷資訊只在開啟時帶入一次；換類型時重產會把使用者刪掉的網址等資訊加回去
       send.disabled = false;
     }
     optA.addEventListener('click', function () { pick('missing'); });
@@ -1708,6 +1745,18 @@
     var send = el('button', CLS.btn, '用 Email 回報');
     sty(send, CLS.btnP);
     send.disabled = !kind;
+    /* 複製失敗時把整份內容放進另一個唯讀框讓使用者手動選取。不可借用診斷框：
+     * 那樣使用者之後的刪改會被蓋掉，或再按一次時整份內容被包進去一層。 */
+    var manual = null;
+    function selectAll(full) {
+      if (!manual) {
+        manual = document.createElement('textarea');
+        sty(manual, CLS.diag);
+        manual.readOnly = true;
+        inner.insertBefore(manual, f);
+      }
+      manual.value = full; manual.select();
+    }
     function body() {
       return [
         '問題類型：' + (kind === 'wrong' ? '資料顯示錯誤' : kind === 'missing' ? '沒有顯示資料' : '(未選)'),
@@ -1726,7 +1775,7 @@
       copyText(body()).then(function () {
         copy.textContent = '已複製 \u2713';
       }, function () {
-        diag.value = body(); diag.select(); copy.textContent = '已選取，請手動複製';
+        selectAll(body()); copy.textContent = '已選取，請手動複製';
       });
       setTimeout(function () { copy.textContent = '複製內容'; }, 2200);
     });
@@ -1745,7 +1794,7 @@
         send.textContent = '已開啟郵件';
       }, function () {
         // 複製不成就不要宣稱已複製，改為讓使用者自行選取
-        diag.value = full; diag.select();
+        selectAll(full);
         send.textContent = '請手動複製上方內容後寄出';
       });
     });
@@ -1784,7 +1833,6 @@
 
   // 當前頁面的法規（供裸條號使用）
   function selfLaw() {
-    if (!SITE) return null;
     var r = SITE.selfLaw();
     if (!r) return null;
     // 沿用既有欄位名，避免全檔改寫
@@ -1821,7 +1869,9 @@
        * 還會拿泛稱去搜尋別部法規（fable review 實測）。 */
       /* 「原住民族基本法」「教育基本法」結尾含「本法」，但它是完整的法規名，不是自指詞：
        * 字典最長匹配的法規名比該詞長時，不做後綴比對（法規全文語料實測）。 */
-      var knownLen = matchKnown(base).length;
+      /* 用不擋國名的最長匹配：「日本教育基本法」被 matchKnown 擋下後若長度變 0，
+       * 結尾的「本法」會被當成自指詞而綁本頁。 */
+      var knownLen = longestKnown(base).length;
       var pickWord = function (list) {
         for (var i3 = 0; i3 < list.length; i3++) {
           if (knownLen > list[i3].length) continue;
@@ -1858,7 +1908,13 @@
        * 但「憲法」既是字尾也是真實法規名，此時應標記為該法規而非放棄，
        * 更不可讓裸條號規則接手綁成本頁法規（會顯示不相干的條文）。 */
       if (!isSelf && !isAna && SUFFIX_ONLY.test(name)) {
-        if (REAL_LAW_NAMES.indexOf(name) < 0) { skipRanges.push([m.index, m.index + m[0].length]); continue; }
+        /* 只放棄泛稱本身到條號尾，不含它前面被比對吃進來的文字：
+         * 「違反第五條或依第六條所定辦法第三條」整段都在比對內，前面的裸條號仍要標記。
+         * 被吃進來的條號必是裸條號：前面若有法規名字尾，非貪婪比對會先在那裡停下。 */
+        if (REAL_LAW_NAMES.indexOf(name) < 0) {
+          skipRanges.push([m.index + rawName.length - name.length, m.index + m[0].length]);
+          continue;
+        }
       }
       /* 標記範圍：
        *   引號法規名、別名接字尾 → 完整保留
@@ -2051,7 +2107,7 @@
       if (!flno) continue;
       el0.dataset.lhHead = flno;
       sty(el0, CLS.headMark);
-      el0.setAttribute('title', TOUCH ? '點一下查看修正沿革' : '滑鼠移入查看本條的修正沿革');
+      el0.setAttribute('title', NO_HOVER ? '點一下查看修正沿革' : '滑鼠移入查看本條的修正沿革');
       n++;
     }
     if (n) paintHeads();
@@ -2116,7 +2172,6 @@
    * 覆蓋掉使用者當前指向的內容，導致在 A 條旁看到 B 條的內文
    * （codex review 實測：先顯示第 2 條，180ms 後被第 1 條覆蓋）。
    * 以遞增序號把關，只有最新一次懸停的結果能更新面板。 */
-  var hoverSeq = 0;
   function dispatch(anchor, label, fetcher, render, report) {
     var seq = ++hoverSeq;
     showPanel(anchor, function (box) { renderMsg(box, '查詢中…', label); });
@@ -2144,10 +2199,16 @@
     return null;
   }
 
-  /* 觸控裝置沒有 hover，改以點擊觸發。
+  /* 觸控沒有 hover，改以點擊觸發。
    * 手機瀏覽器會把 tap 合成 mouseover + click，若不攔截 click，
-   * 原站的條號連結會直接跳頁，面板還沒看到就消失了。 */
-  var TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+   * 原站的條號連結會直接跳頁，面板還沒看到就消失了。
+   * 觸控或滑鼠要逐次判斷，不可整頁定案：觸控螢幕筆電用滑鼠操作時 'ontouchstart' in window 也為真，
+   * 整頁當成觸控會讓滑鼠移開不關面板、點條號連結被攔下（review 實測）。
+   * 以最近一次 pointer 事件的 pointerType 為準；還沒有 pointer 事件時看主要輸入能否懸停。 */
+  var NO_HOVER = !!(window.matchMedia && window.matchMedia('(hover: none)').matches);
+  var lastPointer = '';
+  function touchy() { return lastPointer ? lastPointer !== 'mouse' : NO_HOVER; }
+  function onMark(t) { return closestData(t, 'lhHead') || (t.dataset && (t.dataset.flno || t.dataset.ex)); }
 
   function handleHover(t) {
 
@@ -2193,51 +2254,29 @@
 
   document.addEventListener('mouseover', function (e) { handleHover(e.target); }, true);
 
-  if (TOUCH) {
-    document.addEventListener('click', function (e) {
-      var t = e.target;
-      // 條號標題本身是連結，點了會跳頁；先攔下來顯示面板
-      if (closestData(t, 'lhHead') || (t.dataset && (t.dataset.flno || t.dataset.ex))) {
-        e.preventDefault();
-        e.stopPropagation();
-        clearTimeout(hideTimer);
-        handleHover(t);
-      }
-    }, true);
-    // 點面板以外的地方關閉，符合手機操作習慣
-    document.addEventListener('touchstart', function (e) {
-      if (panel.contains(e.target)) return;
-      if (closestData(e.target, 'lhHead')) return;
-      if (e.target.dataset && (e.target.dataset.flno || e.target.dataset.ex)) return;
-      hide(panel);
-    }, true);
-  }
+  function setPointer(e) { if (e.pointerType) lastPointer = e.pointerType; }
+  document.addEventListener('pointerover', setPointer, true);
+  document.addEventListener('click', function (e) {
+    var t = e.target;
+    // 條號標題本身是連結，觸控點了會跳頁；先攔下來顯示面板。滑鼠點擊照常跳頁
+    if (!touchy() || !onMark(t)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    clearTimeout(hideTimer);
+    handleHover(t);
+  }, true);
+  // 點面板以外的地方關閉：觸控沒有移出事件；滑鼠點外部也立即關閉
+  document.addEventListener(window.PointerEvent ? 'pointerdown' : 'touchstart', function (e) {
+    setPointer(e);
+    if (!panel.contains(e.target) && !onMark(e.target)) closePanel();
+  }, true);
 
   document.addEventListener('mouseout', function (e) {
-    if (TOUCH) return;   // 觸控裝置改由點擊外部關閉，移出即關會來不及看
-    var t = e.target;
-    if ((t.dataset && (t.dataset.flno || t.dataset.ex)) || closestData(t, 'lhHead')) scheduleHide();
+    if (touchy()) return;   // 觸控改由點擊外部關閉；合成的 mouseout 即關會來不及看
+    if (onMark(e.target)) scheduleHide();
   }, true);
 
   /* ---------- 啟動提示 ---------- */
-  if (!SITE) {
-    // 在不支援的網站上點書籤，必須講清楚而不是靜默無反應
-    var warn = el('div', CLS.toast);
-    var wb = el('div', CLS.toastIn);
-    wb.appendChild(el('span', CLS.toastDot, '!'));
-    var wm = el('span');
-    wm.appendChild(el('span', null, '本工具僅在法規網站上運作'));
-    /* 支援範圍要如實列出。原本只寫「全國法規資料庫、臺北市」，
-     * 會讓其他 21 縣市的使用者誤以為自己的縣市不支援。 */
-    wm.appendChild(el('span', CLS.toastSub,
-      '\u00a0\u00b7\u00a0目前支援：全國法規資料庫，以及全台 22 縣市的地方法規系統'));
-    wb.appendChild(wm);
-    warn.appendChild(wb);
-    document.body.appendChild(warn);
-    setTimeout(function () { if (warn.parentNode) warn.remove(); }, 4200);
-    return;
-  }
-
   // 先標條號標題，掃描時才能正確排除，避免標題被當成引用
   var headCount = markArticleHeads();
   scan(document.body);
@@ -2253,7 +2292,7 @@
     msg.appendChild(el('span', CLS.toastNum, String(count)));
     msg.appendChild(el('span', null, ' 處法條引用'));
     msg.appendChild(el('span', CLS.toastSub, '\u00a0\u00b7\u00a0' +
-      (TOUCH ? '點紅色虛線看條文' : '滑過紅色虛線看條文') +
+      (NO_HOVER ? '點紅色虛線看條文' : '滑過紅色虛線看條文') +
       (headCount ? '，黃底條號代表修正過' : '')));
   } else if (headCount) {
     msg.appendChild(el('span', null, '已啟用，標記 '));
